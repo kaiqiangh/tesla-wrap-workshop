@@ -640,6 +640,36 @@ export type Database = {
         Args: { p_code: string; p_detail: Json; p_id: string };
         Returns: undefined;
       };
+      get_discovery_wraps: {
+        Args: { p_kind: string; p_limit?: number; p_model_slug?: string };
+        Returns: {
+          availability_caveat: string;
+          comment_count: number;
+          creator_display_name: string;
+          creator_username: string;
+          description: string;
+          download_count: number;
+          favorite_count: number;
+          first_published_at: string;
+          height_px: number;
+          id: string;
+          legacy: boolean;
+          license_type: string;
+          like_count: number;
+          preview_available: boolean;
+          preview_height_px: number;
+          preview_width_px: number;
+          slug: string;
+          tags: string[];
+          template_variant_key: string;
+          template_variant_name: string;
+          title: string;
+          vehicle_model_name: string;
+          vehicle_model_slug: string;
+          verified_at: string;
+          width_px: number;
+        }[];
+      };
       get_owner_wrap: {
         Args: { p_creator_id: string; p_slug: string };
         Returns: {
@@ -718,6 +748,14 @@ export type Database = {
           bio: string;
           display_name: string;
           username: string;
+        }[];
+      };
+      get_public_vehicle_model: {
+        Args: { p_slug: string };
+        Returns: {
+          display_name: string;
+          slug: string;
+          sort_order: number;
         }[];
       };
       get_public_wrap: {

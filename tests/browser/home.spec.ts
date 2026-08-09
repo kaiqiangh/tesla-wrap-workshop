@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-test("guest sees the official catalog and honest empty gallery", async ({
+test("guest sees the official catalog and honest discovery sections", async ({
   page,
 }, testInfo) => {
   await page.goto("/");
@@ -13,8 +13,16 @@ test("guest sees the official catalog and honest empty gallery", async ({
     page.getByText("5 vehicle models · 12 exact template variants available"),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "The first gallery is waiting." }),
+    page.getByRole("heading", { name: "Browse the work." }),
   ).toBeVisible();
+  for (const title of ["Trending", "Latest"]) {
+    const section = page
+      .locator(".home-discovery-block")
+      .filter({ has: page.getByRole("heading", { name: title, exact: true }) });
+    await expect(
+      section.locator(".discovery-grid, .discovery-state"),
+    ).toHaveCount(1);
+  }
 
   for (const model of [
     "Model 3",
@@ -27,6 +35,13 @@ test("guest sees the official catalog and honest empty gallery", async ({
       page.getByRole("heading", { name: model, exact: true }),
     ).toBeVisible();
   }
+  await expect(
+    page.getByRole("link", { name: "Model 3 Wraps" }),
+  ).toHaveAttribute("href", "/models/model-3");
+  await expect(page.getByRole("link", { name: "View all" })).toHaveCount(2);
+  await expect(
+    page.getByRole("link", { name: /Explore the Gallery/ }),
+  ).toHaveAttribute("href", "/explore");
 
   const variantList = page.locator(".model-card li");
   for (const variant of [
@@ -53,8 +68,6 @@ test("guest sees the official catalog and honest empty gallery", async ({
     "href",
     "https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/cybertruck",
   );
-  await expect(page.getByText("No published wraps yet.")).toBeVisible();
-
   expect(
     await page.evaluate(
       () =>
@@ -71,11 +84,14 @@ test("guest sees the official catalog and honest empty gallery", async ({
     await expect(page.locator(":focus")).toBeVisible();
   }
 
-  if ((page.viewportSize()?.width ?? 1000) <= 760) {
+  if ((page.viewportSize()?.width ?? 1000) <= 1000) {
     await page.getByText("Menu", { exact: true }).click();
     await expect(
       page.getByRole("link", { name: "Models", exact: true }),
     ).toBeVisible();
+    await page.getByRole("link", { name: "Model 3 Wraps" }).click();
+    await expect(page).toHaveURL(/\/models\/model-3$/);
+    await page.goBack();
   }
 
   const accessibility = await new AxeBuilder({ page })

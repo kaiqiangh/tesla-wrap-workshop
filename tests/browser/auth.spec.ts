@@ -263,14 +263,51 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     .getAttribute("href");
   expect(publishedHref).toMatch(/^\/wrap\/[a-z0-9-]+$/);
   const publishedSlug = publishedHref!.split("/").at(-1)!;
+  const browseOriginalRequests: string[] = [];
+  const browseRequestListener = (request: { url: () => string }) => {
+    if (request.url().includes("/wrap-originals")) {
+      browseOriginalRequests.push(request.url());
+    }
+  };
+  page.on("request", browseRequestListener);
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Browse the work." }),
+  ).toBeVisible();
+  await expect(
+    page.locator(`a[href="/wrap/${publishedSlug}"]`).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Cybertruck Wraps" }),
+  ).toHaveAttribute("href", "/models/cybertruck");
+  await page.goto("/explore");
+  await expect(
+    page.getByRole("heading", { name: "Explore the gallery." }),
+  ).toBeVisible();
+  await expect(
+    page.locator(`a[href="/wrap/${publishedSlug}"]`).first(),
+  ).toBeVisible();
+  await page.goto("/trending");
+  await expect(
+    page.getByRole("heading", { name: "What the community is seeing." }),
+  ).toBeVisible();
+  await expect(
+    page.locator(`a[href="/wrap/${publishedSlug}"]`).first(),
+  ).toBeVisible();
+  await page.goto("/models/cybertruck");
+  await expect(
+    page.getByRole("heading", { name: "Cybertruck Wraps" }),
+  ).toBeVisible();
+  await expect(
+    page.locator(`a[href="/wrap/${publishedSlug}"]`).first(),
+  ).toBeVisible();
+  page.off("request", browseRequestListener);
+  expect(browseOriginalRequests).toEqual([]);
   await expectRouteBodyContains(
     () => page.request.get(`/u/${username}`),
     "Cybertruck Night Drive",
   );
-  await Promise.all([
-    page.waitForURL(`/wrap/${publishedSlug}`, { timeout: 15000 }),
-    page.getByRole("link", { name: "View Wrap detail" }).click(),
-  ]);
+  await page.goto(`/wrap/${publishedSlug}`);
   await expect(
     page.getByRole("heading", { name: "Cybertruck Night Drive" }),
   ).toBeVisible();

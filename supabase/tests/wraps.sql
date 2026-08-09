@@ -247,6 +247,127 @@ update storage.objects
 set name = left(name, length(name) - length('-missing'))
 where bucket_id = 'wrap-derived' and name like '%-missing';
 
+select has_function(
+  'public', 'get_discovery_wraps', array['text', 'text', 'integer'],
+  'the database-owned Discovery Set RPC is migrated'
+);
+set local role anon;
+select is(
+  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  12::bigint,
+  'the Discovery Set returns every eligible official-variant Wrap'
+);
+select is(
+  (select vehicle_model_slug from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
+  'cybertruck',
+  'Vehicle Model discovery is scoped by the database model slug'
+);
+select is_empty(
+  $$ select * from public.get_discovery_wraps('MODEL', 'not-a-model', 24) $$,
+  'an unknown Vehicle Model has no Discovery Set rows'
+);
+select is_empty(
+  $$ select * from public.get_public_vehicle_model('not-a-model') $$,
+  'an unknown Vehicle Model is distinguishable from an empty active model'
+);
+select isnt_empty(
+  $$ select * from public.get_public_vehicle_model('cybertruck') $$,
+  'active Vehicle Model metadata is public through an allowlisted RPC'
+);
+reset role;
+
+update public.template_variants
+set active = false
+where catalog_key = 'cybertruck';
+set local role anon;
+select is(
+  (select legacy from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
+  true,
+  'Legacy Template Variant Wraps remain discoverable with a warning flag'
+);
+reset role;
+
+update storage.objects
+set name = name || '-discovery-missing'
+where bucket_id = 'wrap-derived'
+  and name = (
+    select wa.object_key
+    from public.wrap_assets wa
+    join public.wraps w on w.asset_revision_id = wa.asset_revision_id
+    where w.title = 'Cybertruck Wrap' and wa.kind = 'PREVIEW'
+  );
+set local role anon;
+select is_empty(
+  $$ select * from public.get_discovery_wraps('MODEL', 'cybertruck', 24) $$,
+  'a missing Derived PREVIEW object removes the Wrap from discovery'
+);
+reset role;
+update storage.objects
+set name = left(name, length(name) - length('-discovery-missing'))
+where bucket_id = 'wrap-derived' and name like '%-discovery-missing';
+
+update storage.objects
+set name = name || '-original-missing'
+where bucket_id = 'wrap-originals'
+  and name = (
+    select wa.object_key
+    from public.wrap_assets wa
+    join public.wraps w on w.asset_revision_id = wa.asset_revision_id
+    where w.title = 'Cybertruck Wrap' and wa.kind = 'ORIGINAL'
+  );
+set local role anon;
+select is(
+  (select count(*) from public.get_discovery_wraps('MODEL', 'cybertruck', 24)),
+  1::bigint,
+  'a missing private Original does not hide an otherwise eligible browse card'
+);
+reset role;
+update storage.objects
+set name = left(name, length(name) - length('-original-missing'))
+where bucket_id = 'wrap-originals' and name like '%-original-missing';
+
+update public.profiles
+set participation_state = 'SUSPENDED'
+where username = 'wrap-one';
+set local role anon;
+select is(
+  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  0::bigint,
+  'a suspended Creator is removed from every Discovery Set surface'
+);
+reset role;
+update public.profiles
+set participation_state = 'ACTIVE'
+where username = 'wrap-one';
+
+update public.wraps
+set status = 'UNPUBLISHED'
+where title = 'Cybertruck Wrap';
+set local role anon;
+select is(
+  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  11::bigint,
+  'an unpublished Wrap is removed from the Discovery Set'
+);
+reset role;
+update public.wraps
+set status = 'PUBLISHED'
+where title = 'Cybertruck Wrap';
+
+update public.wraps
+set download_count = 100, like_count = 0, favorite_count = 0, comment_count = 0
+where title = 'Cybertruck Wrap';
+set local role anon;
+select is(
+  (select title from public.get_discovery_wraps('TRENDING', null, 1)),
+  'Cybertruck Wrap',
+  'Trending applies the resolved score before deterministic tie breakers'
+);
+reset role;
+update public.wraps
+set download_count = 0
+where title = 'Cybertruck Wrap';
+
 select throws_ok(
   $$ update public.wraps set slug = 'changed-slug' $$,
   'P0001', 'Wrap identity is immutable',

@@ -1,13 +1,29 @@
 import Image from "next/image";
+import Link from "next/link";
 
-import { getCatalog } from "@/lib/catalog";
+import { getCatalog, type CatalogModel } from "@/lib/catalog";
+import { getDiscoveryWraps, type DiscoveryResult } from "@/lib/discovery";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "./brand";
+import { DiscoveryGrid, DiscoveryState } from "./discovery-card";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const models = await getCatalog();
+  let models: CatalogModel[] = [];
+  let catalogError = false;
+  try {
+    models = await getCatalog();
+  } catch {
+    catalogError = true;
+    models = [];
+  }
+  const client = await createServerSupabaseClient();
+  const [trending, newest] = await Promise.all([
+    getDiscoveryWraps(client, "TRENDING", { limit: 8 }),
+    getDiscoveryWraps(client, "NEWEST", { limit: 8 }),
+  ]);
   const variantCount = models.reduce(
     (total, model) => total + model.variants.length,
     0,
@@ -19,7 +35,7 @@ export default async function Home() {
         <Brand href="#top" />
         <nav className="desktop-nav" aria-label="Primary navigation">
           <a href="#catalog">Models</a>
-          <a href="#empty-gallery">Explore</a>
+          <a href="/explore">Explore</a>
           <a href="/sign-in">Sign in</a>
           <a className="button button-small" href="/upload">
             Upload a Wrap
@@ -29,7 +45,7 @@ export default async function Home() {
           <summary aria-label="Open navigation">Menu</summary>
           <div>
             <a href="#catalog">Models</a>
-            <a href="#empty-gallery">Explore</a>
+            <a href="/explore">Explore</a>
             <a href="/sign-in">Sign in</a>
             <a href="/upload">Upload a Wrap</a>
           </div>
@@ -52,13 +68,15 @@ export default async function Home() {
             <a className="button" href="#catalog">
               Choose a Template
             </a>
-            <a className="text-link" href="#empty-gallery">
+            <a className="text-link" href="/explore">
               Explore the Gallery <span aria-hidden="true">→</span>
             </a>
           </div>
           <p className="availability">
-            <span aria-hidden="true">●</span> {models.length} vehicle models ·{" "}
-            {variantCount} exact template variants available
+            <span aria-hidden="true">●</span>{" "}
+            {catalogError
+              ? "Official catalog temporarily unavailable"
+              : `${models.length} vehicle models · ${variantCount} exact template variants available`}
           </p>
         </div>
         <div className="hero-art" aria-hidden="true">
@@ -89,7 +107,11 @@ export default async function Home() {
           {models.map((model) => (
             <article className="model-card" key={model.id}>
               <div className="model-card-heading">
-                <h3>{model.displayName}</h3>
+                <h3>
+                  <Link href={`/models/${model.slug}`}>
+                    {model.displayName}
+                  </Link>
+                </h3>
                 <span>{model.variants.length}</span>
               </div>
               <ul>
@@ -112,20 +134,62 @@ export default async function Home() {
       </section>
 
       <section
-        className="empty-gallery"
-        id="empty-gallery"
-        aria-labelledby="gallery-title"
+        className="home-discovery"
+        id="discovery"
+        aria-labelledby="discovery-title"
       >
-        <p className="eyebrow">COMMUNITY GALLERY</p>
-        <h2 id="gallery-title">The first gallery is waiting.</h2>
-        <p>
-          No published wraps yet. Start with the official catalog above; creator
-          uploads arrive in the next workshop stage.
-        </p>
-        <a className="text-link" href="#catalog">
-          Browse templates <span aria-hidden="true">↑</span>
-        </a>
+        <div className="section-heading">
+          <p className="eyebrow">COMMUNITY DISCOVERY SET</p>
+          <h2 id="discovery-title">Browse the work.</h2>
+          <p>
+            Only eligible Published Wraps with complete Derived Wrap Assets
+            appear here. Browse by model without inferring a VIN, year, or trim
+            fit.
+          </p>
+        </div>
+        <HomeDiscoverySection
+          title="Trending"
+          href="/trending"
+          result={trending}
+        />
+        <div className="home-model-links" aria-label="Vehicle Model pages">
+          {models.map((model) => (
+            <Link key={model.id} href={`/models/${model.slug}`}>
+              {model.displayName} Wraps <span aria-hidden="true">→</span>
+            </Link>
+          ))}
+        </div>
+        <HomeDiscoverySection title="Latest" href="/explore" result={newest} />
       </section>
     </main>
+  );
+}
+
+function HomeDiscoverySection({
+  title,
+  href,
+  result,
+}: {
+  title: string;
+  href: string;
+  result: DiscoveryResult;
+}) {
+  return (
+    <section
+      className="home-discovery-block"
+      aria-labelledby={`${title.toLowerCase()}-title`}
+    >
+      <div className="home-discovery-heading">
+        <h3 id={`${title.toLowerCase()}-title`}>{title}</h3>
+        <Link className="text-link" href={href}>
+          View all <span aria-hidden="true">→</span>
+        </Link>
+      </div>
+      {result.status === "ok" ? (
+        <DiscoveryGrid wraps={result.wraps} />
+      ) : (
+        <DiscoveryState state={result.status} label={`${title} Discovery`} />
+      )}
+    </section>
   );
 }
