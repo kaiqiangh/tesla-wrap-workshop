@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { readPublicEnvironment } from "./env";
+import { readPublicEnvironment, readServerEnvironment } from "./env";
 
 const valid = {
   NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
@@ -42,5 +42,14 @@ describe("readPublicEnvironment", () => {
         NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT: "production",
       }),
     ).toThrow("environment identities must match");
+  });
+});
+
+describe("readServerEnvironment", () => {
+  it("keeps the service credential in the server-only contract", () => {
+    expect(
+      readServerEnvironment({ ...valid, SUPABASE_SECRET_KEY: "local-secret" }),
+    ).toMatchObject({ SUPABASE_SECRET_KEY: "local-secret" });
+    expect(() => readServerEnvironment(valid)).toThrow("SUPABASE_SECRET_KEY");
   });
 });

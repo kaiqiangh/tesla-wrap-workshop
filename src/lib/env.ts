@@ -5,6 +5,10 @@ type PublicEnvironment = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: string;
 };
 
+export type ServerEnvironment = PublicEnvironment & {
+  SUPABASE_SECRET_KEY: string;
+};
+
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
 
 export function readPublicEnvironment(
@@ -60,5 +64,20 @@ export function readPublicEnvironment(
     NEXT_PUBLIC_SUPABASE_URL: supabaseUrl.origin,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
       source.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+  };
+}
+
+export function readServerEnvironment(
+  source: Record<string, string | undefined>,
+): ServerEnvironment {
+  const publicEnvironment = readPublicEnvironment(source);
+  if (!source.SUPABASE_SECRET_KEY?.trim()) {
+    throw new Error(
+      "Missing required environment variable: SUPABASE_SECRET_KEY",
+    );
+  }
+  return {
+    ...publicEnvironment,
+    SUPABASE_SECRET_KEY: source.SUPABASE_SECRET_KEY,
   };
 }

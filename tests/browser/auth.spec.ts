@@ -3,6 +3,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
+import sharp from "sharp";
 
 import type { Database } from "../../src/lib/database.types";
 
@@ -13,6 +14,20 @@ const criticalProjects = new Set([
   "mobile-chrome",
   "mobile-safari",
 ]);
+const browserVariants = [
+  ["Model 3", "1024×1024"],
+  ["Model 3 (2024+) Standard & Premium", "1024×1024"],
+  ["Model 3 (2024+) Performance", "1024×1024"],
+  ["Model Y", "1024×1024"],
+  ["Model Y (2025+) Standard", "1024×1024"],
+  ["Model Y (2025+) Premium", "1024×1024"],
+  ["Model Y (2025+) Performance", "1024×1024"],
+  ["Model Y L", "1024×1024"],
+  ["Model S (2021+)", "1024×1024"],
+  ["Model S (2025+) Plaid", "1024×1024"],
+  ["Model X (2021+)", "1024×1024"],
+  ["Cybertruck", "1024×768"],
+] as const;
 
 test("Guest can begin email OTP or Google sign-in", async ({ page }) => {
   await page.goto("/sign-in?next=/upload");
@@ -69,6 +84,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   context,
 }, testInfo) => {
   test.skip(!criticalProjects.has(testInfo.project.name));
+  test.setTimeout(180_000);
   const suffix = `${testInfo.project.name}-${randomUUID()}`;
   const email = `browser-${suffix}@example.test`;
   const username = `road${randomUUID().replaceAll("-", "").slice(0, 12)}`;
@@ -111,11 +127,29 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await page.getByRole("button", { name: "Complete Profile" }).click();
   await expect(page).toHaveURL(/\/upload$/);
   await expect(
-    page.getByRole("heading", { name: "Your upload workshop is ready." }),
+    page.getByRole("heading", {
+      name: "Build a Template-verified Wrap Asset.",
+    }),
   ).toBeVisible();
+  for (const [name, dimensions] of browserVariants) {
+    const card = page
+      .locator(".variant-card")
+      .filter({ hasText: name })
+      .filter({ hasText: `${dimensions} · Active` })
+      .first();
+    await expect(card).toBeVisible();
+    await expect(
+      card.getByRole("link", { name: "Official Tesla template source" }),
+    ).toHaveAttribute("href", /github\.com\/teslamotors\/custom-wraps/);
+  }
 
   const session = await readSessionCookie(context);
   const userId = decodeJwt(session.access_token).sub as string;
+  const admin = createClient<Database>(
+    requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
+    requiredEnvironment("SUPABASE_SECRET_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
   const expiredToken = expireJwt(
     session.access_token,
     requiredEnvironment("SUPABASE_JWT_SECRET"),
@@ -127,11 +161,349 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   });
   await page.goto("/upload");
   await expect(
-    page.getByRole("heading", { name: "Your upload workshop is ready." }),
+    page.getByRole("heading", {
+      name: "Build a Template-verified Wrap Asset.",
+    }),
   ).toBeVisible();
+
+  await page.getByRole("radio", { name: /^Cybertruck/ }).check();
+  await expect(page.getByText("1024×768 · Active")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Official Tesla template source" }).last(),
+  ).toHaveAttribute("href", /github\.com\/teslamotors\/custom-wraps/);
+  await page
+    .getByLabel("I used the selected matching official Tesla template.")
+    .check();
+  const fileInput = page.getByLabel(/^Choose PNG/);
+  await fileInput.setInputFiles({
+    name: "wrong-square.png",
+    mimeType: "image/png",
+    buffer: await pngFixture(1024, 1024),
+  });
+  await expect(page.getByText("WF-UPLOAD-DIMENSIONS")).toBeVisible();
+  await expect(page.getByText("1024×1024", { exact: true })).toBeVisible();
+
+  const startedPromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/uploads") &&
+      response.request().method() === "POST",
+  );
+  const finalizedPromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/uploads/") &&
+      response.url().endsWith("/finalize"),
+  );
+  let forcedUnknown = false;
+  await page.route("**/api/uploads/*/finalize", async (route) => {
+    if (!forcedUnknown) {
+      forcedUnknown = true;
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: {
+            code: "WF-UPLOAD-DATABASE-UNKNOWN",
+            problem: "The final database outcome could not be confirmed.",
+            rule: "Asset objects remain private until READY or FAILED is read back durably.",
+            nextAction:
+              "Retry this same finalization request after the service recovers.",
+          },
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
+  await fileInput.setInputFiles({
+    name: "cybertruck.png",
+    mimeType: "image/png",
+    buffer: await pngFixture(1024, 768),
+  });
+  const startResponse = await startedPromise;
+  const startBody = (await startResponse.json()) as {
+    id: string;
+    staging_key: string;
+  };
+  const firstFinalResponse = await finalizedPromise;
+  expect(firstFinalResponse.status()).toBe(503);
+  expect((await firstFinalResponse.json()).error.code).toBe(
+    "WF-UPLOAD-DATABASE-UNKNOWN",
+  );
+  await expect(
+    page.getByRole("button", { name: "Retry this finalization" }),
+  ).toBeVisible();
+  const retryFinalizedPromise = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/uploads/${startBody.id}/finalize`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Retry this finalization" }).click();
+  const finalResponse = await retryFinalizedPromise;
+  const finalBody = (await finalResponse.json()) as {
+    assetRevisionId: string;
+  };
+  expect(finalResponse.status()).toBe(200);
+  await page.unroute("**/api/uploads/*/finalize");
+  await expect(
+    page.getByText("READY ASSET REVISION", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("1024×768 normalized PNG")).toBeVisible();
+
+  const storageHeaders = {
+    apikey: requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+    authorization: `Bearer ${(await readSessionCookie(context)).access_token}`,
+    "content-type": "image/png",
+    "x-upsert": "false",
+  };
+  for (const [name, dimensions] of browserVariants) {
+    const card = page
+      .locator(".variant-card")
+      .filter({ hasText: name })
+      .first();
+    const variantId = await card
+      .locator('input[name="template-variant"]')
+      .inputValue();
+    const [width, height] = dimensions.split("×").map(Number);
+    const validStart = await page.request.post("/api/uploads", {
+      data: {
+        templateVariantId: variantId,
+        filename: `${name.replaceAll(/[^a-z0-9]+/gi, "-").toLowerCase()}-valid.png`,
+        mimeType: "image/png",
+        templateAsserted: true,
+      },
+    });
+    expect(validStart.status()).toBe(201);
+    const validBody = (await validStart.json()) as {
+      id: string;
+      staging_key: string;
+    };
+    const validTransfer = await page.request.post(
+      `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${validBody.staging_key}`,
+      { headers: storageHeaders, data: await pngFixture(width, height) },
+    );
+    expect(validTransfer.status()).toBe(200);
+    const validFinal = await page.request.post(
+      `/api/uploads/${validBody.id}/finalize`,
+    );
+    expect(validFinal.status()).toBe(200);
+    expect(await validFinal.json()).toMatchObject({
+      state: "READY",
+      width,
+      height,
+    });
+    const wrongWidth = 1024;
+    const wrongHeight = height === 768 ? 1024 : 768;
+    const invalidStart = await page.request.post("/api/uploads", {
+      data: {
+        templateVariantId: variantId,
+        filename: `${name.replaceAll(/[^a-z0-9]+/gi, "-").toLowerCase()}-invalid.png`,
+        mimeType: "image/png",
+        templateAsserted: true,
+      },
+    });
+    expect(invalidStart.status()).toBe(201);
+    const invalidBody = (await invalidStart.json()) as {
+      id: string;
+      staging_key: string;
+    };
+    const invalidTransfer = await page.request.post(
+      `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${invalidBody.staging_key}`,
+      {
+        headers: storageHeaders,
+        data: await pngFixture(wrongWidth, wrongHeight),
+      },
+    );
+    expect(invalidTransfer.status()).toBe(200);
+    const invalidFinal = await page.request.post(
+      `/api/uploads/${invalidBody.id}/finalize`,
+    );
+    expect(invalidFinal.status()).toBe(422);
+    expect(await invalidFinal.json()).toMatchObject({
+      error: { code: "WF-UPLOAD-DIMENSIONS" },
+    });
+    const staleFixtureTime = new Date(
+      Date.now() - 2 * 60 * 60 * 1000,
+    ).toISOString();
+    const resetFixtures = await admin
+      .from("pending_uploads")
+      .update({
+        created_at: staleFixtureTime,
+        finalize_started_at: staleFixtureTime,
+      })
+      .eq("owner_id", userId)
+      .in("id", [validBody.id, invalidBody.id]);
+    expect(resetFixtures.error).toBeNull();
+  }
+  const cybertruckVariantId = await page
+    .getByRole("radio", { name: /^Cybertruck/ })
+    .getAttribute("value");
+  expect(cybertruckVariantId).toBeTruthy();
+  const parallelStart = await page.request.post("/api/uploads", {
+    data: {
+      templateVariantId: cybertruckVariantId,
+      filename: "parallel.png",
+      mimeType: "image/png",
+      templateAsserted: true,
+    },
+  });
+  expect(parallelStart.status()).toBe(201);
+  const parallel = (await parallelStart.json()) as {
+    id: string;
+    staging_key: string;
+  };
+  const parallelTransfer = await page.request.post(
+    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${parallel.staging_key}`,
+    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+  );
+  expect(parallelTransfer.status()).toBe(200);
+  const concurrent = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      page.request.post(`/api/uploads/${parallel.id}/finalize`),
+    ),
+  );
+  expect(concurrent.every((response) => response.status() === 200)).toBe(true);
+  expect(
+    new Set(
+      await Promise.all(
+        concurrent.map(
+          async (response) =>
+            ((await response.json()) as { assetRevisionId: string })
+              .assetRevisionId,
+        ),
+      ),
+    ).size,
+  ).toBe(1);
+  const repeated = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      page.request.post(`/api/uploads/${startBody.id}/finalize`),
+    ),
+  );
+  expect(repeated.every((response) => response.status() === 200)).toBe(true);
+  expect(
+    new Set(
+      await Promise.all(
+        repeated.map(
+          async (response) =>
+            ((await response.json()) as { assetRevisionId: string })
+              .assetRevisionId,
+        ),
+      ),
+    ),
+  ).toEqual(new Set([finalBody.assetRevisionId]));
+
+  const arbitraryKey = await page.request.post(
+    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${userId}/chosen/source.png`,
+    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+  );
+  expect(arbitraryKey.status()).toBe(400);
+  for (const filename of ["transfer-one.png", "transfer-two.png"]) {
+    const started = await page.request.post("/api/uploads", {
+      data: {
+        templateVariantId: cybertruckVariantId,
+        filename,
+        mimeType: "image/png",
+        templateAsserted: true,
+      },
+    });
+    expect(started.status()).toBe(201);
+    const upload = (await started.json()) as { id: string };
+    const abandoned = await page.request.delete(`/api/uploads/${upload.id}`);
+    expect(abandoned.status()).toBe(200);
+  }
+  const freshAfterTransferFailures = await page.request.post("/api/uploads", {
+    data: {
+      templateVariantId: cybertruckVariantId,
+      filename: "transfer-retry.png",
+      mimeType: "image/png",
+      templateAsserted: true,
+    },
+  });
+  expect(freshAfterTransferFailures.status()).toBe(201);
+  const transferRetry = (await freshAfterTransferFailures.json()) as {
+    id: string;
+  };
+  expect(
+    (await page.request.delete(`/api/uploads/${transferRetry.id}`)).status(),
+  ).toBe(200);
+  const corruptStart = await page.request.post("/api/uploads", {
+    data: {
+      templateVariantId: cybertruckVariantId,
+      filename: "corrupt.png",
+      mimeType: "image/png",
+      templateAsserted: true,
+    },
+  });
+  expect(corruptStart.status()).toBe(201);
+  const corrupt = (await corruptStart.json()) as {
+    id: string;
+    staging_key: string;
+  };
+  const corruptTransfer = await page.request.post(
+    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${corrupt.staging_key}`,
+    {
+      headers: storageHeaders,
+      data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+    },
+  );
+  expect(corruptTransfer.status()).toBe(200);
+  const overwrite = await page.request.post(
+    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${corrupt.staging_key}`,
+    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+  );
+  expect(overwrite.status()).toBe(400);
+  const corruptFinal = await page.request.post(
+    `/api/uploads/${corrupt.id}/finalize`,
+  );
+  expect(corruptFinal.status()).toBe(422);
+  expect(await corruptFinal.json()).toMatchObject({
+    error: { code: "WF-UPLOAD-DECODE" },
+  });
+  const repeatedFailure = await page.request.post(
+    `/api/uploads/${corrupt.id}/finalize`,
+  );
+  expect(repeatedFailure.status()).toBe(422);
+  expect(await repeatedFailure.json()).toMatchObject({
+    error: { code: "WF-UPLOAD-DECODE" },
+  });
+  const freshRetry = await page.request.post("/api/uploads", {
+    data: {
+      templateVariantId: cybertruckVariantId,
+      filename: "fresh.png",
+      mimeType: "image/png",
+      templateAsserted: true,
+    },
+  });
+  expect(freshRetry.status()).toBe(201);
+  const freshRetryBody = (await freshRetry.json()) as { id: string };
+  expect(freshRetryBody.id).not.toBe(corrupt.id);
+  expect(
+    (await page.request.delete(`/api/uploads/${freshRetryBody.id}`)).status(),
+  ).toBe(200);
   expect((await readSessionCookie(context)).access_token).not.toBe(
     expiredToken,
   );
+
+  await page.goto("/upload");
+  await page.getByRole("radio", { name: /^Cybertruck/ }).check();
+  await page
+    .getByLabel("I used the selected matching official Tesla template.")
+    .check();
+  let abortedTransfer = false;
+  await page.route("**/storage/v1/object/wrap-staging/**", async (route) => {
+    if (!abortedTransfer && route.request().method() === "POST") {
+      abortedTransfer = true;
+      await route.abort();
+      return;
+    }
+    await route.continue();
+  });
+  await page.getByLabel(/^Choose PNG/).setInputFiles({
+    name: "ui-transfer-failure.png",
+    mimeType: "image/png",
+    buffer: await pngFixture(1024, 768),
+  });
+  await expect(page.getByText("WF-UPLOAD-TRANSFER")).toBeVisible();
+  await page.unroute("**/storage/v1/object/wrap-staging/**");
 
   await page.getByRole("link", { name: "View Profile" }).click();
   await expect(page).toHaveURL(`/u/${username}`);
@@ -150,11 +522,6 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     ).violations,
   ).toEqual([]);
 
-  const admin = createClient<Database>(
-    requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
-    requiredEnvironment("SUPABASE_SECRET_KEY"),
-    { auth: { persistSession: false, autoRefreshToken: false } },
-  );
   const suspended = await admin
     .from("profiles")
     .update({ participation_state: "SUSPENDED" })
@@ -259,6 +626,19 @@ function expireJwt(token: string, secret: string): string {
   claims.exp = Math.floor(Date.now() / 1000) - 60;
   const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}`;
   return `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`;
+}
+
+async function pngFixture(width: number, height: number) {
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 38, g: 247, b: 185, alpha: 0.72 },
+    },
+  })
+    .png()
+    .toBuffer();
 }
 
 function decodeJwt(token: string): Record<string, unknown> {

@@ -8,9 +8,15 @@ export type CatalogModel = {
   slug: string;
   displayName: string;
   variants: {
+    id: string;
     key: string;
     displayName: string;
     dimensions: string;
+    width: number;
+    height: number;
+    maxBytes: number;
+    state: "Active";
+    verifiedAt: string;
     sourceUrl: string;
   }[];
 };
@@ -30,7 +36,7 @@ export async function getCatalog(): Promise<CatalogModel[]> {
     supabase
       .from("template_variants")
       .select(
-        "vehicle_model_id, catalog_key, display_name, width_px, height_px, source_url",
+        "id, vehicle_model_id, catalog_key, display_name, width_px, height_px, max_file_bytes, verified_at, source_url",
       )
       .order("display_name"),
   ]);
@@ -51,9 +57,15 @@ export async function getCatalog(): Promise<CatalogModel[]> {
     variants: variantsResult.data
       .filter((variant) => variant.vehicle_model_id === model.id)
       .map((variant) => ({
+        id: variant.id,
         key: variant.catalog_key,
         displayName: variant.display_name,
         dimensions: `${variant.width_px}×${variant.height_px}`,
+        width: variant.width_px,
+        height: variant.height_px,
+        maxBytes: variant.max_file_bytes,
+        state: "Active",
+        verifiedAt: variant.verified_at,
         sourceUrl: variant.source_url,
       })),
   }));

@@ -34,6 +34,190 @@ export type Database = {
   };
   public: {
     Tables: {
+      asset_cleanup_jobs: {
+        Row: {
+          bucket_id: string;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          object_key: string;
+          pending_upload_id: string;
+          reason: string;
+          state: string;
+        };
+        Insert: {
+          bucket_id: string;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          object_key: string;
+          pending_upload_id: string;
+          reason: string;
+          state?: string;
+        };
+        Update: {
+          bucket_id?: string;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          object_key?: string;
+          pending_upload_id?: string;
+          reason?: string;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asset_cleanup_jobs_pending_upload_id_fkey";
+            columns: ["pending_upload_id"];
+            isOneToOne: false;
+            referencedRelation: "pending_uploads";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      asset_revisions: {
+        Row: {
+          byte_size: number;
+          created_at: string;
+          height_px: number;
+          id: string;
+          owner_id: string;
+          ready_at: string;
+          sha256: string;
+          source_pending_upload_id: string;
+          template_variant_id: string;
+          template_verified: boolean;
+          width_px: number;
+        };
+        Insert: {
+          byte_size: number;
+          created_at?: string;
+          height_px: number;
+          id: string;
+          owner_id: string;
+          ready_at?: string;
+          sha256: string;
+          source_pending_upload_id: string;
+          template_variant_id: string;
+          template_verified: boolean;
+          width_px: number;
+        };
+        Update: {
+          byte_size?: number;
+          created_at?: string;
+          height_px?: number;
+          id?: string;
+          owner_id?: string;
+          ready_at?: string;
+          sha256?: string;
+          source_pending_upload_id?: string;
+          template_variant_id?: string;
+          template_verified?: boolean;
+          width_px?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asset_revisions_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "asset_revisions_source_pending_upload_id_fkey";
+            columns: ["source_pending_upload_id"];
+            isOneToOne: true;
+            referencedRelation: "pending_uploads";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "asset_revisions_template_variant_id_fkey";
+            columns: ["template_variant_id"];
+            isOneToOne: false;
+            referencedRelation: "template_variants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      pending_uploads: {
+        Row: {
+          asset_revision_id: string | null;
+          created_at: string;
+          declared_mime_type: string;
+          expires_at: string;
+          failure_code: string | null;
+          failure_detail: Json | null;
+          finalize_started_at: string | null;
+          id: string;
+          idempotency_key: string;
+          original_filename: string;
+          owner_id: string;
+          staging_key: string;
+          state: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          updated_at: string;
+        };
+        Insert: {
+          asset_revision_id?: string | null;
+          created_at?: string;
+          declared_mime_type: string;
+          expires_at?: string;
+          failure_code?: string | null;
+          failure_detail?: Json | null;
+          finalize_started_at?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          original_filename: string;
+          owner_id: string;
+          staging_key: string;
+          state?: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          updated_at?: string;
+        };
+        Update: {
+          asset_revision_id?: string | null;
+          created_at?: string;
+          declared_mime_type?: string;
+          expires_at?: string;
+          failure_code?: string | null;
+          failure_detail?: Json | null;
+          finalize_started_at?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          original_filename?: string;
+          owner_id?: string;
+          staging_key?: string;
+          state?: string;
+          template_asserted?: boolean;
+          template_variant_id?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "pending_upload_asset_revision_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: true;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "pending_uploads_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "pending_uploads_template_variant_id_fkey";
+            columns: ["template_variant_id"];
+            isOneToOne: false;
+            referencedRelation: "template_variants";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           avatar_url: string | null;
@@ -153,11 +337,85 @@ export type Database = {
         };
         Relationships: [];
       };
+      wrap_assets: {
+        Row: {
+          asset_revision_id: string;
+          bucket_id: string;
+          byte_size: number;
+          created_at: string;
+          height_px: number;
+          id: string;
+          kind: string;
+          object_key: string;
+          sha256: string;
+          width_px: number;
+        };
+        Insert: {
+          asset_revision_id: string;
+          bucket_id: string;
+          byte_size: number;
+          created_at?: string;
+          height_px: number;
+          id?: string;
+          kind: string;
+          object_key: string;
+          sha256: string;
+          width_px: number;
+        };
+        Update: {
+          asset_revision_id?: string;
+          bucket_id?: string;
+          byte_size?: number;
+          created_at?: string;
+          height_px?: number;
+          id?: string;
+          kind?: string;
+          object_key?: string;
+          sha256?: string;
+          width_px?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wrap_assets_asset_revision_id_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: false;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
+      claim_pending_upload: {
+        Args: { p_id: string; p_owner: string };
+        Returns: {
+          asset_revision_id: string;
+          claimed: boolean;
+          state: string;
+        }[];
+      };
+      complete_pending_upload: {
+        Args: {
+          p_height: number;
+          p_id: string;
+          p_original_bytes: number;
+          p_original_sha256: string;
+          p_preview_bytes: number;
+          p_preview_height: number;
+          p_preview_sha256: string;
+          p_preview_width: number;
+          p_revision_id: string;
+          p_thumbnail_bytes: number;
+          p_thumbnail_height: number;
+          p_thumbnail_sha256: string;
+          p_thumbnail_width: number;
+          p_width: number;
+        };
+        Returns: string;
+      };
       complete_profile: {
         Args: { p_display_name: string; p_username: string };
         Returns: {
@@ -172,6 +430,30 @@ export type Database = {
           username: string;
         }[];
       };
+      fail_pending_upload: {
+        Args: { p_code: string; p_detail: Json; p_id: string };
+        Returns: undefined;
+      };
+      get_pending_upload: {
+        Args: { p_id: string };
+        Returns: {
+          asset_revision_id: string;
+          declared_mime_type: string;
+          expires_at: string;
+          failure_code: string;
+          failure_detail: Json;
+          height_px: number;
+          id: string;
+          max_file_bytes: number;
+          original_filename: string;
+          owner_id: string;
+          staging_key: string;
+          state: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          width_px: number;
+        }[];
+      };
       get_public_profile: {
         Args: { p_username: string };
         Returns: {
@@ -179,6 +461,20 @@ export type Database = {
           bio: string;
           display_name: string;
           username: string;
+        }[];
+      };
+      start_pending_upload: {
+        Args: {
+          p_declared_mime_type: string;
+          p_original_filename: string;
+          p_template_asserted: boolean;
+          p_template_variant_id: string;
+        };
+        Returns: {
+          expires_at: string;
+          id: string;
+          idempotency_key: string;
+          staging_key: string;
         }[];
       };
     };
