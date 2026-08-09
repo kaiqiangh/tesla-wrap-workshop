@@ -27,6 +27,32 @@ test("guest sees the official catalog and honest empty gallery", async ({
       page.getByRole("heading", { name: model, exact: true }),
     ).toBeVisible();
   }
+
+  const variantList = page.locator(".model-card li");
+  for (const variant of [
+    "Cybertruck",
+    "Model 3",
+    "Model 3 (2024+) Standard & Premium",
+    "Model 3 (2024+) Performance",
+    "Model Y",
+    "Model Y (2025+) Standard",
+    "Model Y (2025+) Premium",
+    "Model Y (2025+) Performance",
+    "Model Y L",
+    "Model S (2021+)",
+    "Model S (2025+) Plaid",
+    "Model X (2021+)",
+  ]) {
+    await expect(variantList.getByText(variant, { exact: true })).toHaveCount(
+      1,
+    );
+  }
+  await expect(
+    page.getByRole("link", { name: "Cybertruck 1024×768 ↗" }),
+  ).toHaveAttribute(
+    "href",
+    "https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/cybertruck",
+  );
   await expect(page.getByText("No published wraps yet.")).toBeVisible();
 
   expect(
