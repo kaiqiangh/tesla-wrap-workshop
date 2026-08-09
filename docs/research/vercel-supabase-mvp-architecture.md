@@ -1,6 +1,6 @@
 # WrapForge MVP: Vercel + Supabase architecture research
 
-**Research date:** 2026-08-09  
+**Research date:** 2026-08-09
 **Scope:** Current constraints and an MVP architecture for the PRD's `Upload -> Discover -> Download -> Use` loop. Sources are first-party documentation only. Statements labelled **Fact** are sourced platform behavior; statements labelled **Recommendation (inference)** are design conclusions for WrapForge.
 
 ## Changelog check and version baseline
