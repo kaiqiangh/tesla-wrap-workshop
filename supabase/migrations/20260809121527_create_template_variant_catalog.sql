@@ -9,7 +9,7 @@ create table public.vehicle_models (
 create table public.template_variants (
   id uuid primary key,
   vehicle_model_id uuid not null references public.vehicle_models (id),
-  catalog_key text not null unique check (catalog_key ~ '^[a-z0-9-]+$'),
+  catalog_key text not null check (catalog_key ~ '^[a-z0-9-]+$'),
   display_name text not null,
   width_px smallint not null check (width_px between 512 and 1024),
   height_px smallint not null check (height_px between 512 and 1024),
@@ -19,8 +19,40 @@ create table public.template_variants (
   source_url text not null check (source_url like 'https://github.com/teslamotors/custom-wraps/%'),
   source_note text not null,
   verified_at date not null,
-  active boolean not null default true
+  active boolean not null default true,
+  unique (catalog_key, source_commit)
 );
+
+create unique index one_active_template_variant_per_catalog_key
+  on public.template_variants (catalog_key)
+  where active;
+
+create schema private;
+revoke all on schema private from public;
+
+create function private.enforce_template_variant_immutability()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE'
+    and old.active
+    and not new.active
+    and (to_jsonb(new) - 'active') = (to_jsonb(old) - 'active')
+  then
+    return new;
+  end if;
+
+  raise exception 'Template Variants are immutable; insert a new revision or mark Active false';
+end;
+$$;
+
+revoke all on function private.enforce_template_variant_immutability() from public;
+
+create trigger enforce_template_variant_immutability
+before update or delete on public.template_variants
+for each row execute function private.enforce_template_variant_immutability();
 
 alter table public.vehicle_models enable row level security;
 alter table public.template_variants enable row level security;

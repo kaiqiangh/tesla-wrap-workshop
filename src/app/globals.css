@@ -63,6 +63,9 @@ a {
   color: #c4cccd;
   font-size: 14px;
 }
+.desktop-nav > a:not(.button) {
+  padding: 12px 0;
+}
 .desktop-nav a:not(.button):hover,
 .text-link:hover {
   color: var(--mint);
@@ -284,6 +287,9 @@ h2 {
       monospace;
     list-style: none;
     text-transform: uppercase;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
   }
   .mobile-nav div {
     position: absolute;
@@ -295,6 +301,11 @@ h2 {
     padding: 18px;
     border: 1px solid var(--line);
     background: var(--panel);
+  }
+  .mobile-nav div a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
   }
   .hero {
     display: flex;

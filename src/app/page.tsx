@@ -30,7 +30,7 @@ export default async function Home() {
           <a href="#catalog">Models</a>
           <a href="#empty-gallery">Explore</a>
           <a className="button button-small" href="#catalog">
-            Upload a Wrap
+            Choose a Template
           </a>
         </nav>
         <details className="mobile-nav">
@@ -56,7 +56,7 @@ export default async function Home() {
           </p>
           <div className="hero-actions">
             <a className="button" href="#catalog">
-              Upload a Wrap
+              Choose a Template
             </a>
             <a className="text-link" href="#empty-gallery">
               Explore the Gallery <span aria-hidden="true">→</span>

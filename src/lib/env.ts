@@ -31,6 +31,13 @@ export function readPublicEnvironment(
 
   const siteUrl = new URL(source.NEXT_PUBLIC_SITE_URL!);
   const supabaseUrl = new URL(source.NEXT_PUBLIC_SUPABASE_URL!);
+  if (
+    mode === "local" &&
+    (!loopbackHosts.has(siteUrl.hostname) ||
+      !loopbackHosts.has(supabaseUrl.hostname))
+  ) {
+    throw new Error("Local mode requires local site and Supabase URLs");
+  }
   if (mode !== "local" && loopbackHosts.has(supabaseUrl.hostname)) {
     throw new Error("A local Supabase URL is only valid in local mode");
   }

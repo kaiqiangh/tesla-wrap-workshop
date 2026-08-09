@@ -11,11 +11,25 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
+    { name: "webkit", use: { ...devices["Desktop Safari"] } },
+    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
+    { name: "mobile-safari", use: { ...devices["iPhone 13"] } },
+    {
+      name: "reflow-320",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 320, height: 800 },
+      },
+    },
+    { name: "mobile-landscape", use: { ...devices["Pixel 7 landscape"] } },
+  ],
   webServer: {
-    command: "pnpm dev",
+    command: "node scripts/with-local-supabase.mjs pnpm dev",
     url: "http://127.0.0.1:3000",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

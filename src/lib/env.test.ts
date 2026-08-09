@@ -25,4 +25,13 @@ describe("readPublicEnvironment", () => {
       readPublicEnvironment({ ...valid, WRAPFORGE_ENVIRONMENT: "production" }),
     ).toThrow("local Supabase URL");
   });
+
+  it("rejects hosted Supabase credentials in local mode", () => {
+    expect(() =>
+      readPublicEnvironment({
+        ...valid,
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      }),
+    ).toThrow("Local mode requires local site and Supabase URLs");
+  });
 });
