@@ -350,9 +350,20 @@ select results_eq(
   $$ values (false, false) $$,
   'fresh database state denies a deactivated User'
 );
+
+reset role;
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '20000000-0000-0000-0000-000000000003';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000003","role":"authenticated"}',
+  true
+);
 select is_empty(
   $$ select * from public.complete_profile('reactivated', 'Reactivated') $$,
-  'a deactivated User cannot complete onboarding'
+  'a deactivated incomplete User cannot complete onboarding'
 );
 
 reset role;
