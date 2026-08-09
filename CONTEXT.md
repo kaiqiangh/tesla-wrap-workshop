@@ -171,3 +171,7 @@ _Avoid_: Shared environment, mixed environment, production-backed preview
 **Release Candidate**:
 One exact `dev` commit whose migrations and application deployment have been verified together in the hosted development Environment Pair before the final review.
 _Avoid_: Latest dev, green build, preview URL
+
+**Release Evidence**:
+The immutable, exact-SHA record of commands, Environment Pair identity, migration parity, browser journeys, manual checks, and log inspection that proves a Release Candidate met every required gate.
+_Avoid_: Green build, test count, screenshot, latest Preview
