@@ -467,7 +467,7 @@ export type Database = {
           created_at?: string;
           creator_id: string;
           deleted_at?: string | null;
-          description?: string;
+          description: string;
           distribution_asserted: boolean;
           download_count?: number;
           favorite_count?: number;
