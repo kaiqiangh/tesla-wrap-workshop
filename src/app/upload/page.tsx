@@ -17,7 +17,7 @@ export default async function UploadPage() {
   if (access.status === "guest") redirect("/sign-in?next=%2Fupload");
   if (access.status === "incomplete") redirect("/onboarding?next=%2Fupload");
   if (access.status === "unavailable") {
-    redirect("/sign-in?error=account_unavailable&next=%2Fupload");
+    redirect("/sign-in?error=profile_unavailable&next=%2Fupload");
   }
 
   return (

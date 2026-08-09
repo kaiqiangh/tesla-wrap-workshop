@@ -136,64 +136,59 @@ alter table public.profiles enable row level security;
 revoke all on public.profiles from anon, authenticated;
 grant select on public.profiles to service_role;
 grant update (participation_state) on public.profiles to service_role;
-grant select (user_id, username, display_name, bio, avatar_url, created_at, updated_at)
+grant select (username, display_name, bio, avatar_url)
   on public.profiles to anon, authenticated;
-grant update (username, display_name, bio)
-  on public.profiles to authenticated;
-
-create function public.profile_is_public(p_user_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select exists (
-    select 1
-    from public.profiles
-    where profiles.user_id = p_user_id
-      and profiles.onboarding_completed_at is not null
-      and profiles.participation_state = 'ACTIVE'
-  );
-$$;
-
-revoke all on function public.profile_is_public(uuid) from public;
-grant execute on function public.profile_is_public(uuid) to anon, authenticated;
 
 create policy "public profiles and the current Profile are readable"
   on public.profiles for select
   to anon, authenticated
   using (
     (select auth.uid()) = user_id
-    or (select public.profile_is_public(user_id))
+    or (
+      onboarding_completed_at is not null
+      and participation_state = 'ACTIVE'
+    )
   );
 
-create policy "an Active User may complete their own Profile once"
-  on public.profiles for update
-  to authenticated
-  using (
-    (select auth.uid()) = user_id
-    and participation_state = 'ACTIVE'
-    and onboarding_completed_at is null
-  )
-  with check (
-    (select auth.uid()) = user_id
-    and participation_state = 'ACTIVE'
-  );
+create function public.complete_profile(p_username text, p_display_name text)
+returns table (username text)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  return query
+  update public.profiles
+  set username = p_username, display_name = p_display_name
+  where profiles.user_id = (select auth.uid())
+    and profiles.participation_state = 'ACTIVE'
+    and profiles.onboarding_completed_at is null
+  returning profiles.username;
+end;
+$$;
 
-create view public.public_profiles
-with (security_invoker = true)
-as
-select user_id, username, display_name, bio, avatar_url, created_at, updated_at
-from public.profiles
-where public.profile_is_public(user_id);
+revoke all on function public.complete_profile(text, text) from public, anon;
+grant execute on function public.complete_profile(text, text) to authenticated;
 
-revoke all on public.public_profiles from anon, authenticated;
-grant select on public.public_profiles to anon, authenticated;
+create function public.get_public_profile(p_username text)
+returns table (username text, display_name text, bio text, avatar_url text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select profiles.username, profiles.display_name, profiles.bio, profiles.avatar_url
+  from public.profiles
+  where profiles.username = lower(p_username)
+    and profiles.onboarding_completed_at is not null
+    and profiles.participation_state = 'ACTIVE';
+$$;
+
+revoke all on function public.get_public_profile(text) from public;
+grant execute on function public.get_public_profile(text) to anon, authenticated;
 
 create function public.current_profile_access()
 returns table (
-  user_id uuid,
   username text,
   may_onboard boolean,
   may_participate boolean
@@ -204,7 +199,6 @@ security definer
 set search_path = ''
 as $$
   select
-    profiles.user_id,
     profiles.username,
     profiles.participation_state = 'ACTIVE',
     profiles.participation_state = 'ACTIVE'

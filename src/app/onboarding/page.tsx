@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import { safeNextPath } from "@/lib/auth/redirect";
 
+import { Brand } from "../brand";
 import { OnboardingForm } from "./onboarding-form";
 
 export const metadata: Metadata = {
@@ -25,7 +25,7 @@ export default async function OnboardingPage({
   }
   if (access.status === "unavailable") {
     redirect(
-      `/sign-in?error=account_unavailable&next=${encodeURIComponent(next)}`,
+      `/sign-in?error=profile_unavailable&next=${encodeURIComponent(next)}`,
     );
   }
   if (access.status === "active") redirect(next);
@@ -33,12 +33,7 @@ export default async function OnboardingPage({
   return (
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="onboarding-title">
-        <Link className="brand" href="/" aria-label="WrapForge home">
-          <span className="brand-mark" aria-hidden="true">
-            W
-          </span>
-          <span>WRAPFORGE</span>
-        </Link>
+        <Brand />
         <p className="eyebrow">ONE LAST STEP</p>
         <h1 id="onboarding-title">Establish your Profile</h1>
         <p className="auth-intro">

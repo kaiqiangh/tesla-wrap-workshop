@@ -102,8 +102,7 @@ select set_config(
 
 select is(
   (
-    select count(*) from public.profiles
-    where user_id::text like '20000000-%'
+    select count(*) from (select username from public.profiles) visible_profiles
   ),
   1::bigint,
   'an incomplete User can read only their own Profile'
@@ -114,15 +113,12 @@ select results_eq(
   'fresh Profile access permits onboarding but blocks participation'
 );
 
-update public.profiles
-set username = 'Road_One', display_name = '  Road One  '
-where user_id = '20000000-0000-0000-0000-000000000001';
+select * from public.complete_profile('Road_One', '  Road One  ');
 
 select results_eq(
   $$
     select username, display_name
-    from public.profiles
-    where user_id = '20000000-0000-0000-0000-000000000001'
+    from public.get_public_profile('road_one')
   $$,
   $$ values ('road_one', 'Road One') $$,
   'onboarding canonicalizes Username and trims display name'
@@ -133,28 +129,21 @@ select results_eq(
   'a completed Active User may participate'
 );
 
-update public.profiles
-set display_name = 'Changed too soon'
-where user_id = '20000000-0000-0000-0000-000000000001';
-select is(
-  (
-    select display_name from public.profiles
-    where user_id = '20000000-0000-0000-0000-000000000001'
-  ),
-  'Road One',
+select is_empty(
+  $$ select * from public.complete_profile('changed', 'Changed too soon') $$,
   'onboarding cannot be reused as the later Profile-edit flow'
 );
-
-update public.profiles
-set username = 'stolen', display_name = 'Stolen'
-where user_id = '20000000-0000-0000-0000-000000000002';
 select is(
   (
-    select username from public.profiles
-    where user_id = '20000000-0000-0000-0000-000000000002'
+    select display_name from public.get_public_profile('road_one')
   ),
-  null,
-  'a User cannot onboard another Profile'
+  'Road One',
+  'a second onboarding attempt leaves the Profile unchanged'
+);
+
+select is_empty(
+  $$ select * from public.complete_profile('stolen', 'Stolen') $$,
+  'a completed User cannot onboard another Profile'
 );
 
 select set_config(
@@ -164,9 +153,7 @@ select set_config(
 );
 select throws_ok(
   $$
-    update public.profiles
-    set username = 'TESLA', display_name = 'Brand'
-    where user_id = '20000000-0000-0000-0000-000000000002'
+    select * from public.complete_profile('TESLA', 'Brand')
   $$,
   'P0001',
   'username_unavailable',
@@ -174,9 +161,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    update public.profiles
-    set username = '-bad', display_name = 'Bad'
-    where user_id = '20000000-0000-0000-0000-000000000002'
+    select * from public.complete_profile('-bad', 'Bad')
   $$,
   '23514',
   'new row for relation "profiles" violates check constraint "profile_username_format"',
@@ -184,9 +169,7 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    update public.profiles
-    set username = 'okay-name', display_name = '   '
-    where user_id = '20000000-0000-0000-0000-000000000002'
+    select * from public.complete_profile('okay-name', '   ')
   $$,
   '23514',
   'new row for relation "profiles" violates check constraint "profile_display_name_format"',
@@ -194,22 +177,29 @@ select throws_ok(
 );
 select throws_ok(
   $$
-    update public.profiles
-    set username = 'ROAD_ONE', display_name = 'Collision'
-    where user_id = '20000000-0000-0000-0000-000000000002'
+    select * from public.complete_profile('ROAD_ONE', 'Collision')
   $$,
   '23505',
   'duplicate key value violates unique constraint "profiles_username_key"',
   'case variants cannot race into duplicate Usernames'
 );
 
+select * from public.complete_profile('road-two', 'Road Two');
+reset role;
 update public.profiles
-set username = 'road-two', display_name = 'Road Two', bio = 'Second builder.'
+set bio = 'Second builder.'
 where user_id = '20000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
 select is(
   (
-    select count(*) from public.public_profiles
-    where username in ('road_one', 'road-two')
+    select
+      (select count(*) from public.get_public_profile('road_one'))
+      + (select count(*) from public.get_public_profile('road-two'))
   ),
   2::bigint,
   'authenticated public reads include completed Active Profiles'
@@ -220,8 +210,9 @@ set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
 select is(
   (
-    select count(*) from public.public_profiles
-    where username in ('road_one', 'road-two')
+    select
+      (select count(*) from public.get_public_profile('road_one'))
+      + (select count(*) from public.get_public_profile('road-two'))
   ),
   2::bigint,
   'a Guest sees completed Active Profiles and not incomplete Profiles'
@@ -229,23 +220,39 @@ select is(
 select results_eq(
   $$
     select username, display_name, bio
-    from public.public_profiles
-    where username = 'road-two'
+    from public.get_public_profile('road-two')
   $$,
   $$ values ('road-two', 'Road Two', 'Second builder.') $$,
   'the public Profile allowlist exposes intended identity fields'
 );
 select is(
+  pg_get_function_result('public.get_public_profile(text)'::regprocedure),
+  'TABLE(username text, display_name text, bio text, avatar_url text)',
+  'the public Profile response is an exact four-field allowlist'
+);
+select is(
   (
-    select count(*) from information_schema.columns
-    where table_schema = 'public' and table_name = 'public_profiles'
-      and column_name in (
-        'email', 'provider', 'participation_state', 'onboarding_completed_at',
-        'username_changed_at', 'is_admin', 'favorites'
-      )
+    select string_agg(column_name::text collate "C", ',' order by column_name::text collate "C")
+    from information_schema.column_privileges
+    where grantee = 'anon'
+      and table_schema = 'public'
+      and table_name = 'profiles'
+      and privilege_type = 'SELECT'
   ),
-  0::bigint,
-  'private identity, moderation, administrator, and Favorite fields are absent from the public contract'
+  'avatar_url,bio,display_name,username',
+  'a Guest receives only the public Profile column grants'
+);
+select throws_ok(
+  $$ select user_id from public.profiles limit 1 $$,
+  '42501',
+  'permission denied for table profiles',
+  'a Guest cannot read canonical Auth IDs'
+);
+select throws_ok(
+  $$ select created_at from public.profiles limit 1 $$,
+  '42501',
+  'permission denied for table profiles',
+  'a Guest cannot read internal Profile timestamps'
 );
 select throws_ok(
   $$ select participation_state from public.profiles limit 1 $$,
@@ -258,6 +265,12 @@ select throws_ok(
   '42501',
   'permission denied for function current_profile_access',
   'a Guest cannot call the authenticated Profile-access boundary'
+);
+select throws_ok(
+  $$ select * from public.complete_profile('guest', 'Guest') $$,
+  '42501',
+  'permission denied for function complete_profile',
+  'a Guest cannot complete a Profile'
 );
 select throws_ok(
   $$
@@ -278,8 +291,9 @@ set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
 select is(
   (
-    select count(*) from public.public_profiles
-    where username in ('road_one', 'road-two')
+    select
+      (select count(*) from public.get_public_profile('road_one'))
+      + (select count(*) from public.get_public_profile('road-two'))
   ),
   1::bigint,
   'a suspended Profile is immediately withdrawn from public reads'

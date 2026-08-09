@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     return problem(401, "authentication_required", "Sign in to continue.");
   }
   if (access.status === "unavailable") {
-    return problem(403, "account_unavailable", "This account is unavailable.");
+    return problem(403, "profile_unavailable", "This Profile is unavailable.");
   }
   if (access.status === "active") {
     return problem(
@@ -44,15 +44,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data, error } = await supabase
-    .from("profiles")
-    .update({
-      username: validated.value.username,
-      display_name: validated.value.displayName,
-    })
-    .eq("user_id", access.userId)
-    .select("username")
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("complete_profile", {
+    p_username: validated.value.username,
+    p_display_name: validated.value.displayName,
+  });
+  const profile = data?.[0];
 
   if (error?.code === "23505") {
     return problem(409, "username_taken", "That Username is already taken.");
@@ -71,7 +67,7 @@ export async function POST(request: Request) {
       "Check your Profile details and try again.",
     );
   }
-  if (error || !data?.username) {
+  if (error || !profile?.username) {
     return problem(
       409,
       "profile_not_saved",
@@ -80,7 +76,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(
-    { username: data.username },
+    { username: profile.username },
     { status: 201, headers: { "cache-control": "no-store" } },
   );
 }

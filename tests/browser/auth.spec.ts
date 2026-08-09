@@ -156,7 +156,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   expect(suspended.error).toBeNull();
 
   await page.goto("/upload");
-  await expect(page).toHaveURL(/error=account_unavailable/);
+  await expect(page).toHaveURL(/error=profile_unavailable/);
   const denied = await page.request.post("/api/profile/onboarding", {
     data: { username: "another", displayName: "Another" },
   });

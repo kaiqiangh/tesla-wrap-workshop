@@ -155,48 +155,32 @@ export type Database = {
       };
     };
     Views: {
-      public_profiles: {
-        Row: {
-          avatar_url: string | null;
-          bio: string | null;
-          created_at: string | null;
-          display_name: string | null;
-          updated_at: string | null;
-          user_id: string | null;
-          username: string | null;
-        };
-        Insert: {
-          avatar_url?: string | null;
-          bio?: string | null;
-          created_at?: string | null;
-          display_name?: string | null;
-          updated_at?: string | null;
-          user_id?: string | null;
-          username?: string | null;
-        };
-        Update: {
-          avatar_url?: string | null;
-          bio?: string | null;
-          created_at?: string | null;
-          display_name?: string | null;
-          updated_at?: string | null;
-          user_id?: string | null;
-          username?: string | null;
-        };
-        Relationships: [];
-      };
+      [_ in never]: never;
     };
     Functions: {
+      complete_profile: {
+        Args: { p_display_name: string; p_username: string };
+        Returns: {
+          username: string;
+        }[];
+      };
       current_profile_access: {
         Args: never;
         Returns: {
           may_onboard: boolean;
           may_participate: boolean;
-          user_id: string;
           username: string;
         }[];
       };
-      profile_is_public: { Args: { p_user_id: string }; Returns: boolean };
+      get_public_profile: {
+        Args: { p_username: string };
+        Returns: {
+          avatar_url: string;
+          bio: string;
+          display_name: string;
+          username: string;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;

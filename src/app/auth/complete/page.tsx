@@ -20,6 +20,6 @@ export default async function CompleteSignIn({
     redirect(`/onboarding?next=${encodeURIComponent(next)}`);
   }
   redirect(
-    `/sign-in?error=${access.status === "guest" ? "session_failed" : "account_unavailable"}&next=${encodeURIComponent(next)}`,
+    `/sign-in?error=${access.status === "guest" ? "session_failed" : "profile_unavailable"}&next=${encodeURIComponent(next)}`,
   );
 }

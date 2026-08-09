@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 import { safeNextPath } from "@/lib/auth/redirect";
 import { readPublicEnvironment } from "@/lib/env";
 
+import { Brand } from "../brand";
 import { SignInForm } from "./sign-in-form";
 
 export const metadata: Metadata = {
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 const messages: Record<string, string> = {
   oauth_failed: "That sign-in could not be completed. Please try again.",
   session_failed: "Your sign-in expired. Please start again.",
-  account_unavailable: "This account is currently unavailable.",
+  profile_unavailable: "This Profile is currently unavailable.",
 };
 
 export default async function SignInPage({
@@ -29,13 +29,8 @@ export default async function SignInPage({
   return (
     <main className="auth-shell">
       <section className="auth-card" aria-labelledby="sign-in-title">
-        <Link className="brand" href="/" aria-label="WrapForge home">
-          <span className="brand-mark" aria-hidden="true">
-            W
-          </span>
-          <span>WRAPFORGE</span>
-        </Link>
-        <p className="eyebrow">CREATOR IDENTITY</p>
+        <Brand />
+        <p className="eyebrow">COMMUNITY IDENTITY</p>
         <h1 id="sign-in-title">Join the workshop</h1>
         <p className="auth-intro">
           Browse and download as a Guest. Sign in only when you want to create

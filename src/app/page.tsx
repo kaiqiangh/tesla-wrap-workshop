@@ -2,18 +2,9 @@ import Image from "next/image";
 
 import { getCatalog } from "@/lib/catalog";
 
-export const dynamic = "force-dynamic";
+import { Brand } from "./brand";
 
-function Brand() {
-  return (
-    <a className="brand" href="#top" aria-label="WrapForge home">
-      <span className="brand-mark" aria-hidden="true">
-        W
-      </span>
-      <span>WRAPFORGE</span>
-    </a>
-  );
-}
+export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const models = await getCatalog();
@@ -25,7 +16,7 @@ export default async function Home() {
   return (
     <main id="top">
       <header className="site-header">
-        <Brand />
+        <Brand href="#top" />
         <nav className="desktop-nav" aria-label="Primary navigation">
           <a href="#catalog">Models</a>
           <a href="#empty-gallery">Explore</a>

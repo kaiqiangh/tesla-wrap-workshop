@@ -4,6 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
+import { Brand } from "../../brand";
+
 type Props = { params: Promise<{ username: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -17,23 +19,17 @@ export default async function PublicProfilePage({ params }: Props) {
   if (rawUsername !== username) permanentRedirect(`/u/${username}`);
 
   const supabase = await createServerSupabaseClient();
-  const { data: profile, error } = await supabase
-    .from("public_profiles")
-    .select("username, display_name, bio")
-    .eq("username", username)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("get_public_profile", {
+    p_username: username,
+  });
+  const profile = data?.[0];
   if (error) throw new Error("Profile is temporarily unavailable");
   if (!profile?.username || !profile.display_name) notFound();
 
   return (
     <main className="profile-shell">
       <header className="site-header">
-        <Link className="brand" href="/" aria-label="WrapForge home">
-          <span className="brand-mark" aria-hidden="true">
-            W
-          </span>
-          <span>WRAPFORGE</span>
-        </Link>
+        <Brand />
         <Link className="text-link" href="/upload">
           Upload a Wrap
         </Link>
