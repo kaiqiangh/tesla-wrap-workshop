@@ -1,0 +1,77 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - generic [ref=e5]: WrapForge
+      - generic [ref=e7]:
+        - generic [ref=e8]: Prototype state in URL
+        - generic [ref=e9]: KW
+    - main [ref=e10]:
+      - complementary [ref=e11]:
+        - heading "Create a Wrap" [level=2] [ref=e12]
+        - paragraph [ref=e13]: One focused decision at a time.
+        - button "✓ Vehicle Select Vehicle" [ref=e14] [cursor=pointer]:
+          - generic [ref=e15]: ✓
+          - generic [ref=e16]:
+            - strong [ref=e17]: Vehicle
+            - generic [ref=e18]: Select Vehicle
+        - button "2 File Upload File" [ref=e19] [cursor=pointer]:
+          - generic [ref=e20]: "2"
+          - generic [ref=e21]:
+            - strong [ref=e22]: File
+            - generic [ref=e23]: Upload File
+        - button "3 Details Add Details" [ref=e24] [cursor=pointer]:
+          - generic [ref=e25]: "3"
+          - generic [ref=e26]:
+            - strong [ref=e27]: Details
+            - generic [ref=e28]: Add Details
+        - button "4 Publish Preview & Publish" [ref=e29] [cursor=pointer]:
+          - generic [ref=e30]: "4"
+          - generic [ref=e31]:
+            - strong [ref=e32]: Publish
+            - generic [ref=e33]: Preview & Publish
+      - generic [ref=e34]:
+        - generic [ref=e35]: Step 1 of 4 · compatibility truth
+        - heading "Select the exact template you used" [level=2] [ref=e36]
+        - paragraph [ref=e37]: Choose the Active Template Variant from Tesla's published catalog—not a guessed trim or a generic compatibility claim.
+        - generic [ref=e38]:
+          - button "Model Y Model Y (2025+) Premium 1024 × 1024 · Active · verified 9 Aug 2026" [ref=e39] [cursor=pointer]:
+            - generic [ref=e40]: Model Y
+            - strong [ref=e41]: Model Y (2025+) Premium
+            - generic [ref=e42]: 1024 × 1024 · Active · verified 9 Aug 2026
+          - button "Model Y Model Y (2025+) Performance 1024 × 1024 · Active · verified 9 Aug 2026" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]: Model Y
+            - strong [ref=e45]: Model Y (2025+) Performance
+            - generic [ref=e46]: 1024 × 1024 · Active · verified 9 Aug 2026
+          - button "Model Y Model Y 1024 × 1024 · Active · verified 9 Aug 2026" [ref=e47] [cursor=pointer]:
+            - generic [ref=e48]: Model Y
+            - strong [ref=e49]: Model Y
+            - generic [ref=e50]: 1024 × 1024 · Active · verified 9 Aug 2026
+          - button "Cybertruck Cybertruck 1024 × 768 · Active · verified 9 Aug 2026" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]: Cybertruck
+            - strong [ref=e53]: Cybertruck
+            - generic [ref=e54]: 1024 × 768 · Active · verified 9 Aug 2026
+        - paragraph [ref=e55]: Exact Active Template Variants come from the catalog. A Vehicle Model is only a browse grouping; free-text compatibility is unavailable.
+        - button "Continue" [ref=e58] [cursor=pointer]
+      - complementary [ref=e59]:
+        - generic [ref=e60]: PREVIEW ONLY
+        - generic [ref=e61]: Wrap summary
+        - heading "Oni After Midnight" [level=3] [ref=e62]
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic [ref=e65]: Template
+            - strong [ref=e66]: Model Y (2025+) Premium
+          - generic [ref=e67]:
+            - generic [ref=e68]: Dimensions
+            - strong [ref=e69]: 1024 × 1024
+          - generic [ref=e70]:
+            - generic [ref=e71]: Asset
+            - strong [ref=e72]: Not ready
+          - generic [ref=e73]:
+            - generic [ref=e74]: Visibility
+            - strong [ref=e75]: Not published
+        - generic [ref=e76]: Catalog verified 9 Aug 2026
+  - toolbar "Prototype variants" [ref=e77]:
+    - button "Previous variant" [ref=e78] [cursor=pointer]: ←
+    - generic [ref=e79]: A — Guided studio
+    - button "Next variant" [ref=e80] [cursor=pointer]: →
+    - button "State" [ref=e81] [cursor=pointer]
