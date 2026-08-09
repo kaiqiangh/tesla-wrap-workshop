@@ -163,3 +163,11 @@ _Avoid_: Deleted comment, removed comment
 **Removed Comment**:
 A soft-deleted Comment whose public text is no longer available through normal product flows.
 _Avoid_: Hidden comment, hard-deleted comment
+
+**Environment Pair**:
+One isolated WrapForge application environment and exactly one corresponding Supabase stack containing its Auth, Postgres, and Storage state.
+_Avoid_: Shared environment, mixed environment, production-backed preview
+
+**Release Candidate**:
+One exact `dev` commit whose migrations and application deployment have been verified together in the hosted development Environment Pair before the final review.
+_Avoid_: Latest dev, green build, preview URL
