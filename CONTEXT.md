@@ -16,9 +16,25 @@ _Avoid_: Vehicle Variant, template
 One exact, versioned vehicle entry in Tesla's official Custom Wrap template catalog. It is the compatibility unit selected when publishing a Custom Wrap.
 _Avoid_: Trim, generic model, template version
 
+**Active Template Variant**:
+The current verified revision of a Template Variant that a Creator may select for a new Wrap.
+_Avoid_: Supported vehicle, current model
+
+**Legacy Template Variant**:
+An immutable former revision retained for existing Wraps but unavailable for new publication.
+_Avoid_: Unsupported vehicle, deleted variant
+
 **Compatibility Claim**:
 The evidence-backed statement that a Custom Wrap was built for a particular Template Variant. It does not guarantee Paint Shop availability for every vehicle, account, firmware version, or region.
 _Avoid_: Tesla-certified, universally compatible, guaranteed compatible
+
+**Format-valid Wrap Asset**:
+A safely decodable PNG that satisfies WrapForge's conservative file constraints but has not established publishable Template Variant compatibility.
+_Avoid_: Compatible wrap, verified wrap
+
+**Template-verified Wrap Asset**:
+A Format-valid Wrap Asset whose dimensions exactly match its selected Template Variant and whose Creator confirms that variant was used. This does not prove visual alignment or Tesla acceptance.
+_Avoid_: Tesla-verified, certified wrap, guaranteed import
 
 **Wrap**:
 The community record that describes, publishes, and tracks one Custom Wrap and its assets.
