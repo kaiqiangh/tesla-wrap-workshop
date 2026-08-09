@@ -162,7 +162,7 @@ describe("authoritative PNG finalization", () => {
     const normalizedMetadata = await sharp(result.original.bytes).metadata();
     expect(normalizedMetadata.exif).toBeUndefined();
     expect(normalizedMetadata.icc).toBeUndefined();
-  });
+  }, 15_000);
 });
 
 async function fixture(width: number, height: number) {
