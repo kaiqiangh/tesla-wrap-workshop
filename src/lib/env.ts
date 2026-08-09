@@ -7,6 +7,7 @@ type PublicEnvironment = {
 
 export type ServerEnvironment = PublicEnvironment & {
   SUPABASE_SECRET_KEY: string;
+  DOWNLOAD_PRINCIPAL_HMAC_SECRET: string;
 };
 
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -76,8 +77,28 @@ export function readServerEnvironment(
       "Missing required environment variable: SUPABASE_SECRET_KEY",
     );
   }
+  if (!source.DOWNLOAD_PRINCIPAL_HMAC_SECRET?.trim()) {
+    throw new Error(
+      "Missing required environment variable: DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+    );
+  }
+  if (source.DOWNLOAD_PRINCIPAL_HMAC_SECRET.length < 32) {
+    throw new Error(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET must be at least 32 characters",
+    );
+  }
+  if (
+    publicEnvironment.WRAPFORGE_ENVIRONMENT !== "local" &&
+    source.SUPABASE_JWT_SECRET &&
+    source.DOWNLOAD_PRINCIPAL_HMAC_SECRET === source.SUPABASE_JWT_SECRET
+  ) {
+    throw new Error(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET must be separate from SUPABASE_JWT_SECRET",
+    );
+  }
   return {
     ...publicEnvironment,
     SUPABASE_SECRET_KEY: source.SUPABASE_SECRET_KEY,
+    DOWNLOAD_PRINCIPAL_HMAC_SECRET: source.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
   };
 }

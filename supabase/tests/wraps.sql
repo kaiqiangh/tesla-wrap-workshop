@@ -355,6 +355,192 @@ update public.wraps
 set status = 'PUBLISHED'
 where slug = current_setting('test.cyber_slug');
 
+select has_table('public', 'download_events', 'Download Events are migrated');
+set local role service_role;
+update public.wraps
+set status = 'UNPUBLISHED'
+where slug = current_setting('test.cyber_slug');
+select throws_ok(
+  $$ select * from public.prepare_original_download(current_setting('test.cyber_slug'), null) $$,
+  'P0001', 'download_unavailable',
+  'an Unpublished Wrap cannot grant a private download'
+);
+update public.wraps
+set status = 'HIDDEN'
+where slug = current_setting('test.cyber_slug');
+select throws_ok(
+  $$ select * from public.prepare_original_download(current_setting('test.cyber_slug'), null) $$,
+  'P0001', 'download_unavailable',
+  'a Hidden Wrap cannot grant a private download'
+);
+update public.wraps
+set status = 'PUBLISHED'
+where slug = current_setting('test.cyber_slug');
+select throws_ok(
+  $$ select * from public.prepare_original_download(current_setting('test.model3_slug'), null) $$,
+  'P0001', 'download_unavailable',
+  'a Removed Wrap cannot grant a private download'
+);
+select lives_ok($$
+  select * from public.prepare_original_download(current_setting('test.cyber_slug'), null)
+$$, 'a Guest can prepare a private Original Wrap Asset delivery');
+select is(
+  (select counted from public.record_original_download(
+    (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+    null, 'v1:' || repeat('a', 64)
+  )),
+  true,
+  'the first Guest grant is counted'
+);
+select is(
+  (select counted from public.record_original_download(
+    (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+    null, 'v1:' || repeat('a', 64)
+  )),
+  false,
+  'a repeated Guest grant inside ten minutes is not counted'
+);
+select is(
+  (select count(*) from public.download_events
+   where wrap_id = (select id from public.wraps where slug = current_setting('test.cyber_slug'))),
+  2::bigint,
+  'every successful Guest grant creates a Download Event'
+);
+select is(
+  (select download_count from public.wraps where slug = current_setting('test.cyber_slug')),
+  1::bigint,
+  'the rolling gate increments the Wrap counter once'
+);
+select is(
+  (select counted from public.record_original_download(
+    (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+    '80000000-0000-0000-0000-000000000001', null
+  )),
+  true,
+  'an authenticated Active User is counted by canonical Auth identity'
+);
+select is(
+  (select principal_hash from public.download_events
+   where user_id = '80000000-0000-0000-0000-000000000001'
+   order by granted_at desc limit 1),
+  'v1:user:80000000-0000-0000-0000-000000000001',
+  'authenticated events store a versioned canonical User principal'
+);
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = '80000000-0000-0000-0000-000000000002';
+select throws_ok(
+  $$ select * from public.record_original_download(
+    (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+    '80000000-0000-0000-0000-000000000002', null
+  ) $$,
+  'P0001', 'download_auth',
+  'a suspended authenticated User cannot grant a private download'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '80000000-0000-0000-0000-000000000002';
+select throws_ok(
+  $$ select * from public.record_original_download(
+    (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+    null, 'not-a-versioned-principal'
+  ) $$,
+  'P0001', 'download_principal_invalid',
+  'invalid Guest principal material is rejected'
+);
+do $do$
+declare
+  v_index integer;
+  v_wrap uuid := (select id from public.wraps where slug = current_setting('test.cyber_slug'));
+begin
+  for v_index in 1..20 loop
+    perform * from public.record_original_download(
+      v_wrap, null, 'v1:' || repeat('b', 64)
+    );
+  end loop;
+end
+$do$;
+select is(
+  (select count(*) from public.download_events
+   where wrap_id = (select id from public.wraps where slug = current_setting('test.cyber_slug'))
+     and principal_hash = 'v1:' || repeat('b', 64)),
+  20::bigint,
+  'twenty repeated grants still create twenty events'
+);
+select is(
+  (select count(*) from public.download_events
+   where wrap_id = (select id from public.wraps where slug = current_setting('test.cyber_slug'))
+     and principal_hash = 'v1:' || repeat('b', 64) and counted),
+  1::bigint,
+  'twenty repeated grants produce exactly one counted event'
+);
+update public.wraps
+set download_count = 999
+where slug = current_setting('test.cyber_slug');
+select lives_ok($$ select public.reconcile_download_counts() $$,
+  'download count reconciliation is available to the service role');
+select is(
+  (select download_count from public.wraps where slug = current_setting('test.cyber_slug')),
+  (select count(*) from public.download_events
+   where wrap_id = (select id from public.wraps where slug = current_setting('test.cyber_slug'))
+     and counted),
+  'reconciliation derives the counter only from counted events'
+);
+update storage.objects
+set name = name || '-download-missing'
+where bucket_id = 'wrap-originals'
+  and name = (
+    select wa.object_key from public.wrap_assets wa
+    join public.wraps w on w.asset_revision_id = wa.asset_revision_id
+    where w.slug = current_setting('test.cyber_slug') and wa.kind = 'ORIGINAL'
+  );
+select throws_ok(
+  $$ select * from public.prepare_original_download(current_setting('test.cyber_slug'), null) $$,
+  'P0001', 'download_object_missing',
+  'a missing private object is denied before an event is written'
+);
+update storage.objects
+set name = left(name, length(name) - length('-download-missing'))
+where bucket_id = 'wrap-originals' and name like '%-download-missing';
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = (select creator_id from public.wraps where slug = current_setting('test.cyber_slug'));
+select throws_ok(
+  $$ select * from public.prepare_original_download(current_setting('test.cyber_slug'), null) $$,
+  'P0001', 'download_creator_unavailable',
+  'a suspended Creator cannot grant private Original downloads'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = (select creator_id from public.wraps where slug = current_setting('test.cyber_slug'));
+reset role;
+set local role anon;
+select is_empty(
+  $$ select * from storage.objects where bucket_id = 'wrap-originals' $$,
+  'Guests cannot read private Original objects directly'
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"80000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+select is_empty(
+  $$ select * from storage.objects where bucket_id = 'wrap-originals' $$,
+  'another authenticated User cannot read private Original objects directly'
+);
+select throws_ok($$
+  insert into storage.objects (bucket_id, name, owner_id, metadata)
+  values (
+    'wrap-originals',
+    '80000000-0000-0000-0000-000000000002/arbitrary/original.png',
+    '80000000-0000-0000-0000-000000000002', '{}'
+  )
+$$, '42501', 'new row violates row-level security policy for table "objects"',
+  'another authenticated User cannot insert a private Original object');
+reset role;
+
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"80000000-0000-0000-0000-000000000002","role":"authenticated"}', true);

@@ -7,11 +7,18 @@ const valid = {
   WRAPFORGE_ENVIRONMENT: "local",
   NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "local-publishable-key",
+  DOWNLOAD_PRINCIPAL_HMAC_SECRET: "local-download-secret-0123456789012345",
 };
 
 describe("readPublicEnvironment", () => {
   it("accepts the local Docker environment", () => {
-    expect(readPublicEnvironment(valid)).toEqual(valid);
+    expect(readPublicEnvironment(valid)).toMatchObject({
+      NEXT_PUBLIC_SITE_URL: valid.NEXT_PUBLIC_SITE_URL,
+      WRAPFORGE_ENVIRONMENT: valid.WRAPFORGE_ENVIRONMENT,
+      NEXT_PUBLIC_SUPABASE_URL: valid.NEXT_PUBLIC_SUPABASE_URL,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        valid.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    });
   });
 
   it("fails closed when a required value is absent", () => {
@@ -51,5 +58,12 @@ describe("readServerEnvironment", () => {
       readServerEnvironment({ ...valid, SUPABASE_SECRET_KEY: "local-secret" }),
     ).toMatchObject({ SUPABASE_SECRET_KEY: "local-secret" });
     expect(() => readServerEnvironment(valid)).toThrow("SUPABASE_SECRET_KEY");
+    expect(() =>
+      readServerEnvironment({
+        ...valid,
+        SUPABASE_SECRET_KEY: "local-secret",
+        DOWNLOAD_PRINCIPAL_HMAC_SECRET: "short",
+      }),
+    ).toThrow("at least 32 characters");
   });
 });

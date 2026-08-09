@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext } from "@playwright/test";
@@ -82,6 +82,7 @@ test("OAuth callback rejects missing codes and external destinations", async ({
 test("User completes local OTP, onboarding, refresh, Profile, suspension, and logout", async ({
   page,
   context,
+  browser,
 }, testInfo) => {
   test.skip(!criticalProjects.has(testInfo.project.name));
   test.setTimeout(180_000);
@@ -276,8 +277,168 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(page.getByText("COMPATIBILITY CLAIM")).toBeVisible();
   await expect(page.getByText("Cybertruck — Cybertruck")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Download Wrap" }),
-  ).toBeDisabled();
+    page.getByRole("link", { name: "Download Wrap" }),
+  ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  await page.goto(`/wrap/${publishedSlug}/download`);
+  await expect(
+    page.getByRole("heading", { name: "Download Cybertruck Night Drive" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Exact Template Variant: Cybertruck"),
+  ).toBeVisible();
+  await expect(page.getByText("Use Tesla App 4.59.0 or newer.")).toBeVisible();
+  if (testInfo.project.name.startsWith("mobile-")) {
+    expect(
+      await page
+        .locator(".download-actions")
+        .evaluate((element) => getComputedStyle(element).position),
+    ).toBe("sticky");
+  }
+  const firstDownload = await page.request.post(
+    `/api/wraps/${publishedSlug}/download`,
+  );
+  expect(firstDownload.status()).toBe(200);
+  const firstDownloadBody = (await firstDownload.json()) as {
+    downloadUrl: string;
+    expiresAt: string;
+    filename: string;
+    counted: boolean;
+    sha256: string;
+    templateVariant: { key: string; widthPx: number; heightPx: number };
+  };
+  expect(firstDownloadBody).toMatchObject({
+    filename: "Cybertruck-Night-Drive.png",
+    counted: true,
+    templateVariant: { key: "cybertruck", widthPx: 1024, heightPx: 768 },
+  });
+  expect(
+    new Date(firstDownloadBody.expiresAt).getTime() - Date.now(),
+  ).toBeLessThanOrEqual(60_000);
+  const downloadedAsset = await page.request.get(firstDownloadBody.downloadUrl);
+  expect(downloadedAsset.status()).toBe(200);
+  const downloadedBytes = await downloadedAsset.body();
+  expect(downloadedBytes.length).toBeGreaterThan(24);
+  expect(downloadedBytes.length).toBeLessThanOrEqual(1_000_000);
+  expect(createHash("sha256").update(downloadedBytes).digest("hex")).toBe(
+    firstDownloadBody.sha256,
+  );
+  const downloadedMetadata = await sharp(downloadedBytes).metadata();
+  expect(downloadedMetadata.width).toBe(1024);
+  expect(downloadedMetadata.height).toBe(768);
+  const repeatedDownload = await page.request.post(
+    `/api/wraps/${publishedSlug}/download`,
+  );
+  const repeatedBody = await repeatedDownload.json();
+  expect(repeatedBody.counted).toBe(false);
+  const repeatedAsset = await page.request.get(repeatedBody.downloadUrl);
+  expect(repeatedAsset.status()).toBe(200);
+  await expect(
+    page.getByRole("button", { name: "Download Original Wrap" }),
+  ).toBeVisible();
+  await page.route(`**/api/wraps/${publishedSlug}/download`, async (route) => {
+    await route.fulfill({
+      status: 410,
+      contentType: "application/json",
+      body: JSON.stringify({
+        error: { nextAction: "The private link expired. Retry the download." },
+      }),
+    });
+  });
+  await page.getByRole("button", { name: "Download Original Wrap" }).click();
+  await expect(page.getByRole("status")).toContainText("private link expired");
+  await page.unroute(`**/api/wraps/${publishedSlug}/download`);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async () => undefined },
+    });
+  });
+  await page.getByRole("button", { name: "Share confirmation" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Confirmation link copied",
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "share", {
+      configurable: true,
+      value: async () => undefined,
+    });
+  });
+  await page.getByRole("button", { name: "Share confirmation" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    "Confirmation link shared",
+  );
+  const uiDownloadResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/wraps/${publishedSlug}/download`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Download Original Wrap" }).click();
+  expect((await uiDownloadResponse).status()).toBe(200);
+  await page.goto(`/wrap/${publishedSlug}/download`);
+  const guestContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:3000",
+  });
+  await guestContext.addCookies([
+    {
+      name: "wf_guest_download",
+      value: "browser-guest-principal",
+      domain: "127.0.0.1",
+      path: "/",
+      secure: true,
+    },
+  ]);
+  const guestPage = await guestContext.newPage();
+  await guestPage.goto(`/wrap/${publishedSlug}/download`);
+  await expect(
+    guestPage.getByRole("heading", { name: "Download Cybertruck Night Drive" }),
+  ).toBeVisible();
+  const { data: beforeGuestWrap } = await admin
+    .from("wraps")
+    .select("download_count")
+    .eq("slug", publishedSlug)
+    .single();
+  const guestResponses = await Promise.all(
+    Array.from({ length: 20 }, () =>
+      guestPage.request.post(`/api/wraps/${publishedSlug}/download`, {
+        headers: { cookie: "wf_guest_download=browser-guest-principal" },
+      }),
+    ),
+  );
+  expect(guestResponses.every((response) => response.status() === 200)).toBe(
+    true,
+  );
+  const guestBodies = await Promise.all(
+    guestResponses.map((response) => response.json()),
+  );
+  expect(guestBodies.filter((body) => body.counted).length).toBe(1);
+  const { data: guestWrap } = await admin
+    .from("wraps")
+    .select("id, download_count")
+    .eq("slug", publishedSlug)
+    .single();
+  const guestPrincipalHash = `v1:${createHmac(
+    "sha256",
+    requiredEnvironment("DOWNLOAD_PRINCIPAL_HMAC_SECRET"),
+  )
+    .update("browser-guest-principal")
+    .digest("hex")}`;
+  const { data: guestEvents, error: guestEventsError } = await admin
+    .from("download_events")
+    .select("id, counted")
+    .eq("wrap_id", guestWrap!.id)
+    .eq("principal_hash", guestPrincipalHash);
+  expect(guestEventsError).toBeNull();
+  expect(guestEvents).toHaveLength(20);
+  expect(guestEvents?.filter((event) => event.counted)).toHaveLength(1);
+  expect(guestWrap?.download_count).toBe(
+    (beforeGuestWrap?.download_count ?? 0) + 1,
+  );
+  await guestContext.close();
+  await page.goto(`/wrap/${publishedSlug}`);
   await Promise.all([
     page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
     page.getByRole("link", { name: "Manage Wrap" }).click(),

@@ -110,9 +110,9 @@ export default async function WrapDetailPage({ params }: Props) {
             <p>{wrap.availability_caveat}</p>
           </section>
           <div className="wrap-actions">
-            <button className="button" type="button" disabled>
+            <Link className="button" href={`/wrap/${wrap.slug}/download`}>
               Download Wrap
-            </button>
+            </Link>
             {canManage && (
               <Link className="text-link" href={`/wrap/${wrap.slug}/edit`}>
                 Manage Wrap
@@ -120,8 +120,9 @@ export default async function WrapDetailPage({ params }: Props) {
             )}
           </div>
           <p className="download-coming-soon">
-            Private Original Wrap Asset delivery and Tesla App/USB guidance
-            arrive in the next distribution stage.
+            Download confirmation shows the exact Template Variant and current
+            Tesla App/USB import guidance before issuing a short-lived private
+            link.
           </p>
           <dl className="wrap-stats" aria-label="Wrap counts">
             <div>

@@ -139,6 +139,44 @@ export type Database = {
           },
         ];
       };
+      download_events: {
+        Row: {
+          counted: boolean;
+          granted_at: string;
+          id: string;
+          principal_hash: string;
+          principal_kind: string;
+          user_id: string | null;
+          wrap_id: string;
+        };
+        Insert: {
+          counted: boolean;
+          granted_at?: string;
+          id?: string;
+          principal_hash: string;
+          principal_kind: string;
+          user_id?: string | null;
+          wrap_id: string;
+        };
+        Update: {
+          counted?: boolean;
+          granted_at?: string;
+          id?: string;
+          principal_hash?: string;
+          principal_kind?: string;
+          user_id?: string | null;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "download_events_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       pending_uploads: {
         Row: {
           asset_revision_id: string | null;
@@ -719,6 +757,24 @@ export type Database = {
           sha256: string;
         }[];
       };
+      prepare_original_download: {
+        Args: { p_slug: string; p_user_id: string };
+        Returns: {
+          availability_caveat: string;
+          bucket_id: string;
+          byte_size: number;
+          height_px: number;
+          object_key: string;
+          sha256: string;
+          template_variant_key: string;
+          template_variant_name: string;
+          title: string;
+          vehicle_model_name: string;
+          verified_at: string;
+          width_px: number;
+          wrap_id: string;
+        }[];
+      };
       publish_wrap: {
         Args: {
           p_asset_revision_id: string;
@@ -739,6 +795,19 @@ export type Database = {
           slug: string;
           status: string;
           template_variant_id: string;
+        }[];
+      };
+      reconcile_download_counts: { Args: never; Returns: undefined };
+      record_original_download: {
+        Args: {
+          p_guest_principal_hash: string;
+          p_user_id: string;
+          p_wrap_id: string;
+        };
+        Returns: {
+          counted: boolean;
+          download_count: number;
+          event_id: string;
         }[];
       };
       remove_wrap: {
