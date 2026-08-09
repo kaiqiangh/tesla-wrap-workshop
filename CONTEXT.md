@@ -44,6 +44,26 @@ _Avoid_: Design, post, listing
 An original downloadable Custom Wrap or a derived preview or thumbnail belonging to a Wrap.
 _Avoid_: File, image
 
+**Pending Upload**:
+A short-lived Creator-owned workflow that may produce a new immutable Asset Revision after authoritative validation.
+_Avoid_: Draft Wrap, temporary file
+
+**Staged Upload**:
+The untrusted raw bytes held privately while a Pending Upload is validated; it is not yet a Wrap Asset.
+_Avoid_: Original Wrap Asset, uploaded wrap
+
+**Asset Revision**:
+An immutable set containing one Original Wrap Asset and its derived display assets for a Wrap at a point in time.
+_Avoid_: Overwritten file, asset version
+
+**Original Wrap Asset**:
+The normalized, Template-verified PNG delivered when a User or Guest Session downloads a Published Wrap.
+_Avoid_: Staged Upload, preview image
+
+**Derived Wrap Asset**:
+A non-downloadable web preview or thumbnail produced from an Original Wrap Asset.
+_Avoid_: Original Wrap Asset, source file
+
 **Creator**:
 A User who has published at least one Wrap at any time. Creator identity persists even when no Wrap is currently Published; no separate creator account type exists.
 _Avoid_: Seller, artist account
@@ -101,8 +121,12 @@ An anonymous browser session used to limit duplicate public Download Events with
 _Avoid_: Anonymous user, visitor account
 
 **Download Event**:
-A counted delivery of a published original Wrap Asset to a User or Guest Session.
-_Avoid_: Click, page view
+A record that WrapForge successfully granted access to a Published Wrap's Original Wrap Asset. It records whether the grant opened the public count or was a duplicate within the deduplication window.
+_Avoid_: Completed transfer, click, page view
+
+**Counted Download**:
+A Download Event that opened the ten-minute deduplication gate and incremented a Wrap's public download count.
+_Avoid_: Download request, duplicate download
 
 **Published Wrap**:
 A Wrap that is publicly discoverable and whose original Wrap Asset is eligible for download.
