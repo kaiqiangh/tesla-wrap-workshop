@@ -128,6 +128,22 @@ _Avoid_: Completed transfer, click, page view
 A Download Event that opened the ten-minute deduplication gate and incremented a Wrap's public download count.
 _Avoid_: Download request, duplicate download
 
+**Discovery Set**:
+The single visibility-filtered set of Published Wraps eligible to appear on every public browse, search, Trending, Model, and Profile surface.
+_Avoid_: Search index, feed, gallery data
+
+**Trending Score**:
+A reproducible, time-decayed ranking value calculated only from eligible recent engagement within the Discovery Set.
+_Avoid_: Recommendation, popularity count
+
+**First Published At**:
+The immutable time a Wrap first entered the Discovery Set. Republishing or replacing an Asset Revision does not reset it.
+_Avoid_: Updated at, latest publish time
+
+**Wrap Slug**:
+The permanent, globally unique public URL handle assigned to a Wrap and never reassigned to another Wrap.
+_Avoid_: Title, storage key, mutable slug
+
 **Published Wrap**:
 A Wrap that is publicly discoverable and whose original Wrap Asset is eligible for download.
 _Avoid_: Public draft, active wrap
