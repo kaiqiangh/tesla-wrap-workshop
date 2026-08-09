@@ -56,6 +56,12 @@ test("OAuth callback rejects missing codes and external destinations", async ({
   await expect(
     page.getByText("That sign-in could not be completed."),
   ).toBeVisible();
+
+  await page.goto("/sign-in?error=__proto__");
+  await expect(
+    page.getByRole("heading", { name: "Join the workshop" }),
+  ).toBeVisible();
+  await expect(page.locator(".form-error")).toHaveCount(0);
 });
 
 test("User completes local OTP, onboarding, refresh, Profile, suspension, and logout", async ({

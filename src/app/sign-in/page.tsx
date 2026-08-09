@@ -25,6 +25,10 @@ export default async function SignInPage({
   const query = await searchParams;
   const next = safeNextPath(query.next);
   const env = readPublicEnvironment(process.env);
+  const message =
+    query.error && Object.hasOwn(messages, query.error)
+      ? messages[query.error]
+      : undefined;
 
   return (
     <main className="auth-shell">
@@ -36,9 +40,9 @@ export default async function SignInPage({
           Browse and download as a Guest. Sign in only when you want to create
           or join the community.
         </p>
-        {query.error && messages[query.error] ? (
+        {message ? (
           <p className="form-error" role="alert">
-            {messages[query.error]}
+            {message}
           </p>
         ) : null}
         <SignInForm

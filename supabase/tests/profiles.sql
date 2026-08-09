@@ -100,12 +100,11 @@ select set_config(
   true
 );
 
-select is(
-  (
-    select count(*) from (select username from public.profiles) visible_profiles
-  ),
-  1::bigint,
-  'an incomplete User can read only their own Profile'
+select throws_ok(
+  $$ select username from public.profiles $$,
+  '42501',
+  'permission denied for table profiles',
+  'an authenticated User cannot bypass the Profile RPC boundaries'
 );
 select results_eq(
   $$ select may_onboard, may_participate from public.current_profile_access() $$,
@@ -232,15 +231,14 @@ select is(
 );
 select is(
   (
-    select string_agg(column_name::text collate "C", ',' order by column_name::text collate "C")
+    select count(*)
     from information_schema.column_privileges
-    where grantee = 'anon'
+    where grantee in ('anon', 'authenticated')
       and table_schema = 'public'
       and table_name = 'profiles'
-      and privilege_type = 'SELECT'
   ),
-  'avatar_url,bio,display_name,username',
-  'a Guest receives only the public Profile column grants'
+  0::bigint,
+  'Data API roles receive no direct Profile column grants'
 );
 select throws_ok(
   $$ select user_id from public.profiles limit 1 $$,
@@ -259,6 +257,12 @@ select throws_ok(
   '42501',
   'permission denied for table profiles',
   'a Guest cannot read Profile moderation state'
+);
+select throws_ok(
+  $$ select username from public.profiles limit 1 $$,
+  '42501',
+  'permission denied for table profiles',
+  'a Guest cannot enumerate public Profiles outside the lookup RPC'
 );
 select throws_ok(
   $$ select * from public.current_profile_access() $$,
@@ -323,6 +327,35 @@ select throws_ok(
 );
 
 reset role;
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '20000000-0000-0000-0000-000000000002';
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select is_empty(
+  $$ select * from public.get_public_profile('road-two') $$,
+  'a deactivated Profile remains withdrawn from public reads'
+);
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000002","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select may_onboard, may_participate from public.current_profile_access() $$,
+  $$ values (false, false) $$,
+  'fresh database state denies a deactivated User'
+);
+select is_empty(
+  $$ select * from public.complete_profile('reactivated', 'Reactivated') $$,
+  'a deactivated User cannot complete onboarding'
+);
+
+reset role;
 select is(
   (
     select count(*)
@@ -330,10 +363,10 @@ select is(
     where grantee in ('anon', 'authenticated')
       and table_schema = 'public'
       and table_name = 'profiles'
-      and privilege_type in ('INSERT', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+      and privilege_type in ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
   ),
   0::bigint,
-  'Data API roles cannot create, delete, or take structural control of Profiles'
+  'Data API roles have no direct Profile data or structural privileges'
 );
 
 set local role service_role;

@@ -136,19 +136,6 @@ alter table public.profiles enable row level security;
 revoke all on public.profiles from anon, authenticated;
 grant select on public.profiles to service_role;
 grant update (participation_state) on public.profiles to service_role;
-grant select (username, display_name, bio, avatar_url)
-  on public.profiles to anon, authenticated;
-
-create policy "public profiles and the current Profile are readable"
-  on public.profiles for select
-  to anon, authenticated
-  using (
-    (select auth.uid()) = user_id
-    or (
-      onboarding_completed_at is not null
-      and participation_state = 'ACTIVE'
-    )
-  );
 
 create function public.complete_profile(p_username text, p_display_name text)
 returns table (username text)
