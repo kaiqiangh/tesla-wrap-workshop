@@ -45,12 +45,56 @@ An original downloadable Custom Wrap or a derived preview or thumbnail belonging
 _Avoid_: File, image
 
 **Creator**:
-A registered User who has published at least one Wrap; no separate creator account type exists.
+A User who has published at least one Wrap at any time. Creator identity persists even when no Wrap is currently Published; no separate creator account type exists.
 _Avoid_: Seller, artist account
 
 **User**:
 A registered community member who may interact with Wraps and becomes a Creator by publishing one.
 _Avoid_: Account, customer
+
+**Profile**:
+The public identity and attribution record for a User, addressed by a unique Username.
+_Avoid_: Account, creator page
+
+**Username**:
+The case-insensitive canonical handle used in a Profile URL and community attribution.
+_Avoid_: Display name, user ID
+
+**Username Alias**:
+A permanently reserved former Username that redirects to the same Profile after a rename.
+_Avoid_: Recycled username, nickname
+
+**Like**:
+A public endorsement by one User of another Creator's Wrap.
+_Avoid_: Favorite, reaction
+
+**Favorite**:
+A private bookmark that only its owning User may list, while its aggregate may contribute to Trending.
+_Avoid_: Like, collection
+
+**Follow**:
+A User's subscription to a Creator's identity; P0 does not imply a personalized feed or notifications.
+_Avoid_: Friend, subscription plan
+
+**Comment**:
+A plain-text contribution by a User on a Published Wrap.
+_Avoid_: Reply, review, message
+
+**Report**:
+A User's private request for an administrator to review a Wrap, Comment, or User against a canonical reason.
+_Avoid_: Complaint, moderation action
+
+**Moderation Action**:
+An auditable administrator decision that changes the visibility or participation state of a Report target.
+_Avoid_: Report, edit
+
+**Suspended User**:
+A User temporarily barred from authenticated community actions whose public Profile, Wraps, Comments, and social influence are excluded until reinstatement.
+_Avoid_: Deleted user, banned content
+
+**Deactivated User**:
+A User whose access and public identity have been withdrawn while minimum non-public records required for safety, integrity, and legal obligations are retained.
+_Avoid_: Suspended user, hard-deleted user
 
 **Guest Session**:
 An anonymous browser session used to limit duplicate public Download Events without storing a raw IP address.
@@ -71,3 +115,11 @@ _Avoid_: Deleted wrap, unpublished wrap
 **Removed Wrap**:
 A soft-deleted Wrap that is no longer available to its Creator or the public through normal product flows.
 _Avoid_: Hard-deleted wrap, hidden wrap
+
+**Hidden Comment**:
+A Comment made non-public by moderation while its text and evidence remain available to administrators.
+_Avoid_: Deleted comment, removed comment
+
+**Removed Comment**:
+A soft-deleted Comment whose public text is no longer available through normal product flows.
+_Avoid_: Hidden comment, hard-deleted comment
