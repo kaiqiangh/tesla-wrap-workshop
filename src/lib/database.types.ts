@@ -34,6 +34,45 @@ export type Database = {
   };
   public: {
     Tables: {
+      profiles: {
+        Row: {
+          avatar_url: string | null;
+          bio: string;
+          created_at: string;
+          display_name: string | null;
+          onboarding_completed_at: string | null;
+          participation_state: string;
+          updated_at: string;
+          user_id: string;
+          username: string | null;
+          username_changed_at: string | null;
+        };
+        Insert: {
+          avatar_url?: string | null;
+          bio?: string;
+          created_at?: string;
+          display_name?: string | null;
+          onboarding_completed_at?: string | null;
+          participation_state?: string;
+          updated_at?: string;
+          user_id: string;
+          username?: string | null;
+          username_changed_at?: string | null;
+        };
+        Update: {
+          avatar_url?: string | null;
+          bio?: string;
+          created_at?: string;
+          display_name?: string | null;
+          onboarding_completed_at?: string | null;
+          participation_state?: string;
+          updated_at?: string;
+          user_id?: string;
+          username?: string | null;
+          username_changed_at?: string | null;
+        };
+        Relationships: [];
+      };
       template_variants: {
         Row: {
           active: boolean;
@@ -116,10 +155,48 @@ export type Database = {
       };
     };
     Views: {
-      [_ in never]: never;
+      public_profiles: {
+        Row: {
+          avatar_url: string | null;
+          bio: string | null;
+          created_at: string | null;
+          display_name: string | null;
+          updated_at: string | null;
+          user_id: string | null;
+          username: string | null;
+        };
+        Insert: {
+          avatar_url?: string | null;
+          bio?: string | null;
+          created_at?: string | null;
+          display_name?: string | null;
+          updated_at?: string | null;
+          user_id?: string | null;
+          username?: string | null;
+        };
+        Update: {
+          avatar_url?: string | null;
+          bio?: string | null;
+          created_at?: string | null;
+          display_name?: string | null;
+          updated_at?: string | null;
+          user_id?: string | null;
+          username?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
-      [_ in never]: never;
+      current_profile_access: {
+        Args: never;
+        Returns: {
+          may_onboard: boolean;
+          may_participate: boolean;
+          user_id: string;
+          username: string;
+        }[];
+      };
+      profile_is_public: { Args: { p_user_id: string }; Returns: boolean };
     };
     Enums: {
       [_ in never]: never;

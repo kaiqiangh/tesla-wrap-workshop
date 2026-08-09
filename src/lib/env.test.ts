@@ -34,4 +34,13 @@ describe("readPublicEnvironment", () => {
       }),
     ).toThrow("Local mode requires local site and Supabase URLs");
   });
+
+  it("rejects a browser environment identity that disagrees with the server", () => {
+    expect(() =>
+      readPublicEnvironment({
+        ...valid,
+        NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT: "production",
+      }),
+    ).toThrow("environment identities must match");
+  });
 });

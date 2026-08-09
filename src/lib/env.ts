@@ -28,6 +28,12 @@ export function readPublicEnvironment(
       "WRAPFORGE_ENVIRONMENT must be local, development, or production",
     );
   }
+  if (
+    source.NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT &&
+    source.NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT !== mode
+  ) {
+    throw new Error("Server and browser environment identities must match");
+  }
 
   const siteUrl = new URL(source.NEXT_PUBLIC_SITE_URL!);
   const supabaseUrl = new URL(source.NEXT_PUBLIC_SUPABASE_URL!);

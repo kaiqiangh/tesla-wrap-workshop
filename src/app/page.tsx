@@ -29,8 +29,9 @@ export default async function Home() {
         <nav className="desktop-nav" aria-label="Primary navigation">
           <a href="#catalog">Models</a>
           <a href="#empty-gallery">Explore</a>
-          <a className="button button-small" href="#catalog">
-            Choose a Template
+          <a href="/sign-in">Sign in</a>
+          <a className="button button-small" href="/upload">
+            Upload a Wrap
           </a>
         </nav>
         <details className="mobile-nav">
@@ -38,6 +39,8 @@ export default async function Home() {
           <div>
             <a href="#catalog">Models</a>
             <a href="#empty-gallery">Explore</a>
+            <a href="/sign-in">Sign in</a>
+            <a href="/upload">Upload a Wrap</a>
           </div>
         </details>
       </header>

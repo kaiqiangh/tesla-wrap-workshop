@@ -25,8 +25,12 @@ const child = spawnSync(executable, executableArgs, {
     ...process.env,
     NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
     WRAPFORGE_ENVIRONMENT: "local",
+    NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT: "local",
     NEXT_PUBLIC_SUPABASE_URL: local.API_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: local.PUBLISHABLE_KEY,
+    SUPABASE_SECRET_KEY: local.SECRET_KEY,
+    SUPABASE_JWT_SECRET: local.JWT_SECRET,
+    SUPABASE_MAILPIT_URL: local.MAILPIT_URL,
   },
   stdio: "inherit",
 });
