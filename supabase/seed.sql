@@ -1,0 +1,23 @@
+insert into public.vehicle_models (id, slug, display_name, sort_order) values
+  ('00000000-0000-0000-0000-000000000001', 'model-3', 'Model 3', 1),
+  ('00000000-0000-0000-0000-000000000002', 'model-y', 'Model Y', 2),
+  ('00000000-0000-0000-0000-000000000003', 'model-s', 'Model S', 3),
+  ('00000000-0000-0000-0000-000000000004', 'model-x', 'Model X', 4),
+  ('00000000-0000-0000-0000-000000000005', 'cybertruck', 'Cybertruck', 5);
+
+insert into public.template_variants (
+  id, vehicle_model_id, catalog_key, display_name, width_px, height_px,
+  source_commit, source_url, source_note, verified_at
+) values
+  ('10000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'model3', 'Model 3', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/model3', 'Tesla gives no year or trim boundary.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'model3-2024-base', 'Model 3 (2024+) Standard & Premium', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/model3-2024-base', 'Explicit year and trim grouping.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000001', 'model3-2024-performance', 'Model 3 (2024+) Performance', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/model3-2024-performance', 'Explicit year and trim grouping.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000002', 'modely', 'Model Y', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modely', 'Tesla gives no year or trim boundary.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000002', 'modely-2025-base', 'Model Y (2025+) Standard', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modely-2025-base', 'Explicit year and trim.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000002', 'modely-2025-premium', 'Model Y (2025+) Premium', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modely-2025-premium', 'Explicit year and trim.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000002', 'modely-2025-performance', 'Model Y (2025+) Performance', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modely-2025-performance', 'Explicit year and trim.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000002', 'modely-l', 'Model Y L', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modely-l', 'Tesla gives no year qualifier.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000009', '00000000-0000-0000-0000-000000000003', 'models-2021', 'Model S (2021+)', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/models-2021', 'Trim boundary is not stated.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000003', 'models-2025-plaid', 'Model S (2025+) Plaid', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/models-2025-plaid', 'Explicit year and trim.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000011', '00000000-0000-0000-0000-000000000004', 'modelx-2021', 'Model X (2021+)', 1024, 1024, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/modelx-2021', 'Trim boundary is not stated.', '2026-08-09'),
+  ('10000000-0000-0000-0000-000000000012', '00000000-0000-0000-0000-000000000005', 'cybertruck', 'Cybertruck', 1024, 768, '86c7d31454caf0f20af6f6af105f577643f13bce', 'https://github.com/teslamotors/custom-wraps/tree/86c7d31454caf0f20af6f6af105f577643f13bce/cybertruck', 'Tesla gives no model-year qualifier.', '2026-08-09');

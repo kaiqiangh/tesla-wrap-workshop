@@ -1,0 +1,27 @@
+# dependencies
+/node_modules/
+
+# Next.js
+/.next/
+/out/
+
+# test output
+/coverage/
+/playwright-report/
+/test-results/
+*.tsbuildinfo
+
+# local environment
+.env*
+!.env.example
+
+# Supabase local state
+/supabase/.branches/
+/supabase/.temp/
+
+# generated local evidence
+/artifacts/
+
+# operating systems and editors
+.DS_Store
+*.swp
