@@ -262,9 +262,10 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     .getAttribute("href");
   expect(publishedHref).toMatch(/^\/wrap\/[a-z0-9-]+$/);
   const publishedSlug = publishedHref!.split("/").at(-1)!;
-  const publishedProfile = await page.request.get(`/u/${username}`);
-  expect(publishedProfile.status()).toBe(200);
-  expect(await publishedProfile.text()).toContain("Cybertruck Night Drive");
+  await expectRouteBodyContains(
+    () => page.request.get(`/u/${username}`),
+    "Cybertruck Night Drive",
+  );
   await Promise.all([
     page.waitForURL(`/wrap/${publishedSlug}`, { timeout: 15000 }),
     page.getByRole("link", { name: "View Wrap detail" }).click(),
@@ -296,9 +297,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await page.getByRole("button", { name: "Republish" }).click();
   await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Unpublish" })).toBeVisible();
-  const republishedDetail = await page.request.get(`/wrap/${publishedSlug}`);
-  expect(republishedDetail.status()).toBe(200);
-  expect(await republishedDetail.text()).toContain(
+  await expectRouteBodyContains(
+    () => page.request.get(`/wrap/${publishedSlug}`),
     "Cybertruck Night Drive Updated",
   );
   page.on("dialog", (dialog) => void dialog.accept());
@@ -660,6 +660,25 @@ async function expectRouteStatus(
       { timeout: 15000 },
     )
     .toBe(status);
+}
+
+async function expectRouteBodyContains(
+  request: () => Promise<{ status(): number; text(): Promise<string> }>,
+  expected: string,
+) {
+  await expect
+    .poll(
+      async () => {
+        try {
+          const response = await request();
+          return response.status() === 200 ? await response.text() : "";
+        } catch {
+          return "";
+        }
+      },
+      { timeout: 15000 },
+    )
+    .toContain(expected);
 }
 
 async function readSessionCookie(context: BrowserContext): Promise<Session> {
