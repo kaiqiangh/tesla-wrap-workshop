@@ -7,7 +7,7 @@ export type ProfileAccess =
   | { status: "guest" }
   | { status: "unavailable" }
   | { status: "incomplete" }
-  | { status: "active"; username: string };
+  | { status: "active"; username: string; userId: string };
 
 export async function readProfileAccess(
   suppliedClient?: SupabaseClient<Database>,
@@ -26,5 +26,9 @@ export async function readProfileAccess(
   if (!access.may_participate || !access.username) {
     return { status: "incomplete" };
   }
-  return { status: "active", username: access.username };
+  return {
+    status: "active",
+    username: access.username,
+    userId: identity.claims.sub,
+  };
 }

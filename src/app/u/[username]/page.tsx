@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
@@ -25,6 +26,12 @@ export default async function PublicProfilePage({ params }: Props) {
   const profile = data?.[0];
   if (error) throw new Error("Profile is temporarily unavailable");
   if (!profile?.username || !profile.display_name) notFound();
+  const { data: wraps, error: wrapsError } = await supabase.rpc(
+    "get_public_creator_wraps",
+    { p_username: username },
+  );
+  if (wrapsError)
+    throw new Error("Published Wraps are temporarily unavailable");
 
   return (
     <main className="profile-shell">
@@ -45,14 +52,44 @@ export default async function PublicProfilePage({ params }: Props) {
           {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
         </div>
       </section>
-      <section className="profile-empty" aria-labelledby="profile-wraps">
-        <p className="eyebrow">PUBLISHED WRAPS</p>
-        <h2 id="profile-wraps">No published wraps yet.</h2>
-        <p>
-          This Profile is ready. Its first Custom Wrap will appear here after
-          publication.
-        </p>
-      </section>
+      {wraps.length ? (
+        <section className="profile-wraps" aria-labelledby="profile-wraps">
+          <p className="eyebrow">PUBLISHED WRAPS</p>
+          <h2 id="profile-wraps">
+            {wraps.length} published Wrap{wraps.length === 1 ? "" : "s"}.
+          </h2>
+          <div className="profile-wrap-grid">
+            {wraps.map((wrap) => (
+              <Link
+                className="profile-wrap-card"
+                href={`/wrap/${wrap.slug}`}
+                key={wrap.id}
+              >
+                <Image
+                  src={`/api/wraps/${wrap.slug}/preview`}
+                  alt={`${wrap.title} Derived Wrap Asset`}
+                  width={wrap.preview_width_px ?? wrap.width_px}
+                  height={wrap.preview_height_px ?? wrap.height_px}
+                />
+                <span className="eyebrow">{wrap.template_variant_name}</span>
+                <strong>{wrap.title}</strong>
+                <span>
+                  {wrap.width_px}×{wrap.height_px} · Verified {wrap.verified_at}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <section className="profile-empty" aria-labelledby="profile-wraps">
+          <p className="eyebrow">PUBLISHED WRAPS</p>
+          <h2 id="profile-wraps">No published wraps yet.</h2>
+          <p>
+            This Profile is ready. Its first Custom Wrap will appear here after
+            publication.
+          </p>
+        </section>
+      )}
     </main>
   );
 }

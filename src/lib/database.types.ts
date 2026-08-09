@@ -257,6 +257,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      tags: {
+        Row: {
+          created_at: string;
+          display_name: string;
+          id: string;
+          slug: string;
+        };
+        Insert: {
+          created_at?: string;
+          display_name: string;
+          id?: string;
+          slug: string;
+        };
+        Update: {
+          created_at?: string;
+          display_name?: string;
+          id?: string;
+          slug?: string;
+        };
+        Relationships: [];
+      };
       template_variants: {
         Row: {
           active: boolean;
@@ -384,6 +405,137 @@ export type Database = {
           },
         ];
       };
+      wrap_tags: {
+        Row: {
+          created_at: string;
+          tag_id: string;
+          wrap_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          tag_id: string;
+          wrap_id: string;
+        };
+        Update: {
+          created_at?: string;
+          tag_id?: string;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wrap_tags_tag_id_fkey";
+            columns: ["tag_id"];
+            isOneToOne: false;
+            referencedRelation: "tags";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "wrap_tags_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      wraps: {
+        Row: {
+          asset_revision_id: string;
+          comment_count: number;
+          created_at: string;
+          creator_id: string;
+          deleted_at: string | null;
+          description: string;
+          distribution_asserted: boolean;
+          download_count: number;
+          favorite_count: number;
+          first_published_at: string | null;
+          id: string;
+          license_type: string;
+          like_count: number;
+          slug: string;
+          status: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          title: string;
+          updated_at: string;
+          vehicle_model_id: string;
+        };
+        Insert: {
+          asset_revision_id: string;
+          comment_count?: number;
+          created_at?: string;
+          creator_id: string;
+          deleted_at?: string | null;
+          description?: string;
+          distribution_asserted: boolean;
+          download_count?: number;
+          favorite_count?: number;
+          first_published_at?: string | null;
+          id?: string;
+          license_type: string;
+          like_count?: number;
+          slug: string;
+          status?: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          title: string;
+          updated_at?: string;
+          vehicle_model_id: string;
+        };
+        Update: {
+          asset_revision_id?: string;
+          comment_count?: number;
+          created_at?: string;
+          creator_id?: string;
+          deleted_at?: string | null;
+          description?: string;
+          distribution_asserted?: boolean;
+          download_count?: number;
+          favorite_count?: number;
+          first_published_at?: string | null;
+          id?: string;
+          license_type?: string;
+          like_count?: number;
+          slug?: string;
+          status?: string;
+          template_asserted?: boolean;
+          template_variant_id?: string;
+          title?: string;
+          updated_at?: string;
+          vehicle_model_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wraps_asset_revision_id_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: true;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "wraps_creator_id_fkey";
+            columns: ["creator_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "wraps_template_variant_id_fkey";
+            columns: ["template_variant_id"];
+            isOneToOne: false;
+            referencedRelation: "template_variants";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "wraps_vehicle_model_id_fkey";
+            columns: ["vehicle_model_id"];
+            isOneToOne: false;
+            referencedRelation: "vehicle_models";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -430,9 +582,47 @@ export type Database = {
           username: string;
         }[];
       };
+      edit_wrap: {
+        Args: {
+          p_creator_id: string;
+          p_description: string;
+          p_license_type: string;
+          p_slug: string;
+          p_tags: string[];
+          p_title: string;
+        };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+        }[];
+      };
       fail_pending_upload: {
         Args: { p_code: string; p_detail: Json; p_id: string };
         Returns: undefined;
+      };
+      get_owner_wrap: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          asset_revision_id: string;
+          creator_username: string;
+          description: string;
+          distribution_asserted: boolean;
+          first_published_at: string;
+          height_px: number;
+          id: string;
+          license_type: string;
+          slug: string;
+          status: string;
+          tags: string[];
+          template_asserted: boolean;
+          template_variant_key: string;
+          template_variant_name: string;
+          title: string;
+          verified_at: string;
+          width_px: number;
+        }[];
       };
       get_pending_upload: {
         Args: { p_id: string };
@@ -454,6 +644,35 @@ export type Database = {
           width_px: number;
         }[];
       };
+      get_public_creator_wraps: {
+        Args: { p_username: string };
+        Returns: {
+          availability_caveat: string;
+          comment_count: number;
+          creator_display_name: string;
+          creator_username: string;
+          description: string;
+          download_count: number;
+          favorite_count: number;
+          first_published_at: string;
+          height_px: number;
+          id: string;
+          legacy: boolean;
+          license_type: string;
+          like_count: number;
+          preview_available: boolean;
+          preview_height_px: number;
+          preview_width_px: number;
+          slug: string;
+          tags: string[];
+          template_variant_key: string;
+          template_variant_name: string;
+          title: string;
+          vehicle_model_name: string;
+          verified_at: string;
+          width_px: number;
+        }[];
+      };
       get_public_profile: {
         Args: { p_username: string };
         Returns: {
@@ -461,6 +680,83 @@ export type Database = {
           bio: string;
           display_name: string;
           username: string;
+        }[];
+      };
+      get_public_wrap: {
+        Args: { p_slug: string };
+        Returns: {
+          availability_caveat: string;
+          comment_count: number;
+          creator_display_name: string;
+          creator_username: string;
+          description: string;
+          download_count: number;
+          favorite_count: number;
+          first_published_at: string;
+          height_px: number;
+          id: string;
+          legacy: boolean;
+          license_type: string;
+          like_count: number;
+          preview_available: boolean;
+          preview_height_px: number;
+          preview_width_px: number;
+          slug: string;
+          tags: string[];
+          template_variant_key: string;
+          template_variant_name: string;
+          title: string;
+          vehicle_model_name: string;
+          verified_at: string;
+          width_px: number;
+        }[];
+      };
+      get_public_wrap_media: {
+        Args: { p_slug: string };
+        Returns: {
+          byte_size: number;
+          object_key: string;
+          sha256: string;
+        }[];
+      };
+      publish_wrap: {
+        Args: {
+          p_asset_revision_id: string;
+          p_creator_id: string;
+          p_description: string;
+          p_distribution_asserted: boolean;
+          p_license_type: string;
+          p_tags: string[];
+          p_template_asserted: boolean;
+          p_template_variant_id: string;
+          p_title: string;
+        };
+        Returns: {
+          asset_revision_id: string;
+          created: boolean;
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+          template_variant_id: string;
+        }[];
+      };
+      remove_wrap: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+        }[];
+      };
+      republish_wrap: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
         }[];
       };
       start_pending_upload: {
@@ -475,6 +771,15 @@ export type Database = {
           id: string;
           idempotency_key: string;
           staging_key: string;
+        }[];
+      };
+      unpublish_wrap: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
         }[];
       };
     };

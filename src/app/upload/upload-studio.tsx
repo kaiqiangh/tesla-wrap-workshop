@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { CatalogModel } from "@/lib/catalog";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { preflightUpload, type UploadProblem } from "@/lib/upload/preflight";
+import { validateWrapMetadata, type LicenseType } from "@/lib/wraps/metadata";
 
 import { signOut } from "../auth/actions";
 
@@ -19,6 +20,7 @@ type PublicError = Pick<UploadProblem, "rule" | "nextAction"> & {
 export function UploadStudio({ catalog, username }: Props) {
   const [variantId, setVariantId] = useState("");
   const [asserted, setAsserted] = useState(false);
+  const [distributionAsserted, setDistributionAsserted] = useState(false);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<PublicError>();
   const [pendingId, setPendingId] = useState<string>();
@@ -27,6 +29,17 @@ export function UploadStudio({ catalog, username }: Props) {
     dimensions: string;
     byteSize?: number;
     sha256?: string;
+    previewUrl: string;
+  }>();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [licenseType, setLicenseType] = useState<LicenseType>(
+    "PERSONAL_USE_ALLOWED",
+  );
+  const [tags, setTags] = useState("");
+  const [publishedWrap, setPublishedWrap] = useState<{
+    slug: string;
+    status: string;
   }>();
   const variant = catalog
     .flatMap((model) => model.variants)
@@ -35,6 +48,7 @@ export function UploadStudio({ catalog, username }: Props) {
   async function chooseFile(file?: File) {
     setError(undefined);
     setRevision(undefined);
+    setPublishedWrap(undefined);
     if (!file || !variant || !asserted) {
       setError({
         code: "WF-UPLOAD-REQUEST",
@@ -162,9 +176,63 @@ export function UploadStudio({ catalog, username }: Props) {
         dimensions: `${finalBody.width ?? selectedVariant.width}×${finalBody.height ?? selectedVariant.height}`,
         byteSize: finalBody.byteSize,
         sha256: finalBody.sha256,
+        previewUrl: `/api/uploads/${id}/preview`,
       });
     } catch {
       setStatus("idle");
+      setError(fallback());
+    }
+  }
+
+  async function publish() {
+    if (!revision || !variant) return;
+    const metadata = validateWrapMetadata({
+      title,
+      description,
+      licenseType,
+      tags: tags.split(","),
+      templateAsserted: asserted,
+      distributionAsserted,
+    });
+    if (!metadata.ok) {
+      setError({
+        code: metadata.problem.code,
+        problem: metadata.problem.measured,
+        rule: "Publication metadata must be bounded, canonical, and separately asserted.",
+        nextAction: metadata.problem.nextAction,
+      });
+      return;
+    }
+    setStatus("validating");
+    try {
+      const response = await fetch("/api/wraps", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          assetRevisionId: revision.id,
+          description: metadata.value.description,
+          distributionAsserted: metadata.value.distributionAsserted,
+          licenseType: metadata.value.licenseType,
+          tags: metadata.value.tags,
+          templateAsserted: metadata.value.templateAsserted,
+          templateVariantId: variant.id,
+          title: metadata.value.title,
+        }),
+      });
+      const body = (await response.json()) as {
+        wrap?: { slug: string; status: string };
+        error?: PublicError;
+      };
+      if (!response.ok || !body.wrap) {
+        setStatus("ready");
+        setError(body.error ?? fallback());
+        return;
+      }
+      setPublishedWrap(body.wrap);
+      setStatus("ready");
+      setError(undefined);
+    } catch {
+      setStatus("ready");
       setError(fallback());
     }
   }
@@ -236,7 +304,10 @@ export function UploadStudio({ catalog, username }: Props) {
                       onChange={() => {
                         setVariantId(item.id);
                         setAsserted(false);
+                        setDistributionAsserted(false);
                         setError(undefined);
+                        setRevision(undefined);
+                        setPublishedWrap(undefined);
                       }}
                     />
                     <label htmlFor={`variant-${item.id}`}>
@@ -279,7 +350,10 @@ export function UploadStudio({ catalog, username }: Props) {
             </label>
             <label
               className={
-                variant && asserted && (status === "idle" || status === "ready")
+                variant &&
+                asserted &&
+                !pendingId &&
+                (status === "idle" || status === "ready")
                   ? "file-picker"
                   : "file-picker disabled"
               }
@@ -291,6 +365,7 @@ export function UploadStudio({ catalog, username }: Props) {
                 disabled={
                   !variant ||
                   !asserted ||
+                  Boolean(pendingId) ||
                   (status !== "idle" && status !== "ready")
                 }
                 onChange={(event) => void chooseFile(event.target.files?.[0])}
@@ -333,12 +408,148 @@ export function UploadStudio({ catalog, username }: Props) {
                 {revision.sha256 && <code>SHA-256 {revision.sha256}</code>}
                 <p>
                   The Original, private preview, and private thumbnail are
-                  complete. Add Details arrives in the next implementation
-                  slice.
+                  complete. Add the bounded metadata before publication.
                 </p>
               </div>
             )}
           </section>
+
+          {revision && variant && (
+            <section className="publish-step" aria-labelledby="details-step">
+              <p className="eyebrow">STEP 03</p>
+              <h2 id="details-step">Add Details</h2>
+              <p className="studio-intro">
+                These fields describe the Wrap; they never mutate the immutable
+                Asset Revision.
+              </p>
+              <div className="form-grid">
+                <label>
+                  Title
+                  <input
+                    aria-label="Wrap title"
+                    maxLength={80}
+                    required
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Description
+                  <textarea
+                    aria-label="Wrap description"
+                    maxLength={2000}
+                    required
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
+                  />
+                </label>
+                <label>
+                  License
+                  <select
+                    aria-label="Wrap license"
+                    value={licenseType}
+                    onChange={(event) =>
+                      setLicenseType(event.target.value as LicenseType)
+                    }
+                  >
+                    <option value="PERSONAL_USE_ALLOWED">
+                      Personal Use Allowed
+                    </option>
+                    <option value="CREATIVE_COMMONS">Creative Commons</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </label>
+                <label>
+                  Tags
+                  <input
+                    aria-label="Wrap tags"
+                    placeholder="night-drive, graphite"
+                    value={tags}
+                    onChange={(event) => setTags(event.target.value)}
+                  />
+                  <small>Comma-separated, up to ten canonical Tags.</small>
+                </label>
+                <label className="assertion">
+                  <input
+                    type="checkbox"
+                    checked={distributionAsserted}
+                    onChange={(event) =>
+                      setDistributionAsserted(event.target.checked)
+                    }
+                  />
+                  I own this artwork or have permission to distribute it.
+                </label>
+              </div>
+            </section>
+          )}
+
+          {revision && variant && (
+            <section className="publish-step" aria-labelledby="publish-step">
+              <p className="eyebrow">STEP 04</p>
+              <h2 id="publish-step">Preview &amp; Publish</h2>
+              <div className="publish-preview">
+                {/* eslint-disable-next-line @next/next/no-img-element -- private preview route requires the browser session cookie */}
+                <img
+                  src={revision.previewUrl}
+                  alt="Derived Wrap Asset preview"
+                  width={Math.min(variant.width, 640)}
+                  height={Math.min(variant.height, 640)}
+                />
+                <div>
+                  <strong>{title.trim() || "Untitled Wrap"}</strong>
+                  <p>
+                    Compatible with {variant.displayName} ·{" "}
+                    {revision.dimensions}
+                  </p>
+                  <p>{variant.verifiedAt} catalog verification · Active</p>
+                  <p>
+                    Availability can vary by vehicle, configuration, account,
+                    software, and region.
+                  </p>
+                </div>
+              </div>
+              <ol
+                className="readiness-gates"
+                aria-label="Publication readiness"
+              >
+                <li className="gate-ready">Active Profile</li>
+                <li className="gate-ready">Active Template Variant</li>
+                <li className="gate-ready">Template-verified Asset Revision</li>
+                <li
+                  className={
+                    title.trim() && description.trim() ? "gate-ready" : ""
+                  }
+                >
+                  Required metadata and license
+                </li>
+                <li className={distributionAsserted ? "gate-ready" : ""}>
+                  Template and distribution assertions
+                </li>
+              </ol>
+              <button
+                className="button"
+                type="button"
+                onClick={() => void publish()}
+                disabled={status === "validating" || Boolean(publishedWrap)}
+              >
+                {publishedWrap ? "Published" : "Publish Wrap"}
+              </button>
+              {publishedWrap && (
+                <div className="ready-result" role="status">
+                  <strong>Published Wrap is ready.</strong>
+                  <p>
+                    <Link href={`/wrap/${publishedWrap.slug}`}>
+                      View Wrap detail
+                    </Link>
+                    {" · "}
+                    <Link href={`/wrap/${publishedWrap.slug}/edit`}>
+                      Manage Wrap
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </section>
+          )}
         </section>
 
         <aside className="studio-summary" aria-label="Upload summary">

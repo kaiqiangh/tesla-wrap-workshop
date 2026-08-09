@@ -430,6 +430,127 @@ summary:focus-visible {
 .profile-empty h2 {
   margin: 14px 0 22px;
 }
+.profile-wraps {
+  padding: 70px 7vw 110px;
+}
+.profile-wraps h2 {
+  margin: 14px 0 26px;
+}
+.profile-wrap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  max-width: 1100px;
+}
+.profile-wrap-card {
+  display: grid;
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.profile-wrap-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.profile-wrap-card strong {
+  color: var(--white);
+  font-size: 20px;
+}
+.profile-wrap-card > span:last-child {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.wrap-detail-shell {
+  min-height: 100vh;
+}
+.wrap-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+  gap: clamp(30px, 6vw, 90px);
+  padding: 7vw;
+}
+.wrap-detail-preview {
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.wrap-detail-preview img {
+  width: 100%;
+  height: auto;
+}
+.wrap-detail-copy h1 {
+  margin: 12px 0;
+}
+.wrap-creator,
+.wrap-published-date,
+.wrap-license,
+.wrap-description {
+  color: var(--muted);
+}
+.wrap-description {
+  white-space: pre-wrap;
+  line-height: 1.6;
+}
+.compatibility-claim {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0;
+  padding: 18px;
+  border-left: 3px solid var(--mint);
+  background: var(--panel);
+}
+.compatibility-claim p {
+  margin: 0;
+  color: var(--muted);
+}
+.compatibility-claim b {
+  color: #ffd69a;
+}
+.wrap-actions {
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  margin: 24px 0 10px;
+}
+.download-coming-soon {
+  color: var(--muted);
+  font-size: 13px;
+}
+.wrap-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin: 30px 0;
+}
+.wrap-stats div {
+  padding: 12px;
+  border: 1px solid var(--line);
+}
+.wrap-stats dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.wrap-stats dd {
+  margin: 5px 0 0;
+  font-weight: 750;
+}
+.wrap-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.wrap-tags span {
+  color: var(--mint);
+  font:
+    12px var(--font-mono),
+    monospace;
+}
 
 .studio-shell {
   min-height: 100vh;
@@ -549,6 +670,78 @@ summary:focus-visible {
   margin-top: 72px;
   padding-top: 54px;
   border-top: 1px solid var(--line);
+}
+.publish-step {
+  margin-top: 72px;
+  padding-top: 54px;
+  border-top: 1px solid var(--line);
+}
+.form-grid {
+  display: grid;
+  gap: 18px;
+  max-width: 760px;
+}
+.form-grid label {
+  display: grid;
+  gap: 8px;
+  color: #c3cccd;
+  font-weight: 650;
+}
+.form-grid input,
+.form-grid textarea,
+.form-grid select {
+  width: 100%;
+  border: 1px solid #344043;
+  border-radius: 4px;
+  padding: 12px 14px;
+  background: #0d1315;
+  color: var(--white);
+  font: inherit;
+}
+.form-grid textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+.form-grid small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.publish-preview {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) 1fr;
+  gap: 24px;
+  align-items: center;
+  max-width: 760px;
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+.publish-preview img {
+  width: 100%;
+  height: auto;
+  border: 1px solid #344043;
+}
+.publish-preview strong {
+  font-size: 20px;
+}
+.publish-preview p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+.readiness-gates {
+  display: grid;
+  gap: 8px;
+  max-width: 760px;
+  margin: 24px 0;
+  padding-left: 20px;
+  color: #9ba6a8;
+}
+.readiness-gates .gate-ready {
+  color: var(--mint);
+}
+.readiness-gates .gate-ready::marker {
+  content: "✓  ";
 }
 .assertion {
   display: flex;
@@ -747,6 +940,9 @@ summary:focus-visible {
   .profile-empty {
     padding: 70px 20px 90px;
   }
+  .profile-wraps {
+    padding: 70px 20px 90px;
+  }
   .studio-header,
   .studio-grid {
     padding-left: 20px;
@@ -763,6 +959,16 @@ summary:focus-visible {
   }
   .variant-grid {
     grid-template-columns: 1fr;
+  }
+  .publish-preview {
+    grid-template-columns: 1fr;
+  }
+  .wrap-detail {
+    grid-template-columns: 1fr;
+    padding: 48px 20px 80px;
+  }
+  .wrap-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 

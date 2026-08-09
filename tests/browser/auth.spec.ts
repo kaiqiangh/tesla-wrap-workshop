@@ -249,6 +249,67 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   ).toBeVisible();
   await expect(page.getByText("1024×768 normalized PNG")).toBeVisible();
 
+  await page.getByLabel("Wrap title").fill("Cybertruck Night Drive");
+  await page.getByLabel("Wrap description").fill("A verified community wrap.");
+  await page.getByLabel("Wrap tags").fill("Night Drive, cybertruck");
+  await page
+    .getByLabel("I own this artwork or have permission to distribute it.")
+    .check();
+  await page.getByRole("button", { name: "Publish Wrap" }).click();
+  await expect(page.getByText("Published Wrap is ready.")).toBeVisible();
+  const publishedHref = await page
+    .getByRole("link", { name: "View Wrap detail" })
+    .getAttribute("href");
+  expect(publishedHref).toMatch(/^\/wrap\/[a-z0-9-]+$/);
+  const publishedSlug = publishedHref!.split("/").at(-1)!;
+  const publishedProfile = await page.request.get(`/u/${username}`);
+  expect(publishedProfile.status()).toBe(200);
+  expect(await publishedProfile.text()).toContain("Cybertruck Night Drive");
+  await Promise.all([
+    page.waitForURL(`/wrap/${publishedSlug}`, { timeout: 15000 }),
+    page.getByRole("link", { name: "View Wrap detail" }).click(),
+  ]);
+  await expect(
+    page.getByRole("heading", { name: "Cybertruck Night Drive" }),
+  ).toBeVisible();
+  await expect(page.getByText("COMPATIBILITY CLAIM")).toBeVisible();
+  await expect(page.getByText("Cybertruck — Cybertruck")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Download Wrap" }),
+  ).toBeDisabled();
+  await Promise.all([
+    page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
+    page.getByRole("link", { name: "Manage Wrap" }).click(),
+  ]);
+  await page.getByLabel("Title").fill("Cybertruck Night Drive Updated");
+  await page.getByRole("button", { name: "Save metadata" }).click();
+  await expect(page.getByLabel("Title")).toHaveValue(
+    "Cybertruck Night Drive Updated",
+  );
+  await page.getByRole("button", { name: "Unpublish" }).click();
+  await expect(page.getByText("UNPUBLISHED", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Republish" })).toBeVisible();
+  await expectRouteStatus(
+    () => page.request.get(`/wrap/${publishedSlug}`),
+    404,
+  );
+  await page.getByRole("button", { name: "Republish" }).click();
+  await expect(page.getByText("PUBLISHED", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unpublish" })).toBeVisible();
+  const republishedDetail = await page.request.get(`/wrap/${publishedSlug}`);
+  expect(republishedDetail.status()).toBe(200);
+  expect(await republishedDetail.text()).toContain(
+    "Cybertruck Night Drive Updated",
+  );
+  page.on("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Remove Wrap" }).click();
+  await expect(page).toHaveURL(`/u/${username}`);
+  await expectRouteStatus(
+    () => page.request.get(`/wrap/${publishedSlug}`),
+    404,
+  );
+  await page.goto("/upload");
+
   const storageHeaders = {
     apikey: requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
     authorization: `Bearer ${(await readSessionCookie(context)).access_token}`,
@@ -581,6 +642,24 @@ async function readOtp(email: string): Promise<string> {
     )
     .toMatch(/^\d{6}$/);
   return otp;
+}
+
+async function expectRouteStatus(
+  request: () => Promise<{ status(): number }>,
+  status: number,
+) {
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (await request()).status();
+        } catch {
+          return 0;
+        }
+      },
+      { timeout: 15000 },
+    )
+    .toBe(status);
 }
 
 async function readSessionCookie(context: BrowserContext): Promise<Session> {
