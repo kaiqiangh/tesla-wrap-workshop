@@ -139,6 +139,87 @@ export type Database = {
           },
         ];
       };
+      discovery_cursor_snapshots: {
+        Row: {
+          calculated_at: string;
+          expires_at: string;
+          payload: Json;
+          token: string;
+        };
+        Insert: {
+          calculated_at: string;
+          expires_at: string;
+          payload: Json;
+          token: string;
+        };
+        Update: {
+          calculated_at?: string;
+          expires_at?: string;
+          payload?: Json;
+          token?: string;
+        };
+        Relationships: [];
+      };
+      discovery_engagement_events: {
+        Row: {
+          active: boolean;
+          actor_id: string;
+          id: string;
+          kind: string;
+          occurred_at: string;
+          wrap_id: string;
+        };
+        Insert: {
+          active?: boolean;
+          actor_id: string;
+          id?: string;
+          kind: string;
+          occurred_at?: string;
+          wrap_id: string;
+        };
+        Update: {
+          active?: boolean;
+          actor_id?: string;
+          id?: string;
+          kind?: string;
+          occurred_at?: string;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_engagement_events_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      discovery_ranking_state: {
+        Row: {
+          calculated_at: string;
+          id: boolean;
+          status: string;
+        };
+        Insert: {
+          calculated_at: string;
+          id?: boolean;
+          status: string;
+        };
+        Update: {
+          calculated_at?: string;
+          id?: boolean;
+          status?: string;
+        };
+        Relationships: [];
+      };
       download_events: {
         Row: {
           counted: boolean;
@@ -835,7 +916,17 @@ export type Database = {
           template_variant_id: string;
         }[];
       };
+      record_discovery_engagement_event: {
+        Args: {
+          p_actor_id: string;
+          p_kind: string;
+          p_occurred_at?: string;
+          p_wrap_id: string;
+        };
+        Returns: string;
+      };
       reconcile_download_counts: { Args: never; Returns: undefined };
+      refresh_discovery_ranking: { Args: never; Returns: string };
       record_original_download: {
         Args: {
           p_guest_principal_hash: string;
@@ -865,6 +956,17 @@ export type Database = {
           slug: string;
           status: string;
         }[];
+      };
+      search_discovery_wraps: {
+        Args: {
+          p_cursor?: string;
+          p_limit?: number;
+          p_model_slug?: string;
+          p_q?: string;
+          p_sort?: string;
+          p_variant_key?: string;
+        };
+        Returns: Json;
       };
       start_pending_upload: {
         Args: {

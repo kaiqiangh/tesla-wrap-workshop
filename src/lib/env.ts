@@ -8,6 +8,7 @@ type PublicEnvironment = {
 export type ServerEnvironment = PublicEnvironment & {
   SUPABASE_SECRET_KEY: string;
   DOWNLOAD_PRINCIPAL_HMAC_SECRET: string;
+  CRON_SECRET?: string;
 };
 
 const loopbackHosts = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -89,6 +90,14 @@ export function readServerEnvironment(
   }
   if (
     publicEnvironment.WRAPFORGE_ENVIRONMENT !== "local" &&
+    (!source.CRON_SECRET?.trim() || source.CRON_SECRET.length < 32)
+  ) {
+    throw new Error(
+      "CRON_SECRET must be at least 32 characters outside local mode",
+    );
+  }
+  if (
+    publicEnvironment.WRAPFORGE_ENVIRONMENT !== "local" &&
     source.SUPABASE_JWT_SECRET &&
     source.DOWNLOAD_PRINCIPAL_HMAC_SECRET === source.SUPABASE_JWT_SECRET
   ) {
@@ -100,5 +109,6 @@ export function readServerEnvironment(
     ...publicEnvironment,
     SUPABASE_SECRET_KEY: source.SUPABASE_SECRET_KEY,
     DOWNLOAD_PRINCIPAL_HMAC_SECRET: source.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
+    CRON_SECRET: source.CRON_SECRET,
   };
 }

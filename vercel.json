@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/discovery/ranking/refresh",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

@@ -60,9 +60,11 @@ export function DiscoveryGrid({ wraps }: { wraps: DiscoveryWrap[] }) {
 export function DiscoveryState({
   state,
   label,
+  clearHref,
 }: {
-  state: "empty" | "error" | "missing";
+  state: "empty" | "error" | "missing" | "invalid";
   label: string;
+  clearHref?: string;
 }) {
   const copy = {
     empty: {
@@ -77,6 +79,10 @@ export function DiscoveryState({
       title: "Vehicle Model unavailable.",
       body: "That model is not part of the active official catalog.",
     },
+    invalid: {
+      title: "Check the Discovery filters.",
+      body: "That search URL is not valid. Clear the filters and try again.",
+    },
   }[state];
 
   return (
@@ -87,8 +93,8 @@ export function DiscoveryState({
       <p className="eyebrow">{label}</p>
       <h2 id="discovery-state-title">{copy.title}</h2>
       <p>{copy.body}</p>
-      <Link className="text-link" href="/">
-        Return to Homepage
+      <Link className="text-link" href={clearHref ?? "/"}>
+        {clearHref ? "Clear filters" : "Return to Homepage"}
       </Link>
     </section>
   );

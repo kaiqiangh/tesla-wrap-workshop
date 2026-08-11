@@ -1,4 +1,6 @@
 export type DiscoveryKind = "TRENDING" | "NEWEST" | "MODEL";
+export type DiscoverySort = "TRENDING" | "NEWEST" | "MOST_DOWNLOADED";
+export type DiscoveryRankingStatus = "LIVE" | "STALE" | "FALLBACK_NEWEST";
 
 export type DiscoveryWrap = {
   id: string;
@@ -29,10 +31,39 @@ export type DiscoveryWrap = {
 };
 
 export type DiscoveryResult =
-  | { status: "ok"; wraps: DiscoveryWrap[] }
-  | { status: "empty"; wraps: [] }
+  | {
+      status: "ok";
+      wraps: DiscoveryWrap[];
+      calculatedAt?: string;
+      rankingStatus?: DiscoveryRankingStatus;
+    }
+  | {
+      status: "empty";
+      wraps: [];
+      calculatedAt?: string;
+      rankingStatus?: DiscoveryRankingStatus;
+    }
   | { status: "missing"; wraps: [] }
+  | { status: "invalid"; wraps: [] }
   | { status: "error"; wraps: [] };
+
+export type DiscoverySearchResult =
+  | {
+      status: "ok";
+      wraps: DiscoveryWrap[];
+      nextCursor: string | null;
+      calculatedAt: string;
+      rankingStatus: DiscoveryRankingStatus;
+    }
+  | {
+      status: "empty";
+      wraps: [];
+      nextCursor: null;
+      calculatedAt: string;
+      rankingStatus: DiscoveryRankingStatus;
+    }
+  | { status: "invalid"; wraps: []; nextCursor: null }
+  | { status: "error"; wraps: []; nextCursor: null };
 
 export type PublicVehicleModel = {
   slug: string;
@@ -54,6 +85,17 @@ type DiscoveryClient = {
       name: "get_public_vehicle_model",
       args: { p_slug: string },
     ): PromiseLike<{ data: unknown; error: unknown }>;
+    (
+      name: "search_discovery_wraps",
+      args: {
+        p_cursor?: string;
+        p_limit?: number;
+        p_model_slug?: string;
+        p_q?: string;
+        p_sort?: DiscoverySort;
+        p_variant_key?: string;
+      },
+    ): PromiseLike<{ data: unknown; error: unknown }>;
   };
 };
 
@@ -62,6 +104,30 @@ export async function getDiscoveryWraps(
   kind: DiscoveryKind,
   options: { modelSlug?: string; limit?: number } = {},
 ): Promise<DiscoveryResult> {
+  if (kind === "TRENDING") {
+    const result = await searchDiscoveryWraps(client, {
+      sort: "TRENDING",
+      limit: options.limit ?? 24,
+    });
+    if (result.status === "ok") {
+      return {
+        status: "ok",
+        wraps: result.wraps,
+        calculatedAt: result.calculatedAt,
+        rankingStatus: result.rankingStatus,
+      };
+    }
+    if (result.status === "empty") {
+      return {
+        status: "empty",
+        wraps: [],
+        calculatedAt: result.calculatedAt,
+        rankingStatus: result.rankingStatus,
+      };
+    }
+    if (result.status === "invalid") return { status: "invalid", wraps: [] };
+    return { status: "error", wraps: [] };
+  }
   const args = {
     p_kind: kind,
     p_limit: options.limit ?? 24,
@@ -89,4 +155,94 @@ export async function getPublicVehicleModel(
   if (error) return { status: "error" };
   const model = (data as PublicVehicleModel[] | null)?.[0];
   return model ? { status: "ok", model } : { status: "missing" };
+}
+
+export async function searchDiscoveryWraps(
+  client: DiscoveryClient,
+  options: {
+    q?: string;
+    modelSlug?: string;
+    variantKey?: string;
+    sort?: DiscoverySort;
+    cursor?: string;
+    limit?: number;
+  } = {},
+): Promise<DiscoverySearchResult> {
+  const { data, error } = await client.rpc("search_discovery_wraps", {
+    ...(options.q ? { p_q: options.q } : {}),
+    ...(options.modelSlug ? { p_model_slug: options.modelSlug } : {}),
+    ...(options.variantKey ? { p_variant_key: options.variantKey } : {}),
+    p_sort: options.sort ?? "NEWEST",
+    ...(options.cursor ? { p_cursor: options.cursor } : {}),
+    p_limit: options.limit ?? 24,
+  });
+  if (error) {
+    const message =
+      typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "";
+    if (message.includes("invalid_discovery_")) {
+      return { status: "invalid", wraps: [], nextCursor: null };
+    }
+    if (options.sort === "TRENDING" && !options.cursor) {
+      const fallback = await searchDiscoveryWraps(client, {
+        ...options,
+        sort: "NEWEST",
+      });
+      if (fallback.status === "ok" || fallback.status === "empty") {
+        return { ...fallback, rankingStatus: "FALLBACK_NEWEST" };
+      }
+    }
+    return { status: "error", wraps: [], nextCursor: null };
+  }
+  if (!data || typeof data !== "object") {
+    return { status: "error", wraps: [], nextCursor: null };
+  }
+  const payload = data as {
+    items?: unknown;
+    next_cursor?: unknown;
+    calculated_at?: unknown;
+    ranking_status?: unknown;
+  };
+  if (
+    !Array.isArray(payload.items) ||
+    typeof payload.calculated_at !== "string" ||
+    !["LIVE", "STALE", "FALLBACK_NEWEST"].includes(
+      String(payload.ranking_status),
+    )
+  ) {
+    return { status: "error", wraps: [], nextCursor: null };
+  }
+  const wraps = payload.items as DiscoveryWrap[];
+  const calculatedAt = payload.calculated_at;
+  const rankingStatus =
+    payload.ranking_status === "FALLBACK_NEWEST"
+      ? "FALLBACK_NEWEST"
+      : payload.ranking_status === "STALE"
+        ? "STALE"
+        : "LIVE";
+  if (wraps.length === 0) {
+    return {
+      status: "empty",
+      wraps: [],
+      nextCursor: null,
+      calculatedAt,
+      rankingStatus,
+    };
+  }
+  return {
+    status: "ok",
+    wraps,
+    nextCursor:
+      typeof payload.next_cursor === "string" ? payload.next_cursor : null,
+    calculatedAt,
+    rankingStatus,
+  };
+}
+
+export async function searchDiscoveryWrapsForPage(
+  client: DiscoveryClient,
+  options: Parameters<typeof searchDiscoveryWraps>[1] = {},
+): Promise<DiscoverySearchResult> {
+  return searchDiscoveryWraps(client, options);
 }

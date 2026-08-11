@@ -66,4 +66,33 @@ describe("readServerEnvironment", () => {
       }),
     ).toThrow("at least 32 characters");
   });
+
+  it("requires the production ranking refresh secret", () => {
+    const hosted = {
+      ...valid,
+      NEXT_PUBLIC_SITE_URL: "https://wrapforge.example",
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      WRAPFORGE_ENVIRONMENT: "production",
+      SUPABASE_SECRET_KEY: "service-secret",
+    };
+    expect(() => readServerEnvironment(hosted)).toThrow("CRON_SECRET");
+    expect(
+      readServerEnvironment({
+        ...hosted,
+        CRON_SECRET: "cron-secret-012345678901234567890",
+      }),
+    ).toMatchObject({ CRON_SECRET: "cron-secret-012345678901234567890" });
+  });
+
+  it("fails closed for hosted development without the cron secret", () => {
+    expect(() =>
+      readServerEnvironment({
+        ...valid,
+        NEXT_PUBLIC_SITE_URL: "https://preview.wrapforge.example",
+        NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        WRAPFORGE_ENVIRONMENT: "development",
+        SUPABASE_SECRET_KEY: "service-secret",
+      }),
+    ).toThrow("CRON_SECRET");
+  });
 });

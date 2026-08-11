@@ -6,12 +6,28 @@ select no_plan();
 select has_table('public', 'wraps', 'Wraps are migrated');
 select has_table('public', 'tags', 'Tags are migrated');
 select has_table('public', 'wrap_tags', 'Wrap Tags are migrated');
+select has_table(
+  'public', 'discovery_engagement_events',
+  'Discovery engagement events are migrated'
+);
+select has_table(
+  'public', 'discovery_ranking_state',
+  'Discovery ranking state is migrated'
+);
+select has_function(
+  'public', 'record_discovery_engagement_event',
+  array['uuid', 'uuid', 'text', 'timestamp with time zone'],
+  'Discovery engagement ingestion is server-only'
+);
 select ok(c.relrowsecurity, 'Wraps enforce RLS')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname = 'wraps';
 select ok(c.relrowsecurity, 'Tags enforce RLS')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname = 'tags';
+select ok(c.relrowsecurity, 'Discovery engagement events enforce RLS')
+from pg_class c join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public' and c.relname = 'discovery_engagement_events';
 
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
@@ -217,6 +233,11 @@ select throws_ok(
   '42501', 'permission denied for table wrap_assets',
   'Guests cannot read private Wrap Asset keys'
 );
+select throws_ok(
+  $$ select * from public.discovery_engagement_events $$,
+  '42501', 'permission denied for table discovery_engagement_events',
+  'Guests cannot read private engagement identities'
+);
 select isnt_empty(
   $$ select * from public.get_public_wrap(current_setting('test.model3_slug')) $$,
   'Guests can read a published allowlisted Wrap detail'
@@ -275,6 +296,308 @@ select isnt_empty(
   'active Vehicle Model metadata is public through an allowlisted RPC'
 );
 reset role;
+insert into public.tags (slug, display_name)
+values ('night-drive', 'Night Drive'), ('cafe', 'Café')
+on conflict (slug) do update set display_name = excluded.display_name;
+insert into public.wrap_tags (wrap_id, tag_id)
+select w.id, t.id
+from public.wraps w
+join public.tags t on t.slug in ('night-drive', 'cafe')
+where w.title = 'Cybertruck Wrap'
+on conflict do nothing;
+set local role service_role;
+select public.record_discovery_engagement_event(
+  w.id, '80000000-0000-0000-0000-000000000002', event.kind
+)
+from public.wraps w
+cross join (values ('LIKE'), ('LIKE'), ('FAVORITE'), ('COMMENT')) event(kind)
+where w.title = 'Cybertruck Wrap';
+insert into public.discovery_engagement_events (wrap_id, actor_id, kind)
+select w.id, '80000000-0000-0000-0000-000000000001', 'LIKE'
+from public.wraps w
+where w.title = 'Cybertruck Wrap';
+select throws_ok(
+  $$ select public.record_discovery_engagement_event(
+    (select id from public.wraps where title = 'Cybertruck Wrap'),
+    '80000000-0000-0000-0000-000000000002', 'LIKE',
+    current_timestamp + interval '1 hour'
+  ) $$,
+  '22023', 'invalid_discovery_engagement_time',
+  'engagement events cannot be future-dated'
+);
+select public.refresh_discovery_ranking();
+reset role;
+do $boundary$
+declare
+  v_variant record;
+  v_upload uuid;
+  v_revision uuid;
+  v_wrap uuid;
+  v_key text;
+  v_index integer;
+begin
+  select tv.id, tv.catalog_key, tv.width_px, tv.height_px, tv.vehicle_model_id
+  into v_variant
+  from public.template_variants tv
+  where tv.catalog_key = 'model3';
+  for v_index in 1..13 loop
+    v_upload := gen_random_uuid();
+    v_revision := gen_random_uuid();
+    v_wrap := gen_random_uuid();
+    v_key := 'boundary/' || v_revision::text;
+    insert into public.pending_uploads (
+      id, owner_id, template_variant_id, staging_key, original_filename,
+      declared_mime_type, template_asserted, state
+    ) values (
+      v_upload, '80000000-0000-0000-0000-000000000001', v_variant.id,
+      v_key || '/source.png', 'boundary.png', 'image/png', true, 'CREATED'
+    );
+    insert into public.asset_revisions (
+      id, owner_id, template_variant_id, source_pending_upload_id,
+      width_px, height_px, byte_size, sha256, template_verified
+    ) values (
+      v_revision, '80000000-0000-0000-0000-000000000001', v_variant.id,
+      v_upload, v_variant.width_px, v_variant.height_px, 100,
+      repeat('d', 64), true
+    );
+    update public.pending_uploads
+    set asset_revision_id = v_revision, state = 'READY'
+    where id = v_upload;
+    insert into storage.objects (bucket_id, name, owner_id, metadata)
+    values
+      ('wrap-originals', v_key || '/original.png', '80000000-0000-0000-0000-000000000001', '{"size":100}'::jsonb),
+      ('wrap-derived', v_key || '/preview.png', '80000000-0000-0000-0000-000000000001', '{"size":80}'::jsonb),
+      ('wrap-derived', v_key || '/thumbnail.png', '80000000-0000-0000-0000-000000000001', '{"size":60}'::jsonb);
+    insert into public.wrap_assets (
+      asset_revision_id, kind, bucket_id, object_key,
+      width_px, height_px, byte_size, sha256
+    ) values
+      (v_revision, 'ORIGINAL', 'wrap-originals', v_key || '/original.png', v_variant.width_px, v_variant.height_px, 100, repeat('d', 64)),
+      (v_revision, 'PREVIEW', 'wrap-derived', v_key || '/preview.png', v_variant.width_px, v_variant.height_px, 80, repeat('e', 64)),
+      (v_revision, 'THUMBNAIL', 'wrap-derived', v_key || '/thumbnail.png', 320, 240, 60, repeat('f', 64));
+    insert into public.wraps (
+      id, creator_id, slug, title, description, vehicle_model_id,
+      template_variant_id, asset_revision_id, license_type,
+      template_asserted, distribution_asserted, status, first_published_at
+    ) values (
+      v_wrap, '80000000-0000-0000-0000-000000000001',
+      'boundary-wrap-' || lpad(v_index::text, 2, '0'),
+      'Boundary Wrap ' || v_index, 'A bounded public description.',
+      v_variant.vehicle_model_id, v_variant.id, v_revision,
+      'PERSONAL_USE_ALLOWED', true, true, 'PUBLISHED',
+      '2026-08-01 00:00:00+00'::timestamptz
+    );
+  end loop;
+end
+$boundary$;
+set local role anon;
+select is(
+  jsonb_array_length((select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)->'items')),
+  24,
+  'keyset pagination returns a full 24-card page'
+);
+select set_config(
+  'test.boundary_last',
+  (select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)->'items'->23->>'id'),
+  true
+);
+select set_config(
+  'test.boundary_cursor',
+  (select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)->>'next_cursor'),
+  true
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.boundary_cursor'), 24
+  )->'items')),
+  1,
+  'the 25th card is reachable on the next keyset page'
+);
+select isnt(
+  (select public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.boundary_cursor'), 24
+  )->'items'->0->>'id'),
+  current_setting('test.boundary_last'),
+  'equal sort tuples do not repeat across keyset pages'
+);
+select is(
+  (select public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.boundary_cursor'), 24
+  )->>'next_cursor'),
+  null,
+  'the boundary page has no further cursor'
+);
+reset role;
+delete from public.wraps where slug like 'boundary-wrap-%';
+set local role anon;
+select has_function(
+  'public', 'search_discovery_wraps',
+  array['text', 'text', 'text', 'text', 'text', 'integer'],
+  'the bounded search and pagination RPC is migrated'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)->'items')),
+  12,
+  'search returns every eligible Wrap on the first page'
+);
+select ok(
+  not (
+    (select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->'items'->0)
+      ?| array[
+        'counted_downloads_7d', 'unique_likes_7d',
+        'unique_favorites_7d', 'visible_comments_7d',
+        'search_relevance', 'trending_score'
+      ]
+  ),
+  'public search items omit internal ranking metrics'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('cybertruck', null, null, 'NEWEST', null, 24)->'items')),
+  1,
+  'search matches a Wrap title without exposing private fields'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('bounded', null, null, 'NEWEST', null, 24)->'items')),
+  12,
+  'search matches descriptions'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('wrap-one', null, null, 'NEWEST', null, 24)->'items')),
+  12,
+  'search matches creator usernames'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('Wrap One', null, null, 'NEWEST', null, 24)->'items')),
+  12,
+  'search matches creator display names'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('night drive', null, null, 'NEWEST', null, 24)->'items')),
+  1,
+  'search matches a multi-token tag through full text'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('cafe', null, null, 'NEWEST', null, 24)->'items')),
+  1,
+  'search folds accents'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('%', null, null, 'NEWEST', null, 24)->'items')),
+  0,
+  'wildcard characters cannot widen search'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps('_', null, null, 'NEWEST', null, 24)->'items')),
+  0,
+  'underscore cannot widen search'
+);
+select is(
+  (select (public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->'items'->0->>'id')),
+  (select (public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->'items'->0->>'id')),
+  'Newest search ordering is deterministic'
+);
+select set_config(
+  'test.discovery_cursor',
+  (select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->>'next_cursor'),
+  true
+);
+select matches(
+  current_setting('test.discovery_cursor'),
+  '^[0-9a-f]{36}$',
+  'next cursors are opaque random tokens'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.discovery_cursor'), 1
+  )->'items')),
+  1,
+  'an opaque cursor returns the next page'
+);
+select isnt(
+  (select (public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->'items'->0->>'id')),
+  (select (public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.discovery_cursor'), 1
+  )->'items'->0->>'id')),
+  'keyset pagination does not repeat the previous page'
+);
+select throws_ok(
+  $$ select public.search_discovery_wraps(
+    null, null, null, 'NEWEST', current_setting('test.discovery_cursor'), 2
+  ) $$,
+  '22023', 'invalid_discovery_cursor',
+  'changing the page size invalidates a cursor'
+);
+select throws_ok(
+  $$ select public.search_discovery_wraps(null, null, null, 'NEWEST', '000000000000000000000000000000000000', 1) $$,
+  '22023', 'invalid_discovery_cursor',
+  'a forged cursor is rejected'
+);
+select throws_ok(
+  $$ select public.search_discovery_wraps(null, null, null, 'NEWEST', ' ', 1) $$,
+  '22023', 'invalid_discovery_cursor',
+  'a blank cursor is rejected'
+);
+select is(
+  jsonb_array_length((select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 25)->'items')),
+  12,
+  'the page limit is capped at 24'
+);
+select is(
+  (select public.search_discovery_wraps(null, null, null, 'TRENDING', null, 1)->>'ranking_status'),
+  'LIVE',
+  'Trending exposes a live calculation status'
+);
+select is(
+  (select public.search_discovery_wraps(null, null, null, 'TRENDING', null, 1)->'items'->0->>'title'),
+  'Cybertruck Wrap',
+  'Trending uses only distinct eligible seven-day engagement'
+);
+reset role;
+update public.discovery_ranking_state
+set calculated_at = current_timestamp - interval '3 hours', status = 'LIVE'
+where id;
+set local role anon;
+select is(
+  (select public.search_discovery_wraps(null, null, null, 'TRENDING', null, 1)->>'ranking_status'),
+  'FALLBACK_NEWEST',
+  'stale Trending falls back honestly to Newest'
+);
+select is(
+  (select public.search_discovery_wraps(null, null, null, 'TRENDING', null, 1)->'items'->0->>'id'),
+  (select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 1)->'items'->0->>'id'),
+  'stale Trending ordering matches Newest'
+);
+reset role;
+select public.refresh_discovery_ranking();
+select throws_ok(
+  $$ select public.search_discovery_wraps(repeat('x', 101), null, null, 'NEWEST', null, 24) $$,
+  '22023', 'invalid_discovery_query',
+  'oversized search queries are rejected'
+);
+select throws_ok(
+  $$ select public.search_discovery_wraps(null, 'cybertruck', 'model3', 'NEWEST', null, 24) $$,
+  '22023', 'invalid_discovery_variant',
+  'a variant from another model cannot widen the result set'
+);
+reset role;
+delete from public.wrap_tags wt
+using public.tags t
+where wt.tag_id = t.id
+  and t.slug in ('night-drive', 'cafe')
+  and wt.wrap_id = (select id from public.wraps where title = 'Cybertruck Wrap');
+update public.wraps
+set download_count = 100
+where title = 'Cybertruck Wrap';
+set local role anon;
+select is(
+  (select (public.search_discovery_wraps(null, null, null, 'MOST_DOWNLOADED', null, 1)->'items'->0->>'title')),
+  'Cybertruck Wrap',
+  'Most Downloaded is a deterministic primary sort'
+);
+reset role;
+update public.wraps
+set download_count = 0
+where title = 'Cybertruck Wrap';
 
 update public.template_variants
 set active = false

@@ -185,6 +185,14 @@ function HomeDiscoverySection({
           View all <span aria-hidden="true">→</span>
         </Link>
       </div>
+      {"rankingStatus" in result && result.rankingStatus && (
+        <p className="discovery-ranking-note">
+          {result.rankingStatus === "FALLBACK_NEWEST"
+            ? "Trending is temporarily using Newest"
+            : `Ranking ${result.rankingStatus.toLowerCase()}`}
+          {result.calculatedAt ? ` · calculated ${result.calculatedAt}` : ""}
+        </p>
+      )}
       {result.status === "ok" ? (
         <DiscoveryGrid wraps={result.wraps} />
       ) : (
