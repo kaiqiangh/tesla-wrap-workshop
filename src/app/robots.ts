@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next";
 
+import { readPublicEnvironment } from "@/lib/env";
+
 export default function robots(): MetadataRoute.Robots {
   const siteUrl = new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+    readPublicEnvironment(process.env).NEXT_PUBLIC_SITE_URL,
   );
   return {
     rules: {

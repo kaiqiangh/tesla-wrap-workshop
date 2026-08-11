@@ -24,6 +24,12 @@ export async function generateMetadata({
     title: "Trending Wraps | WrapForge",
     description: "Browse the deterministic seven-day Trending Discovery Set.",
     alternates: { canonical: "/trending" },
+    openGraph: {
+      title: "Trending Wraps | WrapForge",
+      description: "Browse the deterministic seven-day Trending Discovery Set.",
+      url: "/trending",
+      type: "website",
+    },
     ...(filtered ? { robots: { index: false, follow: true } } : {}),
   };
 }

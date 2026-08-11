@@ -26,7 +26,14 @@ export async function generateMetadata({
     description:
       "Browse published Tesla Custom Wrap artwork by exact Template Variant.",
     alternates: { canonical: "/explore" },
-    ...(hasQuery ? { robots: { index: false, follow: false } } : {}),
+    openGraph: {
+      title: "Explore the Discovery Set | WrapForge",
+      description:
+        "Browse published Tesla Custom Wrap artwork by exact Template Variant.",
+      url: "/explore",
+      type: "website",
+    },
+    ...(hasQuery ? { robots: { index: false, follow: true } } : {}),
   };
 }
 

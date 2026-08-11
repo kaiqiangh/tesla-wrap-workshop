@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 
+import { readPublicEnvironment } from "@/lib/env";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   );
   if (error) throw new Error("Sitemap is temporarily unavailable");
   const siteUrl = new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+    readPublicEnvironment(process.env).NEXT_PUBLIC_SITE_URL,
   );
 
   return (data ?? []).map((entry) => ({

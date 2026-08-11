@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
@@ -6,6 +7,11 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { WrapEditor, type EditableWrap } from "../../wrap-editor";
 
 type Props = { params: Promise<{ slug: string }> };
+
+export const metadata: Metadata = {
+  title: "Edit Wrap | WrapForge",
+  robots: { index: false, follow: false },
+};
 
 export default async function WrapEditPage({ params }: Props) {
   const { slug } = await params;

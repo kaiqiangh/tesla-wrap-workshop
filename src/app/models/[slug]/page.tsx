@@ -29,6 +29,12 @@ export async function generateMetadata({
     title: `${result.model.display_name} Wraps | WrapForge`,
     description: `Browse published Custom Wraps grouped by ${result.model.display_name}.`,
     alternates: { canonical: `/models/${result.model.slug}` },
+    openGraph: {
+      title: `${result.model.display_name} Wraps | WrapForge`,
+      description: `Browse published Custom Wraps grouped by ${result.model.display_name}.`,
+      url: `/models/${result.model.slug}`,
+      type: "website",
+    },
     ...(Object.keys(raw).length > 0
       ? { robots: { index: false, follow: true } }
       : {}),
