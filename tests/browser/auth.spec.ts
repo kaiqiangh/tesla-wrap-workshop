@@ -375,7 +375,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       await actorPage.goto(path);
       const card = actorPage
         .locator("article.discovery-card")
-        .filter({ hasText: "Cybertruck Night Drive" })
+        .filter({
+          has: actorPage.locator(`a[href="/wrap/${publishedSlug}"]`),
+        })
         .first();
       await expect(card).toBeVisible();
       await expect(
@@ -387,10 +389,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     }
 
     await actorPage.goto("/favorites");
-    const favoriteCard = actorPage
-      .locator("article.discovery-card")
-      .filter({ hasText: "Cybertruck Night Drive" })
-      .first();
+    const favoriteCard = actorPage.locator("article.discovery-card").filter({
+      has: actorPage.locator(`a[href="/wrap/${publishedSlug}"]`),
+    });
     await expect(favoriteCard).toBeVisible();
     await favoriteCard.getByRole("button", { name: /^Favorited/ }).click();
     await expect(
