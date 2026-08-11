@@ -1024,16 +1024,16 @@ export type Database = {
         Args: { p_username: string };
         Returns: {
           availability: string;
-          avatar_url: string | null;
-          bio: string | null;
-          display_name: string | null;
+          avatar_url: string;
+          bio: string;
+          display_name: string;
           download_count: number;
           ever_published: boolean;
           follower_count: number;
           is_alias: boolean;
           published_wrap_count: number;
-          requested_username: string | null;
-          username: string | null;
+          requested_username: string;
+          username: string;
         }[];
       };
       get_public_vehicle_model: {
