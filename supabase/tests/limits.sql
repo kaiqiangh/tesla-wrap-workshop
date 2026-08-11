@@ -10,6 +10,31 @@ select is(
   18::bigint,
   'all launch policies are seeded'
 );
+select is(
+  (select array_agg(policy_key order by policy_key)
+   from private.launch_rate_policies),
+  array[
+    'comment_user_hour',
+    'comment_user_minute',
+    'download_guest_hour',
+    'download_guest_minute',
+    'download_user_hour',
+    'download_user_minute',
+    'otp_email_hour',
+    'otp_email_minute',
+    'otp_failure_email_hour',
+    'otp_failure_network_10m',
+    'otp_network_hour',
+    'publish_user',
+    'report_user_day',
+    'report_user_hour',
+    'search_principal_minute',
+    'social_user_minute',
+    'upload_create_user',
+    'upload_finalize_user'
+  ]::text[],
+  'the expected launch policy keys are configured'
+);
 select ok(
   not has_function_privilege(
     'anon', 'public.consume_otp_limit(text,text)', 'execute'
@@ -89,6 +114,8 @@ create temporary table limit_boundary_results (
   nth_ok boolean,
   nth_count_ok boolean,
   n_plus_one_ok boolean,
+  n_plus_one_count_ok boolean,
+  n_plus_one_window_ok boolean,
   recovery_ok boolean,
   recovery_count_ok boolean
 );
@@ -97,6 +124,9 @@ declare
   policy record;
   principal text;
   nth_count integer;
+  nth_window timestamptz;
+  denied_count integer;
+  denied_window timestamptz;
   recovery_count integer;
   nth_ok boolean;
   n_plus_one_ok boolean;
@@ -127,6 +157,9 @@ begin
     select operation_count into nth_count
     from private.launch_rate_buckets
     where policy_key = policy.policy_key and principal_key = principal;
+    select window_started_at into nth_window
+    from private.launch_rate_buckets
+    where policy_key = policy.policy_key and principal_key = principal;
     n_plus_one_ok := false;
 
     begin
@@ -134,6 +167,10 @@ begin
     exception when others then
       n_plus_one_ok := sqlstate = 'P0001' and sqlerrm = 'launch_rate_limited';
     end;
+    select operation_count, window_started_at
+      into denied_count, denied_window
+    from private.launch_rate_buckets
+    where policy_key = policy.policy_key and principal_key = principal;
 
     update private.launch_rate_buckets
     set window_started_at = clock_timestamp()
@@ -154,6 +191,8 @@ begin
       nth_ok,
       nth_count = policy.max_count,
       n_plus_one_ok,
+      denied_count = policy.max_count,
+      denied_window = nth_window,
       recovery_ok,
       recovery_count = 1
     );
