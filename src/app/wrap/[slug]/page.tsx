@@ -7,6 +7,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { InteractionControls } from "./interaction-controls";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -119,6 +120,11 @@ export default async function WrapDetailPage({ params }: Props) {
               </Link>
             )}
           </div>
+          <InteractionControls
+            slug={wrap.slug}
+            initialLikeCount={wrap.like_count}
+            initialFavoriteCount={wrap.favorite_count}
+          />
           <p className="download-coming-soon">
             Download confirmation shows the exact Template Variant and current
             Tesla App/USB import guidance before issuing a short-lived private

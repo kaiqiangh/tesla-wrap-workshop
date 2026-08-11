@@ -692,6 +692,58 @@ export type Database = {
           },
         ];
       };
+      wrap_favorites: {
+        Row: {
+          created_at: string;
+          user_id: string;
+          wrap_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          user_id: string;
+          wrap_id: string;
+        };
+        Update: {
+          created_at?: string;
+          user_id?: string;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wrap_favorites_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      wrap_likes: {
+        Row: {
+          created_at: string;
+          user_id: string;
+          wrap_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          user_id: string;
+          wrap_id: string;
+        };
+        Update: {
+          created_at?: string;
+          user_id?: string;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wrap_likes_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       wrap_tags: {
         Row: {
           created_at: string;
@@ -1199,6 +1251,15 @@ export type Database = {
           id: string;
           idempotency_key: string;
           staging_key: string;
+        }[];
+      };
+      toggle_wrap_engagement: {
+        Args: { p_enabled: boolean; p_kind: string; p_slug: string };
+        Returns: {
+          enabled: boolean;
+          favorite_count: number;
+          kind: string;
+          like_count: number;
         }[];
       };
       unpublish_wrap: {

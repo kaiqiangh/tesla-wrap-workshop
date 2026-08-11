@@ -811,6 +811,24 @@ summary:focus-visible {
   color: var(--muted);
   font-size: 13px;
 }
+
+.interaction-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.interaction-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.interaction-controls .form-message {
+  flex-basis: 100%;
+  margin: 0;
+}
 .download-shell {
   min-height: 100vh;
   background: radial-gradient(circle at 15% 0%, #16372e, transparent 35%);

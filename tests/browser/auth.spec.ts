@@ -326,6 +326,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  await page.getByRole("button", { name: /^Like/ }).click();
+  await expect(page.getByRole("status")).toContainText("cannot Like");
   await page.goto(`/wrap/${publishedSlug}/download`);
   await expect(
     page.getByRole("heading", { name: "Download Cybertruck Night Drive" }),
@@ -439,6 +441,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     },
   ]);
   const guestPage = await guestContext.newPage();
+  await guestPage.goto(`/wrap/${publishedSlug}`);
+  await guestPage.getByRole("button", { name: /^Like/ }).click();
+  await expect(guestPage).toHaveURL(`/sign-in?next=%2Fwrap%2F${publishedSlug}`);
   await guestPage.goto(`/wrap/${publishedSlug}/download`);
   await expect(
     guestPage.getByRole("heading", { name: "Download Cybertruck Night Drive" }),
