@@ -31,40 +31,28 @@ async function cleanup(request: Request, operation: OperationContext) {
     p_limit: 200,
   });
   if (expiryError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "pending_upload_expiry_unavailable",
-          message: "Pending Upload expiry is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "pending_upload_expiry_unavailable",
+      "Pending Upload expiry is temporarily unavailable.",
     );
   const { data: coreLoopEventsDeleted, error: coreLoopEventsError } =
     await admin.rpc("cleanup_core_loop_events");
   if (coreLoopEventsError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "core_loop_event_cleanup_unavailable",
-          message: "Core-loop event cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "core_loop_event_cleanup_unavailable",
+      "Core-loop event cleanup is temporarily unavailable.",
     );
   const { data: anonymized, error: anonymizeError } = await admin.rpc(
     "anonymize_expired_profiles",
     { p_limit: 50 },
   );
   if (anonymizeError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "profile_anonymization_unavailable",
-          message: "Profile anonymization is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "profile_anonymization_unavailable",
+      "Profile anonymization is temporarily unavailable.",
     );
 
   const { data: assetJobs, error: assetClaimError } = await admin.rpc(
@@ -72,14 +60,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 50 },
   );
   if (assetClaimError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "asset_cleanup_unavailable",
-          message: "Asset cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "asset_cleanup_unavailable",
+      "Asset cleanup is temporarily unavailable.",
     );
 
   let assetCompleted = 0;
@@ -105,14 +89,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 100 },
   );
   if (revisionReconcileError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "asset_revision_reconcile_unavailable",
-          message: "Asset Revision reconciliation is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "asset_revision_reconcile_unavailable",
+      "Asset Revision reconciliation is temporarily unavailable.",
     );
 
   const { data: revisionJobs, error: revisionClaimError } = await admin.rpc(
@@ -120,14 +100,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 50 },
   );
   if (revisionClaimError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "asset_revision_cleanup_unavailable",
-          message: "Asset Revision cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "asset_revision_cleanup_unavailable",
+      "Asset Revision cleanup is temporarily unavailable.",
     );
 
   let revisionCompleted = 0;
@@ -153,14 +129,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 50 },
   );
   if (orphanClaimError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "asset_orphan_cleanup_unavailable",
-          message: "Orphaned asset cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "asset_orphan_cleanup_unavailable",
+      "Orphaned asset cleanup is temporarily unavailable.",
     );
 
   let orphanCompleted = 0;
@@ -210,14 +182,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 50 },
   );
   if (claimError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "profile_cleanup_unavailable",
-          message: "Profile cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "profile_cleanup_unavailable",
+      "Profile cleanup is temporarily unavailable.",
     );
 
   let completed = 0;
@@ -270,14 +238,10 @@ async function cleanup(request: Request, operation: OperationContext) {
     { p_limit: 50 },
   );
   if (wrapClaimError)
-    return NextResponse.json(
-      {
-        error: {
-          code: "profile_wrap_cleanup_unavailable",
-          message: "Wrap cleanup is temporarily unavailable.",
-        },
-      },
-      { status: 503, headers: { "cache-control": "no-store" } },
+    return reconciliationProblem(
+      operation,
+      "profile_wrap_cleanup_unavailable",
+      "Wrap cleanup is temporarily unavailable.",
     );
 
   let wrapCompleted = 0;
@@ -365,4 +329,26 @@ async function cleanup(request: Request, operation: OperationContext) {
   return NextResponse.json(result, {
     headers: { "cache-control": "no-store" },
   });
+}
+
+function reconciliationProblem(
+  operation: OperationContext,
+  code: string,
+  message: string,
+) {
+  console.error(
+    JSON.stringify({
+      type: "wrapforge.reconciliation_alert",
+      code,
+      correlationId: operation.correlationId,
+      runbook: "/runbooks/reconciliation.md",
+    }),
+  );
+  return NextResponse.json(
+    { error: { code, message, runbook: "/runbooks/reconciliation.md" } },
+    {
+      status: 503,
+      headers: { "cache-control": "no-store", "retry-after": "300" },
+    },
+  );
 }

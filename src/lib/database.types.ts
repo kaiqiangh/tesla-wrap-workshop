@@ -1457,6 +1457,10 @@ export type Database = {
         Args: { p_email_principal: string; p_network_principal: string };
         Returns: undefined;
       };
+      consume_page_view_limit: {
+        Args: { p_network_principal: string; p_session_principal: string };
+        Returns: undefined;
+      };
       consume_user_launch_limit: {
         Args: {
           p_error_code?: string;

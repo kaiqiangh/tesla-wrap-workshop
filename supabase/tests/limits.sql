@@ -7,7 +7,7 @@ select has_table('private', 'launch_rate_policies', 'launch limits have one priv
 select has_table('private', 'launch_rate_buckets', 'launch limit buckets are private');
 select is(
   (select count(*) from private.launch_rate_policies),
-  18::bigint,
+  20::bigint,
   'all launch policies are seeded'
 );
 select is(
@@ -25,6 +25,8 @@ select is(
     'otp_failure_email_hour',
     'otp_failure_network_10m',
     'otp_network_hour',
+    'page_view_network_minute',
+    'page_view_session_minute',
     'publish_user',
     'report_user_day',
     'report_user_hour',
