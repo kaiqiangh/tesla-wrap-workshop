@@ -187,13 +187,6 @@ export type Database = {
         };
         Relationships: [
           {
-            foreignKeyName: "discovery_engagement_events_actor_id_fkey";
-            columns: ["actor_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["user_id"];
-          },
-          {
             foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
@@ -916,6 +909,7 @@ export type Database = {
           template_variant_id: string;
         }[];
       };
+      reconcile_download_counts: { Args: never; Returns: undefined };
       record_discovery_engagement_event: {
         Args: {
           p_actor_id: string;
@@ -925,8 +919,6 @@ export type Database = {
         };
         Returns: string;
       };
-      reconcile_download_counts: { Args: never; Returns: undefined };
-      refresh_discovery_ranking: { Args: never; Returns: string };
       record_original_download: {
         Args: {
           p_guest_principal_hash: string;
@@ -939,6 +931,7 @@ export type Database = {
           event_id: string;
         }[];
       };
+      refresh_discovery_ranking: { Args: never; Returns: string };
       remove_wrap: {
         Args: { p_creator_id: string; p_slug: string };
         Returns: {
