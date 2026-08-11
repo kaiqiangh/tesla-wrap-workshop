@@ -2063,6 +2063,13 @@ export type Database = {
         Args: { p_asset_revision_id: string; p_held: boolean };
         Returns: boolean;
       };
+      get_public_sitemap_entries: {
+        Args: never;
+        Returns: {
+          path: string;
+          last_modified: string | null;
+        }[];
+      };
       republish_wrap: {
         Args: { p_creator_id: string; p_slug: string };
         Returns: {

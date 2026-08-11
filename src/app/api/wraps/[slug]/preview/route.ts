@@ -25,6 +25,7 @@ export async function GET(
       "cache-control": "private, max-age=300",
       "content-type": "image/png",
       etag: `"${media.sha256}"`,
+      "x-robots-tag": "noindex, nofollow, noarchive",
     },
   });
 }
@@ -32,6 +33,12 @@ export async function GET(
 function unavailable() {
   return NextResponse.json(
     { error: { code: "WF-WRAP-MEDIA-UNAVAILABLE" } },
-    { status: 404, headers: { "cache-control": "no-store" } },
+    {
+      status: 404,
+      headers: {
+        "cache-control": "no-store",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+      },
+    },
   );
 }

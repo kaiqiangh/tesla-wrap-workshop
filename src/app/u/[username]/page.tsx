@@ -17,7 +17,30 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const username = (await params).username.toLowerCase();
-  return { title: `@${username} | WrapForge` };
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.rpc("get_public_profile_details", {
+    p_username: username,
+  });
+  const profile = data?.[0];
+  if (error || !profile || profile.availability !== "PUBLIC") {
+    return {
+      title: "Profile unavailable | WrapForge",
+      robots: { index: false, follow: false },
+    };
+  }
+  return {
+    title: `${profile.display_name} (@${profile.username}) | WrapForge`,
+    description:
+      profile.bio || `Published Tesla Custom Wraps by @${profile.username}.`,
+    alternates: { canonical: `/u/${profile.username}` },
+    openGraph: {
+      title: `${profile.display_name} (@${profile.username}) | WrapForge`,
+      description:
+        profile.bio || `Published Tesla Custom Wraps by @${profile.username}.`,
+      url: `/u/${profile.username}`,
+      type: "profile",
+    },
+  };
 }
 
 export default async function PublicProfilePage({
