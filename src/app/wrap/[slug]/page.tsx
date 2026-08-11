@@ -7,6 +7,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { CommentSection, type PublicComment } from "./comment-section";
 import { InteractionControls } from "./interaction-controls";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -50,6 +51,14 @@ export default async function WrapDetailPage({ params }: Props) {
   const wrap = data?.[0];
   if (!wrap) notFound();
   const access = await readProfileAccess(supabase);
+  const { data: commentData, error: commentError } = await supabase.rpc(
+    "get_public_wrap_comments",
+    {
+      p_slug: wrap.slug,
+      p_limit: 50,
+      p_offset: 0,
+    },
+  );
   const { data: engagementData } = await supabase.rpc(
     "get_wrap_engagement_state",
     { p_slug: wrap.slug },
@@ -171,6 +180,19 @@ export default async function WrapDetailPage({ params }: Props) {
           </p>
         </div>
       </article>
+      <CommentSection
+        slug={wrap.slug}
+        initialComments={(commentData ?? []) as PublicComment[]}
+        initialCommentCount={wrap.comment_count}
+        initialError={Boolean(commentError)}
+        access={
+          access.status === "active"
+            ? "active"
+            : access.status === "guest"
+              ? "guest"
+              : "inactive"
+        }
+      />
     </main>
   );
 }

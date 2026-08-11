@@ -932,6 +932,85 @@ summary:focus-visible {
     monospace;
 }
 
+.comments-section {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 7vw 90px;
+}
+.comments-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: end;
+  border-top: 1px solid var(--line);
+  padding-top: 34px;
+}
+.comments-heading h2 {
+  margin: 8px 0 0;
+}
+.comments-heading > p,
+.comments-login,
+.comments-empty {
+  color: var(--muted);
+}
+.comments-login a {
+  color: var(--mint);
+}
+.comment-form {
+  display: grid;
+  gap: 10px;
+  margin: 28px 0;
+  padding: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.comment-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 100px;
+  padding: 12px;
+  color: var(--white);
+  background: var(--ink);
+  border: 1px solid var(--line);
+  font: inherit;
+}
+.comment-form-footer,
+.comment-card-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+.comment-form-footer span,
+.comment-card-heading time {
+  color: var(--muted);
+  font-size: 13px;
+}
+.comment-list {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.comment-card {
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
+}
+.comment-card-heading strong {
+  color: var(--white);
+}
+.comment-card p {
+  margin: 12px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.comment-delete {
+  font-size: 12px;
+}
+
 .studio-shell {
   min-height: 100vh;
   background: radial-gradient(circle at 90% 0%, #16372e, transparent 28%);

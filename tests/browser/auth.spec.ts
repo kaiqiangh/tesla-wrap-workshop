@@ -337,6 +337,36 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  const comments = page.locator(".comments-section");
+  await expect(
+    comments.getByRole("heading", { name: "0 Comments" }),
+  ).toBeVisible();
+  const hostileComment = "<b>browser comment</b> & plain text";
+  await page.getByLabel("Add a Comment").fill(hostileComment);
+  const addCommentResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/wraps/${publishedSlug}/comments`) &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Add Comment" }).click();
+  const addedCommentResponse = await addCommentResponse;
+  expect(addedCommentResponse.status()).toBe(200);
+  const addedCommentBody = (await addedCommentResponse.json()) as {
+    comment: { id: string };
+  };
+  const commentCard = comments.locator(".comment-card").filter({
+    hasText: hostileComment,
+  });
+  await expect(commentCard).toBeVisible();
+  await expect(commentCard.locator("p").locator("b")).toHaveCount(0);
+  const deleteCommentResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/comments/${addedCommentBody.comment.id}`) &&
+      response.request().method() === "DELETE",
+  );
+  await commentCard.getByRole("button", { name: "Delete Comment" }).click();
+  expect((await deleteCommentResponse).status()).toBe(200);
+  await expect(commentCard).toHaveCount(0);
   await page.goto("/favorites");
   await expect(
     page.getByRole("heading", { name: "Your Favorites." }),
@@ -627,6 +657,11 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await guestPage.getByRole("button", { name: "Follow", exact: true }).click();
   await expect(guestPage).toHaveURL(`/sign-in?next=%2Fu%2F${username}`);
   await guestPage.goto(`/wrap/${publishedSlug}`);
+  await expect(
+    guestPage
+      .locator(".comments-section")
+      .getByRole("link", { name: "Sign in" }),
+  ).toHaveAttribute("href", `/sign-in?next=%2Fwrap%2F${publishedSlug}`);
   await guestPage.getByRole("button", { name: /^Like/ }).click();
   await expect(guestPage).toHaveURL(`/sign-in?next=%2Fwrap%2F${publishedSlug}`);
   await guestPage.goto(`/wrap/${publishedSlug}/download`);

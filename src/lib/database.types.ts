@@ -200,6 +200,7 @@ export type Database = {
           id: string;
           kind: string;
           occurred_at: string;
+          source_id: string | null;
           wrap_id: string;
         };
         Insert: {
@@ -208,6 +209,7 @@ export type Database = {
           id?: string;
           kind: string;
           occurred_at?: string;
+          source_id?: string | null;
           wrap_id: string;
         };
         Update: {
@@ -216,6 +218,7 @@ export type Database = {
           id?: string;
           kind?: string;
           occurred_at?: string;
+          source_id?: string | null;
           wrap_id?: string;
         };
         Relationships: [
@@ -692,6 +695,47 @@ export type Database = {
           },
         ];
       };
+      wrap_comments: {
+        Row: {
+          author_id: string;
+          body: string;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          removed_at: string | null;
+          status: string;
+          wrap_id: string;
+        };
+        Insert: {
+          author_id: string;
+          body: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          removed_at?: string | null;
+          status?: string;
+          wrap_id: string;
+        };
+        Update: {
+          author_id?: string;
+          body?: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          removed_at?: string | null;
+          status?: string;
+          wrap_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wrap_comments_wrap_id_fkey";
+            columns: ["wrap_id"];
+            isOneToOne: false;
+            referencedRelation: "wraps";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       wrap_favorites: {
         Row: {
           created_at: string;
@@ -880,6 +924,18 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      add_wrap_comment: {
+        Args: { p_body: string; p_idempotency_key: string; p_slug: string };
+        Returns: {
+          author_display_name: string;
+          author_username: string;
+          body: string;
+          comment_count: number;
+          created_at: string;
+          id: string;
+          slug: string;
+        }[];
+      };
       claim_pending_upload: {
         Args: { p_id: string; p_owner: string };
         Returns: {
@@ -1226,6 +1282,17 @@ export type Database = {
           width_px: number;
         }[];
       };
+      get_public_wrap_comments: {
+        Args: { p_limit?: number; p_offset?: number; p_slug: string };
+        Returns: {
+          author_display_name: string;
+          author_username: string;
+          body: string;
+          created_at: string;
+          id: string;
+          owned_by_viewer: boolean;
+        }[];
+      };
       get_public_wrap_media: {
         Args: { p_slug: string };
         Returns: {
@@ -1313,6 +1380,14 @@ export type Database = {
           id: string;
           slug: string;
           status: string;
+        }[];
+      };
+      remove_wrap_comment: {
+        Args: { p_comment_id: string };
+        Returns: {
+          comment_count: number;
+          id: string;
+          removed: boolean;
         }[];
       };
       replace_profile_avatar: {
