@@ -364,15 +364,6 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(commentCard).toBeVisible();
   await expect(commentStat).toHaveText("1");
   await expect(commentCard.locator("p").locator("b")).toHaveCount(0);
-  const deleteCommentResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/comments/${addedCommentBody.comment.id}`) &&
-      response.request().method() === "DELETE",
-  );
-  await commentCard.getByRole("button", { name: "Delete Comment" }).click();
-  expect((await deleteCommentResponse).status()).toBe(200);
-  await expect(commentCard).toHaveCount(0);
-  await expect(commentStat).toHaveText("0");
   await page.goto("/favorites");
   await expect(
     page.getByRole("heading", { name: "Your Favorites." }),
@@ -406,6 +397,85 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     await actorPage.getByLabel("Display name").fill("Social Viewer");
     await actorPage.getByRole("button", { name: "Complete Profile" }).click();
     await expect(actorPage).toHaveURL(`/wrap/${publishedSlug}`);
+    await actorPage.goto(`/u/${username}`);
+    await actorPage.getByRole("button", { name: "Report Profile" }).click();
+    await actorPage.getByLabel("Reason").selectOption("SPAM");
+    const profileReportResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/reports") &&
+        response.request().method() === "POST",
+    );
+    await actorPage.getByRole("button", { name: "Submit Report" }).click();
+    expect((await profileReportResponse).status()).toBe(200);
+    await expect(actorPage.locator(".report-receipt")).toContainText(
+      "Report OPEN",
+    );
+    await actorPage.getByRole("button", { name: "Close" }).click();
+    const concurrentReportBody = {
+      targetKind: "USER",
+      target: username,
+      reason: "OFFENSIVE_CONTENT",
+      detail: null,
+      idempotencyKey: randomUUID(),
+    };
+    const concurrentReports = await Promise.all(
+      [0, 1].map(() =>
+        actorPage.request.post("/api/reports", { data: concurrentReportBody }),
+      ),
+    );
+    expect(concurrentReports.map((response) => response.status())).toEqual([
+      200, 200,
+    ]);
+    const concurrentReportResults = await Promise.all(
+      concurrentReports.map(async (response) => (await response.json()).report),
+    );
+    expect(
+      concurrentReportResults.filter((report) => report.created),
+    ).toHaveLength(1);
+    expect(
+      concurrentReportResults.filter((report) => !report.created),
+    ).toHaveLength(1);
+    await actorPage.goto(`/wrap/${publishedSlug}`);
+    const actorCommentCard = actorPage.locator(".comment-card").filter({
+      hasText: hostileComment,
+    });
+    await expect(actorCommentCard).toBeVisible();
+    await actorCommentCard
+      .getByRole("button", { name: "Report Comment" })
+      .click();
+    await actorPage.getByLabel("Reason").selectOption("OTHER");
+    await actorPage
+      .getByLabel(/Additional detail/)
+      .fill("The comment needs a private review.");
+    const commentReportResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/reports") &&
+        response.request().method() === "POST",
+    );
+    await actorPage.getByRole("button", { name: "Submit Report" }).click();
+    expect((await commentReportResponse).status()).toBe(200);
+    await expect(actorPage.locator(".report-receipt")).toContainText(
+      "Report OPEN",
+    );
+    await actorPage.getByRole("button", { name: "Close" }).click();
+    await actorPage
+      .getByRole("button", { name: "Report", exact: true })
+      .click();
+    await actorPage.getByLabel("Reason").selectOption("OTHER");
+    await actorPage
+      .getByLabel(/Additional detail/)
+      .fill("The published Wrap needs a private review.");
+    const wrapReportResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/reports") &&
+        response.request().method() === "POST",
+    );
+    await actorPage.getByRole("button", { name: "Submit Report" }).click();
+    expect((await wrapReportResponse).status()).toBe(200);
+    await expect(actorPage.locator(".report-receipt")).toContainText(
+      "Report OPEN",
+    );
+    await actorPage.getByRole("button", { name: "Close" }).click();
     await actorPage.goto(`/u/${username}`);
     await expect(
       actorPage.getByRole("button", { name: "Follow", exact: true }),
@@ -541,6 +611,15 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     ).toBeVisible();
     await actorContext.close();
   }
+  const deleteCommentResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/comments/${addedCommentBody.comment.id}`) &&
+      response.request().method() === "DELETE",
+  );
+  await commentCard.getByRole("button", { name: "Delete Comment" }).click();
+  expect((await deleteCommentResponse).status()).toBe(200);
+  await expect(commentCard).toHaveCount(0);
+  await expect(commentStat).toHaveText("0");
   await page.goto(`/wrap/${publishedSlug}/download`);
   await expect(
     page.getByRole("heading", { name: "Download Cybertruck Night Drive" }),

@@ -547,6 +547,57 @@ export type Database = {
           },
         ];
       };
+      reports: {
+        Row: {
+          admin_note: string | null;
+          created_at: string;
+          detail: string | null;
+          id: string;
+          idempotency_key: string;
+          outcome_category: string | null;
+          reason: string;
+          reporter_id: string;
+          resolved_at: string | null;
+          status: string;
+          target_id: string;
+          target_kind: string;
+          target_ref: string;
+          updated_at: string;
+        };
+        Insert: {
+          admin_note?: string | null;
+          created_at?: string;
+          detail?: string | null;
+          id?: string;
+          idempotency_key: string;
+          outcome_category?: string | null;
+          reason: string;
+          reporter_id: string;
+          resolved_at?: string | null;
+          status?: string;
+          target_id: string;
+          target_kind: string;
+          target_ref: string;
+          updated_at?: string;
+        };
+        Update: {
+          admin_note?: string | null;
+          created_at?: string;
+          detail?: string | null;
+          id?: string;
+          idempotency_key?: string;
+          outcome_category?: string | null;
+          reason?: string;
+          reporter_id?: string;
+          resolved_at?: string | null;
+          status?: string;
+          target_id?: string;
+          target_kind?: string;
+          target_ref?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       tags: {
         Row: {
           created_at: string;
@@ -984,6 +1035,28 @@ export type Database = {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
+      create_report: {
+        Args: {
+          p_detail: string;
+          p_idempotency_key: string;
+          p_reason: string;
+          p_target: string;
+          p_target_kind: string;
+        };
+        Returns: {
+          created: boolean;
+          created_at: string;
+          detail: string;
+          id: string;
+          outcome_category: string;
+          reason: string;
+          resolved_at: string;
+          status: string;
+          target_id: string;
+          target_kind: string;
+          updated_at: string;
+        }[];
+      };
       current_profile_access: {
         Args: never;
         Returns: {
@@ -1116,6 +1189,21 @@ export type Database = {
           vehicle_model_slug: string;
           verified_at: string;
           width_px: number;
+        }[];
+      };
+      get_my_report: {
+        Args: { p_report_id: string };
+        Returns: {
+          created_at: string;
+          detail: string;
+          id: string;
+          outcome_category: string;
+          reason: string;
+          resolved_at: string;
+          status: string;
+          target_id: string;
+          target_kind: string;
+          updated_at: string;
         }[];
       };
       get_owner_wrap: {

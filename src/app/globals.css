@@ -585,6 +585,79 @@ summary:focus-visible {
   font: inherit;
   cursor: pointer;
 }
+.report-trigger {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  padding: 5px 0;
+}
+.report-dialog-backdrop {
+  align-items: center;
+  background: rgb(8 12 18 / 72%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 1rem;
+  position: fixed;
+  z-index: 20;
+}
+.report-dialog {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 38%);
+  max-width: 34rem;
+  padding: 1.25rem;
+  width: 100%;
+}
+.report-dialog-heading,
+.report-form-footer {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+.report-dialog h2 {
+  margin: 0.2rem 0 0;
+}
+.report-form {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1.25rem;
+}
+.report-form select,
+.report-form textarea {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  color: var(--white);
+  font: inherit;
+  padding: 0.7rem;
+  width: 100%;
+}
+.report-form textarea {
+  resize: vertical;
+}
+.report-form-footer {
+  align-items: center;
+  margin-top: 0.35rem;
+}
+.report-form-footer span,
+.report-receipt span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.report-receipt {
+  background: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1.25rem;
+  padding: 0.9rem;
+}
 .form-message,
 .form-error,
 .field-help {

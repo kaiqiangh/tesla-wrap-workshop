@@ -7,6 +7,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { ReportDialog } from "../../report-dialog";
 import { CommentSection, type PublicComment } from "./comment-section";
 import { InteractionControls } from "./interaction-controls";
 
@@ -130,6 +131,7 @@ export default async function WrapDetailPage({ params }: Props) {
             <Link className="button" href={`/wrap/${wrap.slug}/download`}>
               Download Wrap
             </Link>
+            <ReportDialog targetKind="WRAP" target={wrap.slug} />
             {canManage && (
               <Link className="text-link" href={`/wrap/${wrap.slug}/edit`}>
                 Manage Wrap

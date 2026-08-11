@@ -7,6 +7,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { ReportDialog } from "../../report-dialog";
 import { FollowControl } from "./follow-control";
 
 type Props = {
@@ -117,6 +118,11 @@ export default async function PublicProfilePage({
               initialFollowerCount={profile.follower_count}
             />
           ) : null}
+          <ReportDialog
+            targetKind="USER"
+            target={profile.username}
+            label="Report Profile"
+          />
         </div>
       </section>
       <dl className="profile-stats" aria-label="Creator statistics">

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { type FormEvent, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ReportDialog } from "../../report-dialog";
+
 export type PublicComment = {
   id: string;
   body: string;
@@ -219,7 +221,13 @@ export function CommentSection({
                 >
                   Delete Comment
                 </button>
-              ) : null}
+              ) : (
+                <ReportDialog
+                  targetKind="COMMENT"
+                  target={comment.id}
+                  label="Report Comment"
+                />
+              )}
             </li>
           ))}
         </ol>
