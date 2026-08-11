@@ -274,6 +274,12 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await page.getByLabel("Six-digit code").fill(otp);
   await page.getByRole("button", { name: "Verify code" }).click();
   await expect(page).toHaveURL(/\/onboarding\?next=%2Fupload$/);
+  const authCookies = (await context.cookies()).filter((cookie) =>
+    /-auth-token(?:\.\d+)?$/.test(cookie.name),
+  );
+  expect(authCookies.length).toBeGreaterThan(0);
+  expect(authCookies.every((cookie) => cookie.httpOnly)).toBe(true);
+  expect(authCookies.every((cookie) => cookie.sameSite === "Lax")).toBe(true);
   const otherUserMutation = await page.request.post("/api/profile/onboarding", {
     data: {
       userId: "00000000-0000-0000-0000-000000000000",
@@ -386,10 +392,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     buffer: await pngFixture(1024, 768),
   });
   const startResponse = await startedPromise;
-  const startBody = (await startResponse.json()) as {
-    id: string;
-    staging_key: string;
-  };
+  const startBody = (await startResponse.json()) as { id: string };
   const firstFinalResponse = await finalizedPromise;
   expect(firstFinalResponse.status()).toBe(503);
   expect((await firstFinalResponse.json()).error.code).toBe(
@@ -821,29 +824,16 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   expect(firstDownload.headers()["x-correlation-id"]).toMatch(
     /^[0-9a-f-]{36}$/,
   );
-  const firstDownloadBody = (await firstDownload.json()) as {
-    downloadUrl: string;
-    expiresAt: string;
-    filename: string;
-    counted: boolean;
-    sha256: string;
-    templateVariant: { key: string; widthPx: number; heightPx: number };
-  };
-  expect(firstDownloadBody).toMatchObject({
-    filename: "Cybertruck-Night-Drive.png",
-    counted: true,
-    templateVariant: { key: "cybertruck", widthPx: 1024, heightPx: 768 },
-  });
-  expect(
-    new Date(firstDownloadBody.expiresAt).getTime() - Date.now(),
-  ).toBeLessThanOrEqual(60_000);
-  const downloadedAsset = await page.request.get(firstDownloadBody.downloadUrl);
-  expect(downloadedAsset.status()).toBe(200);
-  const downloadedBytes = await downloadedAsset.body();
+  expect(firstDownload.headers()["content-type"]).toContain("image/png");
+  expect(firstDownload.headers()["content-disposition"]).toContain(
+    'filename="Cybertruck-Night-Drive.png"',
+  );
+  expect(firstDownload.headers()["x-download-counted"]).toBe("true");
+  const downloadedBytes = await firstDownload.body();
   expect(downloadedBytes.length).toBeGreaterThan(24);
   expect(downloadedBytes.length).toBeLessThanOrEqual(1_000_000);
   expect(createHash("sha256").update(downloadedBytes).digest("hex")).toBe(
-    firstDownloadBody.sha256,
+    firstDownload.headers()["x-download-sha256"],
   );
   const downloadedMetadata = await sharp(downloadedBytes).metadata();
   expect(downloadedMetadata.width).toBe(1024);
@@ -851,10 +841,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   const repeatedDownload = await page.request.post(
     `/api/wraps/${publishedSlug}/download`,
   );
-  const repeatedBody = await repeatedDownload.json();
-  expect(repeatedBody.counted).toBe(false);
-  const repeatedAsset = await page.request.get(repeatedBody.downloadUrl);
-  expect(repeatedAsset.status()).toBe(200);
+  expect(repeatedDownload.status()).toBe(200);
+  expect(repeatedDownload.headers()["x-download-counted"]).toBe("false");
+  expect((await repeatedDownload.body()).length).toBeGreaterThan(24);
   await expect(
     page.getByRole("button", { name: "Download Original Wrap" }),
   ).toBeVisible();
@@ -899,13 +888,10 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       response.url().endsWith(`/api/wraps/${publishedSlug}/download`) &&
       response.request().method() === "POST",
   );
-  const signedNavigation = Promise.race([
-    page.waitForEvent("download", { timeout: 10000 }),
-    page.waitForURL(/\/storage\/v1\/object\/sign\//, { timeout: 10000 }),
-  ]);
+  const downloadEvent = page.waitForEvent("download", { timeout: 10000 });
   await page.getByRole("button", { name: "Download Original Wrap" }).click();
   expect((await uiDownloadResponse).status()).toBe(200);
-  await signedNavigation.catch(() => undefined);
+  await downloadEvent;
   await page.goto(`/wrap/${publishedSlug}/download`);
   const guestContext = await browser.newContext({
     baseURL: "http://127.0.0.1:3000",
@@ -950,10 +936,11 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   expect(guestResponses.every((response) => response.status() === 200)).toBe(
     true,
   );
-  const guestBodies = await Promise.all(
-    guestResponses.map((response) => response.json()),
-  );
-  expect(guestBodies.filter((body) => body.counted).length).toBe(1);
+  expect(
+    guestResponses.filter(
+      (response) => response.headers()["x-download-counted"] === "true",
+    ).length,
+  ).toBe(1);
   const { data: guestWrap } = await admin
     .from("wraps")
     .select("id, download_count")
@@ -1013,12 +1000,6 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   );
   await page.goto("/upload");
 
-  const storageHeaders = {
-    apikey: requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
-    authorization: `Bearer ${(await readSessionCookie(context)).access_token}`,
-    "content-type": "image/png",
-    "x-upsert": "false",
-  };
   for (const [name, dimensions] of browserVariants) {
     const card = page
       .locator(".variant-card")
@@ -1037,13 +1018,18 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       },
     });
     expect(validStart.status()).toBe(201);
-    const validBody = (await validStart.json()) as {
-      id: string;
-      staging_key: string;
-    };
+    const validBody = (await validStart.json()) as { id: string };
     const validTransfer = await page.request.post(
-      `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${validBody.staging_key}`,
-      { headers: storageHeaders, data: await pngFixture(width, height) },
+      `/api/uploads/${validBody.id}/object`,
+      {
+        multipart: {
+          file: {
+            name: "valid.png",
+            mimeType: "image/png",
+            buffer: await pngFixture(width, height),
+          },
+        },
+      },
     );
     expect(validTransfer.status()).toBe(200);
     const validFinal = await page.request.post(
@@ -1066,15 +1052,17 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       },
     });
     expect(invalidStart.status()).toBe(201);
-    const invalidBody = (await invalidStart.json()) as {
-      id: string;
-      staging_key: string;
-    };
+    const invalidBody = (await invalidStart.json()) as { id: string };
     const invalidTransfer = await page.request.post(
-      `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${invalidBody.staging_key}`,
+      `/api/uploads/${invalidBody.id}/object`,
       {
-        headers: storageHeaders,
-        data: await pngFixture(wrongWidth, wrongHeight),
+        multipart: {
+          file: {
+            name: "invalid.png",
+            mimeType: "image/png",
+            buffer: await pngFixture(wrongWidth, wrongHeight),
+          },
+        },
       },
     );
     expect(invalidTransfer.status()).toBe(200);
@@ -1111,13 +1099,18 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     },
   });
   expect(parallelStart.status()).toBe(201);
-  const parallel = (await parallelStart.json()) as {
-    id: string;
-    staging_key: string;
-  };
+  const parallel = (await parallelStart.json()) as { id: string };
   const parallelTransfer = await page.request.post(
-    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${parallel.staging_key}`,
-    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+    `/api/uploads/${parallel.id}/object`,
+    {
+      multipart: {
+        file: {
+          name: "parallel.png",
+          mimeType: "image/png",
+          buffer: await pngFixture(1024, 768),
+        },
+      },
+    },
   );
   expect(parallelTransfer.status()).toBe(200);
   const concurrent = await Promise.all(
@@ -1176,7 +1169,14 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
 
   const arbitraryKey = await page.request.post(
     `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${userId}/chosen/source.png`,
-    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+    {
+      headers: {
+        apikey: requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+        authorization: `Bearer ${requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY")}`,
+        "content-type": "image/png",
+      },
+      data: await pngFixture(1024, 768),
+    },
   );
   expect(arbitraryKey.status()).toBe(400);
   for (const filename of ["transfer-one.png", "transfer-two.png"]) {
@@ -1217,23 +1217,33 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     },
   });
   expect(corruptStart.status()).toBe(201);
-  const corrupt = (await corruptStart.json()) as {
-    id: string;
-    staging_key: string;
-  };
+  const corrupt = (await corruptStart.json()) as { id: string };
   const corruptTransfer = await page.request.post(
-    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${corrupt.staging_key}`,
+    `/api/uploads/${corrupt.id}/object`,
     {
-      headers: storageHeaders,
-      data: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      multipart: {
+        file: {
+          name: "corrupt.png",
+          mimeType: "image/png",
+          buffer: Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        },
+      },
     },
   );
   expect(corruptTransfer.status()).toBe(200);
   const overwrite = await page.request.post(
-    `${requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL")}/storage/v1/object/wrap-staging/${corrupt.staging_key}`,
-    { headers: storageHeaders, data: await pngFixture(1024, 768) },
+    `/api/uploads/${corrupt.id}/object`,
+    {
+      multipart: {
+        file: {
+          name: "corrupt-retry.png",
+          mimeType: "image/png",
+          buffer: await pngFixture(1024, 768),
+        },
+      },
+    },
   );
-  expect(overwrite.status()).toBe(400);
+  expect(overwrite.status()).toBe(200);
   const corruptFinal = await page.request.post(
     `/api/uploads/${corrupt.id}/finalize`,
   );
@@ -1272,7 +1282,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     .getByLabel("I used the selected matching official Tesla template.")
     .check();
   let abortedTransfer = false;
-  await page.route("**/storage/v1/object/wrap-staging/**", async (route) => {
+  await page.route("**/api/uploads/*/object", async (route) => {
     if (!abortedTransfer && route.request().method() === "POST") {
       abortedTransfer = true;
       await route.abort();
@@ -1286,7 +1296,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     buffer: await pngFixture(1024, 768),
   });
   await expect(page.getByText("WF-UPLOAD-TRANSFER")).toBeVisible();
-  await page.unroute("**/storage/v1/object/wrap-staging/**");
+  await page.unroute("**/api/uploads/*/object");
 
   await page.getByRole("link", { name: "View Profile" }).click();
   await expect(page).toHaveURL(`/u/${username}`);

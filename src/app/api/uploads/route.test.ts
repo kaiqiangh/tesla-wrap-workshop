@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
+  createAdmin: vi.fn(),
   readProfileAccess: vi.fn(),
 }));
 
@@ -10,6 +11,9 @@ vi.mock("@/lib/auth/profile-access", () => ({
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
+}));
+vi.mock("@/lib/supabase/admin", () => ({
+  createAdminSupabaseClient: mocks.createAdmin,
 }));
 vi.mock("@/lib/upload/problem", () => ({
   uploadProblem: (
@@ -39,18 +43,18 @@ const body = {
 };
 
 describe("POST /api/uploads", () => {
-  it("returns the server-issued Pending Upload key", async () => {
+  it("returns only the safe Pending Upload identity", async () => {
     mocks.readProfileAccess.mockResolvedValue({
       status: "active",
       username: "upload-one",
+      userId: "10000000-0000-0000-0000-000000000004",
     });
-    mocks.createServer.mockResolvedValue({
+    mocks.createServer.mockResolvedValue({});
+    mocks.createAdmin.mockReturnValue({
       rpc: vi.fn(async () => ({
         data: [
           {
             id: "10000000-0000-0000-0000-000000000002",
-            staging_key: "owner/revision/source.png",
-            idempotency_key: "10000000-0000-0000-0000-000000000003",
             expires_at: "2026-08-10T00:00:00Z",
           },
         ],
@@ -65,9 +69,10 @@ describe("POST /api/uploads", () => {
       }),
     );
     expect(response.status).toBe(201);
-    expect((await response.json()).staging_key).toBe(
-      "owner/revision/source.png",
-    );
+    expect(await response.json()).toEqual({
+      id: "10000000-0000-0000-0000-000000000002",
+      expires_at: "2026-08-10T00:00:00Z",
+    });
   });
 
   it("maps the database rate limit to the public contract", async () => {
@@ -75,7 +80,8 @@ describe("POST /api/uploads", () => {
       status: "active",
       username: "upload-one",
     });
-    mocks.createServer.mockResolvedValue({
+    mocks.createServer.mockResolvedValue({});
+    mocks.createAdmin.mockReturnValue({
       rpc: vi.fn(async () => ({
         data: null,
         error: { message: "upload_rate_limited" },

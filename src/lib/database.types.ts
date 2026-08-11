@@ -34,54 +34,6 @@ export type Database = {
   };
   public: {
     Tables: {
-      core_loop_events: {
-        Row: {
-          actor_id: string | null;
-          code: string;
-          correlation_id: string | null;
-          counted: boolean | null;
-          event_kind: string;
-          expires_at: string;
-          id: string;
-          occurred_at: string;
-          outcome: string;
-          principal_hash: string | null;
-          principal_kind: string | null;
-          target_id: string;
-          target_type: string;
-        };
-        Insert: {
-          actor_id?: string | null;
-          code: string;
-          correlation_id?: string | null;
-          counted?: boolean | null;
-          event_kind: string;
-          expires_at?: string;
-          id?: string;
-          occurred_at?: string;
-          outcome: string;
-          principal_hash?: string | null;
-          principal_kind?: string | null;
-          target_id: string;
-          target_type: string;
-        };
-        Update: {
-          actor_id?: string | null;
-          code?: string;
-          correlation_id?: string | null;
-          counted?: boolean | null;
-          event_kind?: string;
-          expires_at?: string;
-          id?: string;
-          occurred_at?: string;
-          outcome?: string;
-          principal_hash?: string | null;
-          principal_kind?: string | null;
-          target_id?: string;
-          target_type?: string;
-        };
-        Relationships: [];
-      };
       asset_cleanup_jobs: {
         Row: {
           attempts: number;
@@ -198,6 +150,54 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      core_loop_events: {
+        Row: {
+          actor_id: string | null;
+          code: string;
+          correlation_id: string | null;
+          counted: boolean | null;
+          event_kind: string;
+          expires_at: string;
+          id: string;
+          occurred_at: string;
+          outcome: string;
+          principal_hash: string | null;
+          principal_kind: string | null;
+          target_id: string;
+          target_type: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          code: string;
+          correlation_id?: string | null;
+          counted?: boolean | null;
+          event_kind: string;
+          expires_at?: string;
+          id?: string;
+          occurred_at?: string;
+          outcome: string;
+          principal_hash?: string | null;
+          principal_kind?: string | null;
+          target_id: string;
+          target_type: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          code?: string;
+          correlation_id?: string | null;
+          counted?: boolean | null;
+          event_kind?: string;
+          expires_at?: string;
+          id?: string;
+          occurred_at?: string;
+          outcome?: string;
+          principal_hash?: string | null;
+          principal_kind?: string | null;
+          target_id?: string;
+          target_type?: string;
+        };
+        Relationships: [];
       };
       creator_follows: {
         Row: {
@@ -1172,18 +1172,9 @@ export type Database = {
           slug: string;
         }[];
       };
-      cleanup_core_loop_events: { Args: never; Returns: number };
       anonymize_expired_profiles: {
         Args: { p_limit?: number };
         Returns: number;
-      };
-      claim_pending_upload: {
-        Args: { p_id: string; p_owner: string };
-        Returns: {
-          asset_revision_id: string;
-          claimed: boolean;
-          state: string;
-        }[];
       };
       claim_asset_cleanup_jobs: {
         Args: { p_limit?: number };
@@ -1193,6 +1184,14 @@ export type Database = {
           id: string;
           object_key: string;
           pending_upload_id: string;
+        }[];
+      };
+      claim_pending_upload: {
+        Args: { p_id: string; p_owner: string };
+        Returns: {
+          asset_revision_id: string;
+          claimed: boolean;
+          state: string;
         }[];
       };
       claim_profile_cleanup_jobs: {
@@ -1216,6 +1215,11 @@ export type Database = {
           profile_id: string;
         }[];
       };
+      cleanup_core_loop_events: { Args: never; Returns: number };
+      complete_asset_cleanup_job: {
+        Args: { p_error?: string; p_id: string; p_success: boolean };
+        Returns: boolean;
+      };
       complete_pending_upload: {
         Args: {
           p_height: number;
@@ -1234,10 +1238,6 @@ export type Database = {
           p_width: number;
         };
         Returns: string;
-      };
-      complete_asset_cleanup_job: {
-        Args: { p_error?: string; p_id: string; p_success: boolean };
-        Returns: boolean;
       };
       complete_profile: {
         Args: { p_display_name: string; p_username: string };
@@ -1464,6 +1464,26 @@ export type Database = {
       };
       get_pending_upload: {
         Args: { p_id: string };
+        Returns: {
+          asset_revision_id: string;
+          declared_mime_type: string;
+          expires_at: string;
+          failure_code: string;
+          failure_detail: Json;
+          height_px: number;
+          id: string;
+          max_file_bytes: number;
+          original_filename: string;
+          owner_id: string;
+          staging_key: string;
+          state: string;
+          template_asserted: boolean;
+          template_variant_id: string;
+          width_px: number;
+        }[];
+      };
+      get_pending_upload_for_owner: {
+        Args: { p_id: string; p_owner: string };
         Returns: {
           asset_revision_id: string;
           declared_mime_type: string;
@@ -1715,7 +1735,44 @@ export type Database = {
           template_variant_id: string;
         }[];
       };
+      publish_wrap_base: {
+        Args: {
+          p_asset_revision_id: string;
+          p_creator_id: string;
+          p_description: string;
+          p_distribution_asserted: boolean;
+          p_license_type: string;
+          p_tags: string[];
+          p_template_asserted: boolean;
+          p_template_variant_id: string;
+          p_title: string;
+        };
+        Returns: {
+          asset_revision_id: string;
+          created: boolean;
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+          template_variant_id: string;
+        }[];
+      };
       reconcile_download_counts: { Args: never; Returns: undefined };
+      record_core_loop_event: {
+        Args: {
+          p_actor_id: string;
+          p_code: string;
+          p_correlation_id: string;
+          p_counted: boolean;
+          p_event_kind: string;
+          p_outcome: string;
+          p_principal_hash: string;
+          p_principal_kind: string;
+          p_target_id: string;
+          p_target_type: string;
+        };
+        Returns: string;
+      };
       record_discovery_engagement_event: {
         Args: {
           p_actor_id: string;
@@ -1736,21 +1793,6 @@ export type Database = {
           download_count: number;
           event_id: string;
         }[];
-      };
-      record_core_loop_event: {
-        Args: {
-          p_actor_id: string | null;
-          p_code: string;
-          p_correlation_id: string | null;
-          p_counted: boolean | null;
-          p_event_kind: string;
-          p_outcome: string;
-          p_principal_hash: string | null;
-          p_principal_kind: string | null;
-          p_target_id: string;
-          p_target_type: string;
-        };
-        Returns: string;
       };
       recover_profile: {
         Args: never;
@@ -1799,7 +1841,27 @@ export type Database = {
           status: string;
         }[];
       };
+      republish_wrap_base: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+        }[];
+      };
       search_discovery_wraps: {
+        Args: {
+          p_cursor?: string;
+          p_limit?: number;
+          p_model_slug?: string;
+          p_q?: string;
+          p_sort?: string;
+          p_variant_key?: string;
+        };
+        Returns: Json;
+      };
+      search_discovery_wraps_base: {
         Args: {
           p_cursor?: string;
           p_limit?: number;
@@ -1819,18 +1881,7 @@ export type Database = {
           p_q?: string;
           p_sort?: string;
           p_variant_key?: string;
-          p_viewer_id?: string | null;
-        };
-        Returns: Json;
-      };
-      search_discovery_wraps_base: {
-        Args: {
-          p_cursor?: string;
-          p_limit?: number;
-          p_model_slug?: string;
-          p_q?: string;
-          p_sort?: string;
-          p_variant_key?: string;
+          p_viewer_id?: string;
         };
         Returns: Json;
       };
@@ -1848,8 +1899,19 @@ export type Database = {
         Returns: {
           expires_at: string;
           id: string;
-          idempotency_key: string;
-          staging_key: string;
+        }[];
+      };
+      start_pending_upload_for_owner: {
+        Args: {
+          p_declared_mime_type: string;
+          p_original_filename: string;
+          p_owner: string;
+          p_template_asserted: boolean;
+          p_template_variant_id: string;
+        };
+        Returns: {
+          expires_at: string;
+          id: string;
         }[];
       };
       toggle_creator_follow: {
@@ -1869,6 +1931,15 @@ export type Database = {
         }[];
       };
       unpublish_wrap: {
+        Args: { p_creator_id: string; p_slug: string };
+        Returns: {
+          first_published_at: string;
+          id: string;
+          slug: string;
+          status: string;
+        }[];
+      };
+      unpublish_wrap_base: {
         Args: { p_creator_id: string; p_slug: string };
         Returns: {
           first_published_at: string;

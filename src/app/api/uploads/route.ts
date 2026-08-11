@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
+import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadProblem } from "@/lib/upload/problem";
 
@@ -44,7 +45,9 @@ async function post(request: Request, operation: OperationContext) {
   }
   operation.actorId = access.userId;
 
-  const { data, error } = await supabase.rpc("start_pending_upload", {
+  const admin = createAdminSupabaseClient();
+  const { data, error } = await admin.rpc("start_pending_upload_for_owner", {
+    p_owner: access.userId,
     p_template_variant_id: input.templateVariantId,
     p_original_filename: input.filename,
     p_declared_mime_type: input.mimeType,
@@ -98,12 +101,23 @@ async function post(request: Request, operation: OperationContext) {
     );
   }
   const upload = data?.[0];
-  if (error || !upload) return invalidRequest();
+  if (error || !upload) {
+    return uploadProblem(
+      503,
+      "WF-UPLOAD-DATABASE",
+      "The upload could not be started safely.",
+      "A Pending Upload is created only when the private upload boundary is healthy.",
+      "Retry starting the upload after the service recovers.",
+    );
+  }
 
-  return NextResponse.json(upload, {
-    status: 201,
-    headers: { "cache-control": "no-store" },
-  });
+  return NextResponse.json(
+    { id: upload.id, expires_at: upload.expires_at },
+    {
+      status: 201,
+      headers: { "cache-control": "no-store" },
+    },
+  );
 }
 
 function isInput(value: unknown): value is {

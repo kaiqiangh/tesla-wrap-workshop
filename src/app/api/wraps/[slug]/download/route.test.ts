@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
   readProfileAccess: vi.fn(),
   cookies: vi.fn(),
-  createSigned: vi.fn(),
+  download: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({ cookies: mocks.cookies }));
@@ -74,18 +74,18 @@ describe("POST /api/wraps/[slug]/download", () => {
     vi.clearAllMocks();
     mocks.adminRpc.mockReset();
     mocks.createAdmin.mockReset();
-    mocks.createSigned.mockReset();
+    mocks.download.mockReset();
     mocks.createServer.mockResolvedValue({});
     mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
     mocks.cookies.mockResolvedValue({ get: vi.fn(() => undefined) });
-    mocks.createSigned.mockResolvedValue({
-      data: { signedUrl: "http://storage.test/signed" },
+    mocks.download.mockResolvedValue({
+      data: new Blob([Buffer.from("png-bytes")], { type: "image/png" }),
       error: null,
     });
     mocks.createAdmin.mockReturnValue({
       rpc: mocks.adminRpc,
       storage: {
-        from: vi.fn(() => ({ createSignedUrl: mocks.createSigned })),
+        from: vi.fn(() => ({ download: mocks.download })),
       },
     });
     mocks.adminRpc
@@ -98,7 +98,7 @@ describe("POST /api/wraps/[slug]/download", () => {
       });
   });
 
-  it("signs only the private Original object, records one Guest event, and sets a 30-day cookie", async () => {
+  it("streams only the private Original object, records one Guest event, and sets a 30-day cookie", async () => {
     const response = await POST(
       new Request("http://localhost", { method: "POST" }),
       {
@@ -107,16 +107,12 @@ describe("POST /api/wraps/[slug]/download", () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    expect(mocks.createSigned).toHaveBeenCalledWith(prepared.object_key, 60, {
-      download: "Night-Drive.png",
-    });
-    const body = await response.json();
-    expect(body).toMatchObject({
-      downloadUrl: "http://storage.test/signed",
-      filename: "Night-Drive.png",
-      counted: true,
-      templateVariant: { key: "cybertruck", widthPx: 1024, heightPx: 768 },
-    });
+    expect(mocks.download).toHaveBeenCalledWith(prepared.object_key);
+    expect(response.headers.get("content-disposition")).toContain(
+      'filename="Night-Drive.png"',
+    );
+    expect(response.headers.get("x-download-counted")).toBe("true");
+    expect(await response.text()).toBe("png-bytes");
     expect(mocks.adminRpc).toHaveBeenNthCalledWith(
       1,
       "prepare_original_download",
@@ -141,12 +137,12 @@ describe("POST /api/wraps/[slug]/download", () => {
     expect(setCookie).toMatch(/Max-Age=2592000/i);
   });
 
-  it("does not record an event when Storage cannot issue the signed URL", async () => {
+  it("does not record an event when Storage cannot deliver the Original", async () => {
     mocks.createAdmin.mockReturnValueOnce({
       rpc: mocks.adminRpc,
       storage: {
         from: vi.fn(() => ({
-          createSignedUrl: vi.fn(async () => ({
+          download: vi.fn(async () => ({
             data: null,
             error: new Error("storage down"),
           })),
@@ -186,7 +182,7 @@ describe("POST /api/wraps/[slug]/download", () => {
     );
   });
 
-  it("maps an uncertain database record failure without exposing the signed URL", async () => {
+  it("maps an uncertain database record failure without exposing asset bytes", async () => {
     mocks.adminRpc.mockReset();
     mocks.adminRpc
       .mockResolvedValueOnce({ data: [prepared], error: null })

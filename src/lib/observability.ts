@@ -147,15 +147,15 @@ export async function recordCoreLoopEvent(input: {
       "record_core_loop_event",
       {
         p_event_kind: input.eventKind,
-        p_actor_id: input.actorId ?? null,
-        p_principal_kind: input.principalKind ?? null,
-        p_principal_hash: input.principalHash ?? null,
+        p_actor_id: (input.actorId ?? null) as unknown as string,
+        p_principal_kind: (input.principalKind ?? null) as unknown as string,
+        p_principal_hash: (input.principalHash ?? null) as unknown as string,
         p_target_type: input.targetType,
         p_target_id: input.targetId,
         p_outcome: input.outcome,
         p_code: input.code,
-        p_counted: input.counted ?? null,
-        p_correlation_id: input.correlationId ?? null,
+        p_counted: (input.counted ?? null) as unknown as boolean,
+        p_correlation_id: (input.correlationId ?? null) as unknown as string,
       },
     );
     return !error && typeof data === "string";

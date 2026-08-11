@@ -81,15 +81,14 @@ async function post(
   if (!prepared) return databaseProblem();
 
   const filename = safeDownloadFilename(prepared.title);
-  const signedAt = Date.now();
-  const signed = await admin.storage
+  const stored = await admin.storage
     .from("wrap-originals")
-    .createSignedUrl(prepared.object_key, 60, { download: filename });
-  if (signed.error || !signed.data?.signedUrl) {
+    .download(prepared.object_key);
+  if (stored.error || !stored.data) {
     return downloadProblem(
       503,
       "WF-DOWNLOAD-STORAGE",
-      "The private Original Wrap Asset could not be signed.",
+      "The private Original Wrap Asset could not be delivered.",
     );
   }
 
@@ -107,24 +106,16 @@ async function post(
   const recorded = recordedData?.[0];
   if (!recorded) return databaseProblem();
 
-  const response = NextResponse.json(
-    {
-      downloadUrl: signed.data.signedUrl,
-      expiresAt: new Date(signedAt + 60_000).toISOString(),
-      filename,
-      counted: recorded.counted,
-      eventId: recorded.event_id,
-      templateVariant: {
-        key: prepared.template_variant_key,
-        name: prepared.template_variant_name,
-        widthPx: prepared.width_px,
-        heightPx: prepared.height_px,
-      },
-      byteSize: prepared.byte_size,
-      sha256: prepared.sha256,
+  const response = new NextResponse(await stored.data.arrayBuffer(), {
+    headers: {
+      "cache-control": "no-store",
+      "content-disposition": `attachment; filename="${filename}"`,
+      "content-type": "image/png",
+      "x-download-counted": String(recorded.counted),
+      "x-download-filename": filename,
+      "x-download-sha256": prepared.sha256,
     },
-    { headers: { "cache-control": "no-store" } },
-  );
+  });
   if (setGuestCookie) {
     response.cookies.set({
       name: GUEST_DOWNLOAD_COOKIE,

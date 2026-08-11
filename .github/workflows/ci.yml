@@ -39,5 +39,6 @@ jobs:
       - run: pnpm test
       - run: pnpm test:browser:local
       - run: pnpm build:local
+      - run: pnpm scan:security
       - if: always()
         run: pnpm exec supabase stop

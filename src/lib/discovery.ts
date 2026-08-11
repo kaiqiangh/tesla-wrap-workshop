@@ -192,7 +192,11 @@ export async function searchDiscoveryWraps(
         const { createAdminSupabaseClient } = await import("./supabase/admin");
         return createAdminSupabaseClient().rpc(
           "search_discovery_wraps_for_principal",
-          { ...args, p_principal_key: principal, p_viewer_id: viewerId },
+          {
+            ...args,
+            p_principal_key: principal,
+            p_viewer_id: viewerId ?? undefined,
+          },
         );
       })()
     : await client.rpc("search_discovery_wraps", args);

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
-import type { Json } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -14,7 +14,9 @@ import { uploadProblem } from "@/lib/upload/problem";
 export const runtime = "nodejs";
 export const maxDuration = 15;
 
-type Pending = Awaited<ReturnType<typeof readPending>>;
+type Pending =
+  Database["public"]["Functions"]["get_pending_upload_for_owner"]["Returns"][number];
+type PendingRead = { pending: Pending | null; error: boolean };
 
 export function POST(
   request: Request,
@@ -44,18 +46,46 @@ async function post(
     );
   }
   operation.actorId = access.userId;
+  const admin = createAdminSupabaseClient();
 
-  let pending = await readPending(supabase, id);
+  let pendingRead = await readPending(admin, access.userId, id);
+  if (pendingRead.error) return uncertainDatabaseResponse();
+  let pending = pendingRead.pending;
   if (!pending) return notFound();
+  if (pending.state === "EXPIRED") {
+    if (
+      !(await queueCleanup(
+        admin,
+        id,
+        [stagingAsset(pending.staging_key)],
+        "FAILED_FINALIZATION",
+      ))
+    ) {
+      return uncertainDatabaseResponse();
+    }
+    return settledResponse(pending) ?? notFound();
+  }
   const settled = settledResponse(pending);
   if (settled) return settled;
-  const admin = createAdminSupabaseClient();
   if (new Date(pending.expires_at).getTime() <= Date.now()) {
-    await admin.rpc("claim_pending_upload", {
+    const expired = await admin.rpc("claim_pending_upload", {
       p_id: id,
       p_owner: pending.owner_id,
     });
-    pending = await readPending(supabase, id);
+    if (expired.error) return uncertainDatabaseResponse();
+    if (
+      !(await queueCleanup(
+        admin,
+        id,
+        [stagingAsset(pending.staging_key)],
+        "FAILED_FINALIZATION",
+      ))
+    ) {
+      return uncertainDatabaseResponse();
+    }
+    pendingRead = await readPending(admin, access.userId, id);
+    if (pendingRead.error) return uncertainDatabaseResponse();
+    pending = pendingRead.pending;
     return (pending && settledResponse(pending)) ?? notFound();
   }
 
@@ -96,12 +126,15 @@ async function post(
       { "retry-after": "3600" },
     );
   }
-  if (claimError || !claim) return notFound();
+  if (claimError) return uncertainDatabaseResponse();
+  if (!claim) return notFound();
   if (!claim.claimed) {
-    pending =
+    pendingRead =
       claim.state === "VALIDATING"
-        ? await waitForResult(supabase, id)
-        : await readPending(supabase, id);
+        ? await waitForResult(admin, access.userId, id)
+        : await readPending(admin, access.userId, id);
+    if (pendingRead.error) return uncertainDatabaseResponse();
+    pending = pendingRead.pending;
     const response = pending && settledResponse(pending);
     if (response) return response;
     if (claim.state === "VALIDATING") {
@@ -332,26 +365,35 @@ async function post(
 }
 
 async function readPending(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  admin: ReturnType<typeof createAdminSupabaseClient>,
+  ownerId: string,
   id: string,
-) {
-  const { data, error } = await supabase.rpc("get_pending_upload", {
+): Promise<PendingRead> {
+  const { data, error } = await admin.rpc("get_pending_upload_for_owner", {
     p_id: id,
+    p_owner: ownerId,
   });
-  if (error) return null;
-  return data?.[0] ?? null;
+  if (error) return { pending: null, error: true };
+  return { pending: data?.[0] ?? null, error: false };
 }
 
 async function waitForResult(
-  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  admin: ReturnType<typeof createAdminSupabaseClient>,
+  ownerId: string,
   id: string,
-) {
+): Promise<PendingRead> {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, 100));
-    const pending = await readPending(supabase, id);
-    if (!pending || pending.state !== "VALIDATING") return pending;
+    const pending = await readPending(admin, ownerId, id);
+    if (
+      pending.error ||
+      !pending.pending ||
+      pending.pending.state !== "VALIDATING"
+    ) {
+      return pending;
+    }
   }
-  return null;
+  return { pending: null, error: false };
 }
 
 function settledResponse(pending: NonNullable<Pending>) {

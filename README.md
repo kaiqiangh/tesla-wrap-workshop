@@ -28,4 +28,9 @@ pnpm test:db
 pnpm test
 pnpm test:browser:local
 pnpm build:local
+pnpm scan:security
 ```
+
+`pnpm scan:security` expects the production build to exist and fails closed on
+missing lockfile/env schema, high-or-critical dependency advisories, tracked
+secret patterns, or server-only values in the client bundle.

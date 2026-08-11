@@ -15,6 +15,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
+    "scan:security": "node scripts/security-scan.mjs",
     "start": "next start",
     "test": "vitest run",
     "test:browser": "playwright test",

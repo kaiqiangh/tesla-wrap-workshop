@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 
 import type { CatalogModel } from "@/lib/catalog";
-import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 import { preflightUpload, type UploadProblem } from "@/lib/upload/preflight";
 import { validateWrapMetadata, type LicenseType } from "@/lib/wraps/metadata";
 
@@ -97,10 +96,9 @@ export function UploadStudio({ catalog, username }: Props) {
       });
       const startBody = (await started.json()) as {
         id?: string;
-        staging_key?: string;
         error?: PublicError;
       };
-      if (!started.ok || !startBody.id || !startBody.staging_key) {
+      if (!started.ok || !startBody.id) {
         setStatus("idle");
         setError(startBody.error ?? fallback());
         return;
@@ -108,13 +106,18 @@ export function UploadStudio({ catalog, username }: Props) {
       setPendingId(startBody.id);
 
       setStatus("uploading");
-      const transfer = await createBrowserSupabaseClient()
-        .storage.from("wrap-staging")
-        .upload(startBody.staging_key, file, {
-          contentType: "image/png",
-          upsert: false,
+      const transferBody = new FormData();
+      transferBody.append("file", file, file.name);
+      let transfer: Response;
+      try {
+        transfer = await fetch(`/api/uploads/${startBody.id}/object`, {
+          method: "POST",
+          body: transferBody,
         });
-      if (transfer.error) {
+      } catch {
+        transfer = new Response(null, { status: 503 });
+      }
+      if (!transfer.ok) {
         const abandoned = await fetch(`/api/uploads/${startBody.id}`, {
           method: "DELETE",
         });

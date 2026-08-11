@@ -15,13 +15,13 @@ export async function GET(
   const supabase = await createServerSupabaseClient();
   const access = await readProfileAccess(supabase);
   if (access.status !== "active") return unavailable();
-  const { data: pending, error: pendingError } = await supabase.rpc(
-    "get_pending_upload",
-    { p_id: id },
+  const admin = createAdminSupabaseClient();
+  const { data: pending, error: pendingError } = await admin.rpc(
+    "get_pending_upload_for_owner",
+    { p_id: id, p_owner: access.userId },
   );
   const revisionId = pending?.[0]?.asset_revision_id;
   if (pendingError || !revisionId) return unavailable();
-  const admin = createAdminSupabaseClient();
   const { data: media, error: mediaError } = await admin
     .from("wrap_assets")
     .select("object_key, byte_size, sha256")

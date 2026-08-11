@@ -4,7 +4,16 @@ import { expect, test } from "@playwright/test";
 test("guest sees the official catalog and honest discovery sections", async ({
   page,
 }, testInfo) => {
-  await page.goto("/");
+  const response = await page.goto("/");
+  expect(response?.headers()["x-content-type-options"]).toBe("nosniff");
+  expect(response?.headers()["referrer-policy"]).toBe(
+    "strict-origin-when-cross-origin",
+  );
+  expect(response?.headers()["x-frame-options"]).toBe("DENY");
+  expect(response?.headers()["content-security-policy"]).toMatch(
+    /script-src[^;]*'nonce-[^']+'/,
+  );
+  expect(response?.headers()["content-security-policy"]).not.toContain("*");
 
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Make it yours.Share the road.",

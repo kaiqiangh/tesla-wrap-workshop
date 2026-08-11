@@ -7,6 +7,31 @@ select has_table('public', 'pending_uploads', 'Pending Uploads are migrated');
 select has_table('public', 'asset_revisions', 'Asset Revisions are migrated');
 select has_table('public', 'wrap_assets', 'Wrap Assets are migrated');
 select has_table('public', 'asset_cleanup_jobs', 'Storage cleanup work is durable');
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.start_pending_upload_for_owner(uuid,uuid,text,text,boolean)',
+    'execute'
+  )
+  and has_function_privilege(
+    'service_role', 'public.get_pending_upload_for_owner(uuid,uuid)', 'execute'
+  )
+  and not has_function_privilege(
+    'authenticated', 'public.get_pending_upload(uuid)', 'execute'
+  ),
+  'object-key-bearing upload reads are server-only'
+);
+select ok(
+  (select c.relrowsecurity
+   from pg_class c
+   join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'storage' and c.relname = 'objects')
+  and not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
+  ),
+  'Storage staging access is server-only'
+);
 select ok(c.relrowsecurity, 'Pending Uploads enforce RLS')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname = 'pending_uploads';
@@ -228,43 +253,25 @@ insert into public.pending_uploads (
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"30000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
-select lives_ok($$
+select throws_ok($$
   insert into storage.objects (bucket_id, name, owner_id, metadata)
   values (
     'wrap-staging',
     '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png',
     '30000000-0000-0000-0000-000000000001', '{}'
   )
-$$, 'the owner can insert the exact server-issued staging key');
-select is(
-  (select count(*) from storage.objects
-   where bucket_id = 'wrap-staging'
-     and name = '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png'),
-  1::bigint,
-  'the issued staging object is present for its owner'
-);
-select lives_ok($$
-  update storage.objects set metadata = '{"overwritten":true}'
-  where bucket_id = 'wrap-staging'
-    and name = '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png'
-$$, 'an overwrite attempt does not bypass the Storage policy');
-select is(
-  (select coalesce(metadata->>'overwritten', 'false')
-   from storage.objects
-   where bucket_id = 'wrap-staging'
-     and name = '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png'),
-  'false',
-  'an issued staging object remains unchanged after an overwrite attempt'
-);
-select set_config('request.jwt.claims',
-  '{"sub":"30000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
+$$, '42501', NULL,
+  'authenticated clients cannot write staging objects outside the server upload boundary');
 select is(
   (select count(*) from storage.objects
    where bucket_id = 'wrap-staging'
      and name = '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png'),
   0::bigint,
-  'another User cannot read the owner staging object'
+  'authenticated clients cannot read staging objects outside the server upload boundary'
 );
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"30000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
 select throws_ok($$
   insert into storage.objects (bucket_id, name, owner_id, metadata)
   values (
@@ -272,7 +279,7 @@ select throws_ok($$
     '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png',
     '30000000-0000-0000-0000-000000000002', '{}'
   )
-$$, '42501', 'new row violates row-level security policy for table "objects"',
+$$, '42501', NULL,
   'another User cannot insert an owner staging key');
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -290,7 +297,7 @@ select throws_ok($$
     '30000000-0000-0000-0000-000000000001/50000000-0000-0000-0000-000000000001/source.png',
     null, '{}'
   )
-$$, '42501', 'new row violates row-level security policy for table "objects"',
+$$, '42501', NULL,
   'a Guest cannot insert a staging object');
 reset role;
 
@@ -462,15 +469,16 @@ select is(
   'a rate-limited finalization does not mutate the Pending Upload'
 );
 
+set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"30000000-0000-0000-0000-000000000002","role":"authenticated"}', true);
-select is_empty(
+select throws_ok(
   $$ select * from public.get_pending_upload(
-    (select source_pending_upload_id from public.asset_revisions
-     where id = '40000000-0000-0000-0000-000000000001')
-  ) $$,
+    '40000000-0000-0000-0000-000000000001'
+  ) $$, '42501', 'permission denied for function get_pending_upload',
   'another User cannot read a Pending Upload'
 );
+reset role;
 set local role authenticated;
 select throws_ok(
   $$ select * from public.claim_pending_upload(
@@ -539,8 +547,8 @@ select is(
   (select count(*) from pg_policies
    where schemaname = 'storage' and tablename = 'objects'
      and policyname in ('owners insert issued staging objects', 'owners read issued staging objects')),
-  2::bigint,
-  'Storage has only issued-key owner insert/read policies for staging'
+  0::bigint,
+  'Storage staging access is server-only'
 );
 
 select * from finish();

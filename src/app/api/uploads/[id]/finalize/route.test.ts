@@ -134,6 +134,9 @@ function arrange(
     error: null,
   }));
   const adminRpc = vi.fn(async (name: string) => {
+    if (name === "get_pending_upload_for_owner") {
+      return { data: [{ ...pending }], error: null };
+    }
     if (name === "claim_pending_upload") {
       if (options.claimRateLimited) {
         return { data: null, error: new Error("upload_rate_limited") };
@@ -196,6 +199,7 @@ function arrange(
   mocks.readProfileAccess.mockResolvedValue({
     status: "active",
     username: "upload-one",
+    userId: owner,
   });
   const width = options.width ?? pending.width_px;
   const height = options.height ?? pending.height_px;

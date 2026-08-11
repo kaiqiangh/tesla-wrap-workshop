@@ -15,7 +15,8 @@ export async function DELETE(
   if (!/^[0-9a-f-]{36}$/.test(id)) return notFound();
 
   const supabase = await createServerSupabaseClient();
-  if ((await readProfileAccess(supabase)).status !== "active") {
+  const access = await readProfileAccess(supabase);
+  if (access.status !== "active") {
     return uploadProblem(
       403,
       "WF-UPLOAD-PARTICIPATION",
@@ -24,8 +25,10 @@ export async function DELETE(
       "Restore your Profile or sign in again.",
     );
   }
-  const { data, error } = await supabase.rpc("get_pending_upload", {
+  const admin = createAdminSupabaseClient();
+  const { data, error } = await admin.rpc("get_pending_upload_for_owner", {
     p_id: id,
+    p_owner: access.userId,
   });
   const pending = data?.[0];
   if (error || !pending) return notFound();
@@ -45,7 +48,6 @@ export async function DELETE(
     );
   }
 
-  const admin = createAdminSupabaseClient();
   const detail = {
     measured: "The private staging transfer did not complete.",
     rule: "A staged PNG must transfer once under its server-issued key.",
