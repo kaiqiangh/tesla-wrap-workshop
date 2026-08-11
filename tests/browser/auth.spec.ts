@@ -338,6 +338,10 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
   const comments = page.locator(".comments-section");
+  const commentStat = page
+    .locator(".wrap-stats div")
+    .filter({ hasText: "Comments" })
+    .locator("dd");
   await expect(
     comments.getByRole("heading", { name: "0 Comments" }),
   ).toBeVisible();
@@ -358,6 +362,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     hasText: hostileComment,
   });
   await expect(commentCard).toBeVisible();
+  await expect(commentStat).toHaveText("1");
   await expect(commentCard.locator("p").locator("b")).toHaveCount(0);
   const deleteCommentResponse = page.waitForResponse(
     (response) =>
@@ -367,6 +372,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await commentCard.getByRole("button", { name: "Delete Comment" }).click();
   expect((await deleteCommentResponse).status()).toBe(200);
   await expect(commentCard).toHaveCount(0);
+  await expect(commentStat).toHaveText("0");
   await page.goto("/favorites");
   await expect(
     page.getByRole("heading", { name: "Your Favorites." }),
