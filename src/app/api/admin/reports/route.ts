@@ -295,7 +295,8 @@ function mapDatabaseError(message: string) {
   if (
     message === "invalid_moderation_status" ||
     message === "invalid_moderation_request" ||
-    message === "invalid_moderation_outcome"
+    message === "invalid_moderation_outcome" ||
+    message === "invalid_moderation_target_action"
   ) {
     return requestProblem();
   }
@@ -329,7 +330,11 @@ function sameOriginRequest(request: Request) {
   const origin = request.headers.get("origin");
   if (!origin) return true;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const requestHost = request.headers.get("host");
+    const originUrl = new URL(origin);
+    return requestHost
+      ? originUrl.host === requestHost
+      : originUrl.origin === new URL(request.url).origin;
   } catch {
     return false;
   }

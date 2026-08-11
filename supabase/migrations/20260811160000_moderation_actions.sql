@@ -262,6 +262,7 @@ declare
   v_profile public.profiles%rowtype;
   v_previous_state text;
   v_target_state text;
+  v_result_target_state text;
   v_changed boolean := false;
 begin
   v_admin_id := private.assert_current_admin();
@@ -288,6 +289,16 @@ begin
   for update;
   if not found then
     raise exception using errcode = 'P0001', message = 'admin_report_not_found';
+  end if;
+
+  if not (
+    v_action_kind in ('REVIEW', 'RESOLVE', 'DISMISS')
+    or (v_report.target_kind in ('WRAP', 'COMMENT')
+      and v_action_kind in ('HIDE', 'REMOVE'))
+    or (v_report.target_kind = 'USER'
+      and v_action_kind in ('SUSPEND', 'REINSTATE'))
+  ) then
+    raise exception using errcode = 'P0001', message = 'invalid_moderation_target_action';
   end if;
 
   select a.* into v_existing
@@ -334,7 +345,8 @@ begin
       raise exception using errcode = 'P0001', message = 'invalid_moderation_outcome';
     end if;
     if v_report.status in ('RESOLVED', 'DISMISSED') then
-      if v_report.outcome_category <> v_outcome then
+      if v_report.status <> (case when v_action_kind = 'RESOLVE' then 'RESOLVED' else 'DISMISSED' end)
+        or v_report.outcome_category <> v_outcome then
         raise exception using errcode = 'P0001', message = 'moderation_conflict';
       end if;
       v_previous_state := v_report.status;
@@ -412,6 +424,7 @@ begin
         end if;
       elsif v_action_kind = 'REINSTATE' then
         if v_profile.participation_state = 'DEACTIVATED' then raise exception using errcode = 'P0001', message = 'moderation_conflict'; end if;
+        if v_profile.participation_state = 'ACTIVE' then raise exception using errcode = 'P0001', message = 'moderation_conflict'; end if;
         v_target_state := 'ACTIVE';
         if v_profile.participation_state = 'SUSPENDED' then
           update public.profiles set participation_state = 'ACTIVE' where user_id = v_profile.user_id;
@@ -447,6 +460,12 @@ begin
     end if;
   end if;
 
+  select case v_report.target_kind
+    when 'WRAP' then (select w.status from public.wraps w where w.id = v_report.target_id)
+    when 'COMMENT' then (select c.status from public.wrap_comments c where c.id = v_report.target_id)
+    when 'USER' then (select p.participation_state from public.profiles p where p.user_id = v_report.target_id)
+  end into v_result_target_state;
+
   select a.* into v_existing
   from public.moderation_actions a
   where a.report_id = v_report.id
@@ -457,7 +476,8 @@ begin
   limit 1;
   if found and not v_changed then
     return query select v_report.id, v_report.status, v_report.outcome_category,
-      v_existing.id, false, v_report.target_kind, v_report.target_id, v_target_state;
+      v_existing.id, false, v_report.target_kind, v_report.target_id,
+      coalesce(v_result_target_state, v_target_state);
     return;
   end if;
 
@@ -472,7 +492,7 @@ begin
 
   return query select v_report.id, v_report.status, v_report.outcome_category,
     v_action.id, true, v_report.target_kind, v_report.target_id,
-    coalesce(v_target_state, v_report.status);
+    coalesce(v_result_target_state, v_target_state, v_report.status);
 end;
 $$;
 

@@ -154,7 +154,7 @@ select results_eq(
        '92000000-0000-4000-8000-000000000021', 'REVIEW', 'SPAM', 'Review this target', '',
        '92000000-0000-4000-8000-000000000101'
      ) $$,
-  $$ values ('REVIEWING'::text, 'REVIEWING'::text) $$,
+  $$ values ('REVIEWING'::text, 'PUBLISHED'::text) $$,
   'Review moves an OPEN Report to REVIEWING'
 );
 select results_eq(
@@ -228,6 +228,39 @@ select results_eq(
   'Reinstate returns an eligible User to Active'
 );
 
+select throws_ok(
+  $$ select * from public.moderate_report(
+       '92000000-0000-4000-8000-000000000023', 'HIDE', 'SPAM', 'Invalid User action', '',
+       '92000000-0000-4000-8000-000000000106'
+     ) $$,
+  'P0001', 'invalid_moderation_target_action',
+  'A User Report cannot take a Wrap or Comment action'
+);
+select throws_ok(
+  $$ select * from public.moderate_report(
+       '92000000-0000-4000-8000-000000000021', 'SUSPEND', 'SPAM', 'Invalid Wrap action', '',
+       '92000000-0000-4000-8000-000000000107'
+     ) $$,
+  'P0001', 'invalid_moderation_target_action',
+  'A Wrap Report cannot take a User action'
+);
+select throws_ok(
+  $$ select * from public.moderate_report(
+       '92000000-0000-4000-8000-000000000021', 'DISMISS', 'NO_VIOLATION', 'Conflicting final action', 'NO_ACTION',
+       '92000000-0000-4000-8000-000000000108'
+     ) $$,
+  'P0001', 'moderation_conflict',
+  'A resolved Report cannot switch to a different final action'
+);
+select throws_ok(
+  $$ select * from public.moderate_report(
+       '92000000-0000-4000-8000-000000000023', 'REINSTATE', 'RESTORED', 'Already Active', '',
+       '92000000-0000-4000-8000-000000000109'
+     ) $$,
+  'P0001', 'moderation_conflict',
+  'An already Active User cannot be reinstated again with a new action'
+);
+
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -240,20 +273,36 @@ declare
 begin
   for i in 1..5 loop
     perform public.moderate_report(
-      '92000000-0000-4000-8000-000000000023', 'REINSTATE', 'RESTORED', '', '',
-      ('92000000-0000-4000-8000-' || lpad(i::text, 12, '0'))::uuid
+      '92000000-0000-4000-8000-000000000021', 'HIDE', 'SPAM', '', '',
+      ('92000000-0000-4000-8000-' || lpad((200 + i)::text, 12, '0'))::uuid
     );
   end loop;
 end;
 $$;
 select throws_ok(
   $$ select * from public.moderate_report(
-       '92000000-0000-4000-8000-000000000023', 'REINSTATE', 'RESTORED', '', '',
-       '92000000-0000-4000-8000-000000000006'
+       '92000000-0000-4000-8000-000000000021', 'HIDE', 'SPAM', '', '',
+       '92000000-0000-4000-8000-000000000206'
      ) $$,
   'P0001', 'moderation_rate_limited',
   'The eleventh moderation action in one rolling hour is denied'
 );
+
+set local role postgres;
+select public.set_admin_membership('92000000-0000-0000-0000-000000000001', false);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.list_admin_reports() $$,
+  'P0001', 'admin_required',
+  'A revoked administrator cannot reopen the moderation queue'
+);
+set local role postgres;
+select public.set_admin_membership('92000000-0000-0000-0000-000000000001', true);
 
 set local role postgres;
 select ok(

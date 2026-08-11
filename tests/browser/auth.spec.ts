@@ -172,13 +172,15 @@ test("Current administrator can review and recover a private Report", async ({
   );
   await reportCard.getByRole("button", { name: "Reinstate User" }).click();
   expect((await reinstateResponse).status()).toBe(200);
-  await expect(page.getByText("ACTIVE", { exact: true })).toBeVisible();
+  await expect(reportCard.getByText("ACTIVE", { exact: true })).toBeVisible();
 
   const revoke = await admin.rpc("set_admin_membership", {
     p_user_id: userId,
     p_active: false,
   });
   expect(revoke.error).toBeNull();
+  const deniedQueue = await page.request.get("/api/admin/reports");
+  expect(deniedQueue.status()).toBe(403);
   await targetContext.close();
 });
 
