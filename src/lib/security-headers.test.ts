@@ -48,4 +48,23 @@ describe("security headers", () => {
       )["strict-transport-security"],
     ).toBe("max-age=31536000; includeSubDomains");
   });
+
+  it("marks non-production responses unavailable to crawlers", () => {
+    expect(
+      securityHeaders(
+        "nonce123",
+        "https://supabase.example",
+        "https://preview.wrapforge.example",
+        "development",
+      )["x-robots-tag"],
+    ).toBe("noindex, nofollow, noarchive");
+    expect(
+      securityHeaders(
+        "nonce123",
+        "https://supabase.example",
+        "https://wrapforge.example",
+        "production",
+      )["x-robots-tag"],
+    ).toBeUndefined();
+  });
 });

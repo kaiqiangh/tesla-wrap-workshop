@@ -3,9 +3,11 @@ import type { MetadataRoute } from "next";
 import { readPublicEnvironment } from "@/lib/env";
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl = new URL(
-    readPublicEnvironment(process.env).NEXT_PUBLIC_SITE_URL,
-  );
+  const environment = readPublicEnvironment(process.env);
+  const siteUrl = new URL(environment.NEXT_PUBLIC_SITE_URL);
+  if (environment.WRAPFORGE_ENVIRONMENT !== "production") {
+    return { rules: { userAgent: "*", disallow: "/" } };
+  }
   return {
     rules: {
       userAgent: "*",

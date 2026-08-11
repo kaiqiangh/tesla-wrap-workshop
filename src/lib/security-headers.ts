@@ -40,6 +40,9 @@ export function securityHeaders(
   return {
     ...headers,
     "content-security-policy": csp,
+    ...(environment !== "production"
+      ? { "x-robots-tag": "noindex, nofollow, noarchive" }
+      : {}),
     ...(new URL(siteUrl).protocol === "https:"
       ? {
           "strict-transport-security": "max-age=31536000; includeSubDomains",
