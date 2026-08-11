@@ -82,6 +82,106 @@ test("OAuth callback rejects missing codes and external destinations", async ({
   await expect(page.locator(".form-error")).toHaveCount(0);
 });
 
+test("Current administrator can review and recover a private Report", async ({
+  page,
+  context,
+  browser,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium");
+  test.setTimeout(90_000);
+  const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
+  const email = `moderator-${suffix}@example.test`;
+  const username = `mod${suffix}`;
+
+  await page.goto("/sign-in?next=%2Fadmin%2Freports");
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Send six-digit code" }).click();
+  await expect(page.getByText("Check your inbox")).toBeVisible();
+  await page.getByLabel("Six-digit code").fill(await readOtp(email));
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await expect(page).toHaveURL(/\/onboarding\?next=%2Fadmin%2Freports$/);
+  await page.getByLabel("Username").fill(username);
+  await page.getByLabel("Display name").fill("Queue Moderator");
+  await page.getByRole("button", { name: "Complete Profile" }).click();
+  await expect(page).toHaveURL("/admin/reports");
+
+  const session = await readSessionCookie(context);
+  const userId = decodeJwt(session.access_token).sub as string;
+  const admin = createClient<Database>(
+    requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL"),
+    requiredEnvironment("SUPABASE_SECRET_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const grant = await admin.rpc("set_admin_membership", {
+    p_user_id: userId,
+    p_active: true,
+  });
+  expect(grant.error).toBeNull();
+  const targetContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:3000",
+  });
+  const targetPage = await targetContext.newPage();
+  const targetEmail = `moderation-target-${suffix}@example.test`;
+  const targetUsername = `target${suffix}`;
+  await targetPage.goto("/sign-in?next=%2Fupload");
+  await targetPage.getByLabel("Email address").fill(targetEmail);
+  await targetPage.getByRole("button", { name: "Send six-digit code" }).click();
+  await expect(targetPage.getByText("Check your inbox")).toBeVisible();
+  await targetPage
+    .getByLabel("Six-digit code")
+    .fill(await readOtp(targetEmail));
+  await targetPage.getByRole("button", { name: "Verify code" }).click();
+  await expect(targetPage).toHaveURL(/\/onboarding\?next=%2Fupload$/);
+  await targetPage.getByLabel("Username").fill(targetUsername);
+  await targetPage.getByLabel("Display name").fill("Moderation Target");
+  await targetPage.getByRole("button", { name: "Complete Profile" }).click();
+  await expect(targetPage).toHaveURL("/upload");
+  const targetSession = await readSessionCookie(targetContext);
+  const targetId = decodeJwt(targetSession.access_token).sub as string;
+  const reportId = randomUUID();
+  const report = await admin.from("reports").insert({
+    id: reportId,
+    reporter_id: userId,
+    target_kind: "USER",
+    target_id: targetId,
+    target_ref: targetUsername,
+    reason: "SPAM",
+    idempotency_key: randomUUID(),
+  });
+  expect(report.error).toBeNull();
+
+  await page.goto("/admin/reports");
+  await expect(page.getByRole("heading", { name: "Reports" })).toBeVisible();
+  const reportCard = page
+    .locator(".admin-report-card")
+    .filter({ hasText: targetUsername });
+  await expect(reportCard).toBeVisible();
+  const suspendResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/admin/reports") &&
+      response.request().method() === "POST",
+  );
+  await reportCard.getByRole("button", { name: "Suspend User" }).click();
+  expect((await suspendResponse).status()).toBe(200);
+  await expect(page.getByText("SUSPENDED", { exact: true })).toBeVisible();
+
+  const reinstateResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/admin/reports") &&
+      response.request().method() === "POST",
+  );
+  await reportCard.getByRole("button", { name: "Reinstate User" }).click();
+  expect((await reinstateResponse).status()).toBe(200);
+  await expect(page.getByText("ACTIVE", { exact: true })).toBeVisible();
+
+  const revoke = await admin.rpc("set_admin_membership", {
+    p_user_id: userId,
+    p_active: false,
+  });
+  expect(revoke.error).toBeNull();
+  await targetContext.close();
+});
+
 test("User completes local OTP, onboarding, refresh, Profile, suspension, and logout", async ({
   page,
   context,

@@ -287,6 +287,59 @@ export type Database = {
           },
         ];
       };
+      moderation_actions: {
+        Row: {
+          action_kind: string;
+          actor_id: string;
+          created_at: string;
+          id: string;
+          idempotency_key: string;
+          new_state: string;
+          previous_state: string;
+          private_note: string | null;
+          reason: string;
+          report_id: string | null;
+          target_id: string;
+          target_kind: string;
+        };
+        Insert: {
+          action_kind: string;
+          actor_id: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key: string;
+          new_state: string;
+          previous_state: string;
+          private_note?: string | null;
+          reason: string;
+          report_id?: string | null;
+          target_id: string;
+          target_kind: string;
+        };
+        Update: {
+          action_kind?: string;
+          actor_id?: string;
+          created_at?: string;
+          id?: string;
+          idempotency_key?: string;
+          new_state?: string;
+          previous_state?: string;
+          private_note?: string | null;
+          reason?: string;
+          report_id?: string | null;
+          target_id?: string;
+          target_kind?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "moderation_actions_report_id_fkey";
+            columns: ["report_id"];
+            isOneToOne: false;
+            referencedRelation: "reports";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       pending_uploads: {
         Row: {
           asset_revision_id: string | null;
@@ -1398,6 +1451,49 @@ export type Database = {
           liked: boolean;
         }[];
       };
+      list_admin_reports: {
+        Args: { p_status?: string };
+        Returns: {
+          admin_note: string;
+          created_at: string;
+          detail: string;
+          id: string;
+          last_action_at: string;
+          last_action_kind: string;
+          last_action_reason: string;
+          outcome_category: string;
+          reason: string;
+          reporter_ref: string;
+          resolved_at: string;
+          status: string;
+          target_id: string;
+          target_kind: string;
+          target_ref: string;
+          target_state: string;
+          target_summary: string;
+          updated_at: string;
+        }[];
+      };
+      moderate_report: {
+        Args: {
+          p_action_kind: string;
+          p_idempotency_key: string;
+          p_outcome_category: string;
+          p_private_note: string;
+          p_reason: string;
+          p_report_id: string;
+        };
+        Returns: {
+          action_created: boolean;
+          action_id: string;
+          outcome_category: string;
+          report_id: string;
+          report_status: string;
+          target_id: string;
+          target_kind: string;
+          target_state: string;
+        }[];
+      };
       prepare_original_download: {
         Args: { p_slug: string; p_user_id: string };
         Returns: {
@@ -1522,6 +1618,10 @@ export type Database = {
           p_variant_key?: string;
         };
         Returns: Json;
+      };
+      set_admin_membership: {
+        Args: { p_active: boolean; p_user_id: string };
+        Returns: boolean;
       };
       start_pending_upload: {
         Args: {
