@@ -1,8 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
 
+function localNetwork(octet: number) {
+  return {
+    extraHTTPHeaders: { "x-forwarded-for": `198.51.100.${octet}` },
+  };
+}
+
 export default defineConfig({
   testDir: "./tests/browser",
   fullyParallel: false,
+  workers: 1,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
@@ -12,16 +19,32 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
-    { name: "firefox", use: { ...devices["Desktop Firefox"] } },
-    { name: "webkit", use: { ...devices["Desktop Safari"] } },
-    { name: "mobile-chrome", use: { ...devices["Pixel 7"] } },
-    { name: "mobile-safari", use: { ...devices["iPhone 13"] } },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], ...localNetwork(10) },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"], ...localNetwork(11) },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"], ...localNetwork(12) },
+    },
+    {
+      name: "mobile-chrome",
+      use: { ...devices["Pixel 7"], ...localNetwork(13) },
+    },
+    {
+      name: "mobile-safari",
+      use: { ...devices["iPhone 13"], ...localNetwork(14) },
+    },
     {
       name: "viewport-360",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 360, height: 640 },
+        ...localNetwork(15),
       },
     },
     {
@@ -29,14 +52,19 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 320, height: 800 },
+        ...localNetwork(16),
       },
     },
-    { name: "mobile-landscape", use: { ...devices["Pixel 7 landscape"] } },
+    {
+      name: "mobile-landscape",
+      use: { ...devices["Pixel 7 landscape"], ...localNetwork(17) },
+    },
     {
       name: "tablet-portrait",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 768, height: 1024 },
+        ...localNetwork(18),
       },
     },
     {
@@ -44,6 +72,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1024, height: 768 },
+        ...localNetwork(19),
       },
     },
     {
@@ -51,6 +80,7 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 900 },
+        ...localNetwork(20),
       },
     },
   ],

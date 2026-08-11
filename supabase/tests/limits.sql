@@ -83,5 +83,90 @@ select lives_ok(
 );
 reset role;
 
+set local role postgres;
+create temporary table limit_boundary_results (
+  policy_key text,
+  nth_ok boolean,
+  nth_count_ok boolean,
+  n_plus_one_ok boolean,
+  recovery_ok boolean,
+  recovery_count_ok boolean
+);
+do $$
+declare
+  policy record;
+  principal text;
+  nth_count integer;
+  recovery_count integer;
+  nth_ok boolean;
+  n_plus_one_ok boolean;
+  recovery_ok boolean;
+begin
+  for policy in
+    select policy_key, window_seconds, max_count
+    from private.launch_rate_policies
+    order by policy_key
+  loop
+    principal := 'v1:test:' || replace(policy.policy_key, '_', '-');
+    delete from private.launch_rate_buckets
+    where policy_key = policy.policy_key and principal_key = principal;
+    insert into private.launch_rate_buckets (
+      policy_key, principal_key, window_started_at, operation_count
+    ) values (
+      policy.policy_key, principal, clock_timestamp(), policy.max_count - 1
+    );
+
+    nth_ok := false;
+    begin
+      perform private.consume_launch_limit(policy.policy_key, principal);
+      nth_ok := true;
+    exception when others then
+      nth_ok := false;
+    end;
+
+    select operation_count into nth_count
+    from private.launch_rate_buckets
+    where policy_key = policy.policy_key and principal_key = principal;
+    n_plus_one_ok := false;
+
+    begin
+      perform private.consume_launch_limit(policy.policy_key, principal);
+    exception when others then
+      n_plus_one_ok := sqlstate = 'P0001' and sqlerrm = 'launch_rate_limited';
+    end;
+
+    update private.launch_rate_buckets
+    set window_started_at = clock_timestamp()
+      - make_interval(secs => policy.window_seconds + 1)
+    where policy_key = policy.policy_key and principal_key = principal;
+    recovery_ok := false;
+    begin
+      perform private.consume_launch_limit(policy.policy_key, principal);
+      recovery_ok := true;
+    exception when others then
+      recovery_ok := false;
+    end;
+    select operation_count into recovery_count
+    from private.launch_rate_buckets
+    where policy_key = policy.policy_key and principal_key = principal;
+    insert into limit_boundary_results values (
+      policy.policy_key,
+      nth_ok,
+      nth_count = policy.max_count,
+      n_plus_one_ok,
+      recovery_ok,
+      recovery_count = 1
+    );
+  end loop;
+end;
+$$;
+select ok(
+  nth_ok and nth_count_ok and n_plus_one_ok and recovery_ok and recovery_count_ok,
+  policy_key || ' passes N/N+1 and fake-clock recovery'
+)
+from limit_boundary_results
+order by policy_key;
+reset role;
+
 select * from finish();
 rollback;
