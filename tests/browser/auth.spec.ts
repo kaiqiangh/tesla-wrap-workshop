@@ -124,6 +124,7 @@ test("Current administrator can review and recover a private Report", async ({
   expect(grant.error).toBeNull();
   const targetContext = await browser.newContext({
     baseURL: "http://127.0.0.1:3000",
+    extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
   });
   const targetPage = await targetContext.newPage();
   const targetEmail = `moderation-target-${suffix}@example.test`;
@@ -560,6 +561,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   if (testInfo.project.name === "chromium") {
     const actorContext = await browser.newContext({
       baseURL: "http://127.0.0.1:3000",
+      extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
     });
     const actorPage = await actorContext.newPage();
     const actorEmail = `browser-actor-${randomUUID()}@example.test`;
@@ -895,6 +897,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await page.goto(`/wrap/${publishedSlug}/download`);
   const guestContext = await browser.newContext({
     baseURL: "http://127.0.0.1:3000",
+    extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
   });
   await guestContext.addCookies([
     {
