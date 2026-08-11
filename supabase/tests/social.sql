@@ -5,6 +5,10 @@ select no_plan();
 
 select has_table('public', 'wrap_likes', 'Like relationships are migrated');
 select has_table('public', 'wrap_favorites', 'Favorite relationships are migrated');
+select has_table(
+  'private', 'social_toggle_rate_limits',
+  'social toggle rate limits are private'
+);
 select has_function(
   'public', 'toggle_wrap_engagement',
   array['text', 'text', 'boolean'],
@@ -273,6 +277,98 @@ select is(
   1::bigint,
   'restoring an actor restores independently eligible Like influence'
 );
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '81000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'deactivating an actor removes cached Like influence'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'reactivating an actor restores independently eligible Like influence'
+);
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = '81000000-0000-0000-0000-000000000002';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'suspending a Creator removes incoming Like influence'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000002';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'restoring a Creator restores independently eligible incoming Like influence'
+);
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '81000000-0000-0000-0000-000000000002';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'deactivating a Creator removes incoming Like influence'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000002';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'reactivating a Creator restores incoming Like influence'
+);
+update public.wraps
+set status = 'UNPUBLISHED'
+where id = '92000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'unpublishing a Wrap removes cached Like influence'
+);
+select is(
+  (select count(*) from public.wrap_likes
+   where wrap_id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'unpublishing preserves the durable Like relationship'
+);
+update public.wraps
+set status = 'PUBLISHED', deleted_at = null
+where id = '92000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'republishing restores eligible incoming Like influence'
+);
+update public.wraps
+set status = 'HIDDEN'
+where id = '92000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'hiding a Wrap removes cached Like influence'
+);
+update public.wraps
+set status = 'PUBLISHED'
+where id = '92000000-0000-0000-0000-000000000001';
+update public.wraps
+set status = 'REMOVED', deleted_at = clock_timestamp()
+where id = '92000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'removing a Wrap removes cached Like influence'
+);
+update public.wraps
+set status = 'PUBLISHED', deleted_at = null
+where id = '92000000-0000-0000-0000-000000000001';
 set local role authenticated;
 select set_config(
   'request.jwt.claims',
@@ -320,6 +416,73 @@ select throws_ok(
   $$ select * from public.toggle_wrap_engagement('social-fixture-wrap', 'FAVORITE', true) $$,
   'P0001', 'social_actor_unavailable',
   'a suspended User cannot Favorite'
+);
+reset role;
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', true) $$,
+  $$ values ('LIKE'::text, true, 1::bigint, 0::bigint) $$,
+  'the rate-limit fixture starts from an existing Like'
+);
+reset role;
+insert into private.social_toggle_rate_limits (
+  user_id, window_started_at, operation_count
+) values (
+  '81000000-0000-0000-0000-000000000001', clock_timestamp(), 10
+)
+on conflict (user_id) do update
+set window_started_at = excluded.window_started_at,
+    operation_count = excluded.operation_count;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', true) $$,
+  'P0001', 'social_rate_limited',
+  'the eleventh social operation is rate limited'
+);
+select throws_ok(
+  $$ select * from public.toggle_wrap_engagement('social-fixture-wrap', 'FAVORITE', false) $$,
+  'P0001', 'social_rate_limited',
+  'a rate-limited no-op disable is still rejected'
+);
+reset role;
+select is(
+  (select count(*) from public.wrap_likes
+   where wrap_id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'a rate-limited operation does not change the relationship'
+);
+select is(
+  (select count(*) from public.discovery_engagement_events
+   where wrap_id = '92000000-0000-0000-0000-000000000001'
+     and kind = 'LIKE' and active),
+  1::bigint,
+  'a rate-limited operation does not add an engagement event'
+);
+delete from private.social_toggle_rate_limits
+where user_id = '81000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', false) $$,
+  $$ values ('LIKE'::text, false, 0::bigint, 0::bigint) $$,
+  'the rate-limit fixture can be cleared after the limit window'
 );
 reset role;
 

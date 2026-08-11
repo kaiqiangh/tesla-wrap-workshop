@@ -117,6 +117,16 @@ function mapDatabaseError(message: string) {
   if (message === "invalid_social_kind" || message === "invalid_social_state") {
     return requestProblem();
   }
+  if (message === "social_rate_limited") {
+    return wrapProblem(
+      429,
+      "WF-SOCIAL-RATE",
+      "Social actions are temporarily limited.",
+      "At most ten Like or Favorite operations are allowed per User per rolling hour.",
+      "Wait before trying another social action.",
+      { "retry-after": "3600" },
+    );
+  }
   return databaseProblem();
 }
 

@@ -19,10 +19,14 @@ vi.mock("@/lib/wraps/problem", () => ({
     problem: string,
     rule: string,
     nextAction: string,
+    headers: HeadersInit = {},
   ) =>
     new Response(
       JSON.stringify({ error: { code, problem, rule, nextAction } }),
-      { status, headers: { "content-type": "application/json" } },
+      {
+        status,
+        headers: { "content-type": "application/json", ...headers },
+      },
     ),
 }));
 
@@ -143,6 +147,26 @@ describe("POST /api/wraps/[slug]/engagement", () => {
     );
     expect(rpcResponse.status).toBe(503);
     expect((await rpcResponse.json()).error.code).toBe("WF-SOCIAL-DATABASE");
+  });
+
+  it("maps the social rate limit with Retry-After", async () => {
+    mocks.readProfileAccess.mockResolvedValue({
+      status: "active",
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "social_rate_limited" },
+    });
+
+    const response = await POST(
+      jsonRequest({ kind: "FAVORITE", enabled: true }),
+      { params },
+    );
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("3600");
+    expect((await response.json()).error.code).toBe("WF-SOCIAL-RATE");
   });
 });
 
