@@ -22,6 +22,19 @@ nvm alias default 22  # optional: use Node 22 in new terminals
 node --version        # must print v22.x
 ```
 
+If `nvm use` says Node 22 but `node --version` still prints `v26.x`, check
+`command -v node`. In `~/.zshrc`, Homebrew's `PATH` exports must come before
+the NVM block; otherwise `/opt/homebrew/bin/node` overrides NVM. After fixing
+the order, open a new terminal or run:
+
+```sh
+exec zsh
+cd /Users/kai/Desktop/my-repo/tesla-wrap-workshop
+nvm use
+command -v node       # should be ~/.nvm/versions/node/v22.../bin/node
+node --version        # must print v22.x
+```
+
 If `nvm` is not installed, run `brew install nvm`, create `~/.nvm`, then run
 the same commands. To use the already-installed binary for one command without
 changing the shell, use:
