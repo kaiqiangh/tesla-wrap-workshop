@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
@@ -27,9 +28,14 @@ export default async function ProfileSettingsPage() {
     <main className="profile-settings-shell">
       <header className="site-header">
         <Brand />
-        <a className="text-link" href={`/u/${access.username}`}>
-          View public Profile
-        </a>
+        <nav className="desktop-nav" aria-label="Profile settings navigation">
+          <Link className="text-link" href={`/u/${access.username}`}>
+            View public Profile
+          </Link>
+          <Link className="text-link" href="/favorites">
+            My Favorites
+          </Link>
+        </nav>
       </header>
       <section
         className="profile-settings"

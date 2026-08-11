@@ -59,6 +59,9 @@ test("Guest can begin email OTP or Google sign-in", async ({ page }) => {
         .analyze()
     ).violations,
   ).toEqual([]);
+
+  await page.goto("/favorites");
+  await expect(page).toHaveURL(/\/sign-in\?next=%2Ffavorites$/);
 });
 
 test("OAuth callback rejects missing codes and external destinations", async ({
@@ -326,8 +329,75 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  await page.goto("/favorites");
+  await expect(
+    page.getByRole("heading", { name: "Your Favorites." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Nothing published here yet." }),
+  ).toBeVisible();
+  await page.goto(`/wrap/${publishedSlug}`);
   await page.getByRole("button", { name: /^Like/ }).click();
   await expect(page.getByRole("status")).toContainText("cannot Like");
+
+  if (testInfo.project.name === "chromium") {
+    const actorContext = await browser.newContext({
+      baseURL: "http://127.0.0.1:3000",
+    });
+    const actorPage = await actorContext.newPage();
+    const actorEmail = `browser-actor-${randomUUID()}@example.test`;
+    const actorUsername = `actor${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+    await actorPage.goto(`/sign-in?next=%2Fwrap%2F${publishedSlug}`);
+    await actorPage.getByLabel("Email address").fill(actorEmail);
+    await actorPage
+      .getByRole("button", { name: "Send six-digit code" })
+      .click();
+    await expect(actorPage.getByText("Check your inbox")).toBeVisible();
+    await actorPage
+      .getByLabel("Six-digit code")
+      .fill(await readOtp(actorEmail));
+    await actorPage.getByRole("button", { name: "Verify code" }).click();
+    await expect(actorPage).toHaveURL(/\/onboarding\?next=/);
+    await actorPage.getByLabel("Username").fill(actorUsername);
+    await actorPage.getByLabel("Display name").fill("Social Viewer");
+    await actorPage.getByRole("button", { name: "Complete Profile" }).click();
+    await expect(actorPage).toHaveURL(`/wrap/${publishedSlug}`);
+    await actorPage.getByRole("button", { name: /^Like/ }).click();
+    await expect(
+      actorPage.getByRole("button", { name: /^Liked/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await actorPage.getByRole("button", { name: /^Favorite/ }).click();
+    await expect(
+      actorPage.getByRole("button", { name: /^Favorited/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+
+    for (const path of ["/", "/explore", "/trending", "/models/cybertruck"]) {
+      await actorPage.goto(path);
+      const card = actorPage
+        .locator("article.discovery-card")
+        .filter({ hasText: "Cybertruck Night Drive" })
+        .first();
+      await expect(card).toBeVisible();
+      await expect(
+        card.getByRole("button", { name: /^Liked/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        card.getByRole("button", { name: /^Favorited/ }),
+      ).toHaveAttribute("aria-pressed", "true");
+    }
+
+    await actorPage.goto("/favorites");
+    const favoriteCard = actorPage
+      .locator("article.discovery-card")
+      .filter({ hasText: "Cybertruck Night Drive" })
+      .first();
+    await expect(favoriteCard).toBeVisible();
+    await favoriteCard.getByRole("button", { name: /^Favorited/ }).click();
+    await expect(
+      actorPage.getByRole("heading", { name: "Nothing published here yet." }),
+    ).toBeVisible();
+    await actorContext.close();
+  }
   await page.goto(`/wrap/${publishedSlug}/download`);
   await expect(
     page.getByRole("heading", { name: "Download Cybertruck Night Drive" }),

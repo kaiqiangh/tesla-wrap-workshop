@@ -12,11 +12,20 @@ function client(data: unknown, error: unknown = null) {
   } as never;
 }
 
+const emptySearch = {
+  items: [],
+  next_cursor: null,
+  calculated_at: "2026-08-11T00:00:00Z",
+  ranking_status: "LIVE",
+};
+
 describe("discovery read boundary", () => {
   it("distinguishes empty results from RPC failures", async () => {
-    expect(await getDiscoveryWraps(client([]), "NEWEST")).toEqual({
+    expect(await getDiscoveryWraps(client(emptySearch), "NEWEST")).toEqual({
       status: "empty",
       wraps: [],
+      calculatedAt: "2026-08-11T00:00:00Z",
+      rankingStatus: "LIVE",
     });
     expect(
       await getDiscoveryWraps(client(null, new Error("offline")), "NEWEST"),
@@ -25,7 +34,12 @@ describe("discovery read boundary", () => {
 
   it("passes bounded model arguments and maps model absence", async () => {
     const rpc = vi.fn().mockResolvedValue({
-      data: [{ slug: "model-3", display_name: "Model 3", sort_order: 1 }],
+      data: {
+        items: [],
+        next_cursor: null,
+        calculated_at: "2026-08-11T00:00:00Z",
+        ranking_status: "LIVE",
+      },
       error: null,
     });
     const modelClient = { rpc } as never;
@@ -33,8 +47,8 @@ describe("discovery read boundary", () => {
       modelSlug: "model-3",
       limit: 24,
     });
-    expect(rpc).toHaveBeenCalledWith("get_discovery_wraps", {
-      p_kind: "MODEL",
+    expect(rpc).toHaveBeenCalledWith("search_discovery_wraps", {
+      p_sort: "NEWEST",
       p_model_slug: "model-3",
       p_limit: 24,
     });

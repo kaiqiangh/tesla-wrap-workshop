@@ -3,6 +3,8 @@ import Link from "next/link";
 
 import type { DiscoveryWrap } from "@/lib/discovery";
 
+import { InteractionControls } from "./wrap/[slug]/interaction-controls";
+
 export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
   return (
     <article className="discovery-card">
@@ -42,6 +44,13 @@ export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
             Legacy Template Variant — unavailable for new publication.
           </small>
         )}
+        <InteractionControls
+          slug={wrap.slug}
+          initialLikeCount={wrap.like_count}
+          initialFavoriteCount={wrap.favorite_count}
+          initialLiked={wrap.liked}
+          initialFavorited={wrap.favorited}
+        />
       </div>
     </article>
   );

@@ -11,6 +11,8 @@ import { InteractionControls } from "./interaction-controls";
 
 type Props = { params: Promise<{ slug: string }> };
 
+export const dynamic = "force-dynamic";
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const supabase = await createServerSupabaseClient();
@@ -131,8 +133,8 @@ export default async function WrapDetailPage({ params }: Props) {
             initialFavoriteCount={
               engagement?.favorite_count ?? wrap.favorite_count
             }
-            initialLiked={engagement?.liked ?? false}
-            initialFavorited={engagement?.favorited ?? false}
+            initialLiked={engagement?.liked ?? wrap.liked}
+            initialFavorited={engagement?.favorited ?? wrap.favorited}
           />
           <p className="download-coming-soon">
             Download confirmation shows the exact Template Variant and current

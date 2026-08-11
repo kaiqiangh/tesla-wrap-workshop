@@ -24,6 +24,8 @@ export type DiscoveryWrap = {
   like_count: number;
   favorite_count: number;
   comment_count: number;
+  liked: boolean;
+  favorited: boolean;
   preview_width_px: number;
   preview_height_px: number;
   preview_available: boolean;
@@ -104,43 +106,29 @@ export async function getDiscoveryWraps(
   kind: DiscoveryKind,
   options: { modelSlug?: string; limit?: number } = {},
 ): Promise<DiscoveryResult> {
-  if (kind === "TRENDING") {
-    const result = await searchDiscoveryWraps(client, {
-      sort: "TRENDING",
-      limit: options.limit ?? 24,
-    });
-    if (result.status === "ok") {
-      return {
-        status: "ok",
-        wraps: result.wraps,
-        calculatedAt: result.calculatedAt,
-        rankingStatus: result.rankingStatus,
-      };
-    }
-    if (result.status === "empty") {
-      return {
-        status: "empty",
-        wraps: [],
-        calculatedAt: result.calculatedAt,
-        rankingStatus: result.rankingStatus,
-      };
-    }
-    if (result.status === "invalid") return { status: "invalid", wraps: [] };
-    return { status: "error", wraps: [] };
-  }
-  const args = {
-    p_kind: kind,
-    p_limit: options.limit ?? 24,
-    ...(options.modelSlug ? { p_model_slug: options.modelSlug } : {}),
-  };
-  const { data, error } = await client.rpc("get_discovery_wraps", {
-    ...args,
+  const result = await searchDiscoveryWraps(client, {
+    sort: kind === "TRENDING" ? "TRENDING" : "NEWEST",
+    modelSlug: kind === "MODEL" ? options.modelSlug : undefined,
+    limit: options.limit ?? 24,
   });
-  if (error) return { status: "error", wraps: [] };
-  const wraps = (data ?? []) as DiscoveryWrap[];
-  return wraps.length > 0
-    ? { status: "ok", wraps }
-    : { status: "empty", wraps: [] };
+  if (result.status === "ok") {
+    return {
+      status: "ok",
+      wraps: result.wraps,
+      calculatedAt: result.calculatedAt,
+      rankingStatus: result.rankingStatus,
+    };
+  }
+  if (result.status === "empty") {
+    return {
+      status: "empty",
+      wraps: [],
+      calculatedAt: result.calculatedAt,
+      rankingStatus: result.rankingStatus,
+    };
+  }
+  if (result.status === "invalid") return { status: "invalid", wraps: [] };
+  return { status: "error", wraps: [] };
 }
 
 export async function getPublicVehicleModel(

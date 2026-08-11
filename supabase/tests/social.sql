@@ -186,6 +186,52 @@ select set_config(
   true
 );
 select results_eq(
+  $$ select liked, favorited
+     from public.get_public_wrap('social-fixture-wrap') $$,
+  $$ values (true, true) $$,
+  'the public Wrap projection exposes only this session state'
+);
+select results_eq(
+  $$ select liked, favorited
+     from public.get_discovery_wraps('NEWEST', null, 24)
+     where slug = 'social-fixture-wrap' $$,
+  $$ values (true, true) $$,
+  'the Discovery projection shares the Favorite viewer state'
+);
+select is(
+  (public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)
+    -> 'items' -> 0 ->> 'liked')::boolean,
+  true,
+  'the paginated Discovery projection shares the Like viewer state'
+);
+select results_eq(
+  $$ select slug, liked, favorited
+     from public.get_my_favorites(0, 25) $$,
+  $$ values ('social-fixture-wrap'::text, true, true) $$,
+  'an owner can read only the compatible private Favorite cards'
+);
+reset role;
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select results_eq(
+  $$ select liked, favorited
+     from public.get_public_wrap('social-fixture-wrap') $$,
+  $$ values (false, false) $$,
+  'Guests receive neutral viewer state without Favorite identity'
+);
+select throws_ok(
+  $$ select * from public.get_my_favorites(0, 25) $$,
+  '42501', 'permission denied for function get_my_favorites',
+  'Guests cannot call the private Favorites projection'
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
   $$ select kind, enabled, like_count, favorite_count
      from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', false) $$,
   $$ values ('LIKE'::text, false, 0::bigint, 1::bigint) $$,
@@ -288,6 +334,12 @@ select throws_ok(
   $$ select * from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', true) $$,
   'P0001', 'social_wrap_unavailable',
   'a non-Published Wrap cannot receive a Like'
+);
+select results_eq(
+  $$ select count(*)::bigint
+     from public.get_my_favorites(0, 25) $$,
+  $$ values (0::bigint) $$,
+  'an unavailable saved Wrap is omitted from private cards'
 );
 reset role;
 
