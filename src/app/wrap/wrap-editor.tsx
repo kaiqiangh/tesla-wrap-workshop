@@ -218,6 +218,14 @@ export function WrapEditor({
               </button>
             ) : null}
             {status !== "REMOVED" && (
+              <Link
+                className="text-button"
+                href={`/upload?replace=${wrap.slug}`}
+              >
+                Replace Asset Revision
+              </Link>
+            )}
+            {status !== "REMOVED" && (
               <button
                 className="text-button danger-text"
                 type="button"

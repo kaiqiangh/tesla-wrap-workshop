@@ -69,7 +69,7 @@ async function patch(
 }
 
 export function POST(request: Request, context: Context) {
-  return observeRoute(request, "WRAP_VISIBILITY", "WRAP", (operation) =>
+  return observeRoute(request, "WRAP_TRANSITION", "WRAP", (operation) =>
     post(request, context, operation),
   );
 }
@@ -87,12 +87,23 @@ async function post(
   } catch {
     return requestProblem();
   }
+  if (!input || typeof input !== "object") {
+    return requestProblem();
+  }
+  const record = input as Record<string, unknown>;
+  const action = record.action;
+  const assetRevisionId = record.assetRevisionId;
+  const templateVariantId = record.templateVariantId;
   if (
-    !input ||
-    typeof input !== "object" ||
-    !["unpublish", "republish"].includes(
-      (input as { action?: unknown }).action as string,
-    )
+    action !== "unpublish" &&
+    action !== "republish" &&
+    action !== "replace"
+  ) {
+    return requestProblem();
+  }
+  if (
+    action === "replace" &&
+    (!isUuid(assetRevisionId) || !isUuid(templateVariantId))
   ) {
     return requestProblem();
   }
@@ -100,14 +111,21 @@ async function post(
   if (owner.response) return owner.response;
   operation.actorId = owner.userId;
   const admin = createAdminSupabaseClient();
-  const functionName =
-    (input as { action: "unpublish" | "republish" }).action === "unpublish"
-      ? "unpublish_wrap"
-      : "republish_wrap";
-  const { data, error } = await admin.rpc(functionName, {
-    p_creator_id: owner.userId,
-    p_slug: slug,
-  });
+  const { data, error } =
+    action === "replace"
+      ? await admin.rpc("replace_wrap_asset", {
+          p_asset_revision_id: assetRevisionId as string,
+          p_creator_id: owner.userId,
+          p_slug: slug,
+          p_template_variant_id: templateVariantId as string,
+        })
+      : await admin.rpc(
+          action === "unpublish" ? "unpublish_wrap" : "republish_wrap",
+          {
+            p_creator_id: owner.userId,
+            p_slug: slug,
+          },
+        );
   if (error) return mapError(error.message);
   const wrap = data?.[0];
   if (!wrap) return databaseProblem();
@@ -256,6 +274,42 @@ function mapError(message: string) {
       "Retry after the asset is reconciled.",
     );
   }
+  if (message === "wrap_assets_incomplete") {
+    return wrapProblem(
+      409,
+      "WF-WRAP-ASSET",
+      "The replacement Asset Revision is incomplete.",
+      "Every replacement must retain its verified Original and Derived objects.",
+      "Retry after the asset is reconciled.",
+    );
+  }
+  if (message === "wrap_revision_in_use") {
+    return wrapProblem(
+      409,
+      "WF-WRAP-REVISION",
+      "That Asset Revision is already attached to a Wrap.",
+      "An immutable Asset Revision can belong to only one public Wrap.",
+      "Choose a fresh completed upload.",
+    );
+  }
+  if (message === "wrap_revision_cleanup_pending") {
+    return wrapProblem(
+      409,
+      "WF-WRAP-ASSET",
+      "That Asset Revision is still awaiting cleanup.",
+      "A revision scheduled for removal cannot be published again.",
+      "Choose a fresh completed upload.",
+    );
+  }
+  if (message === "wrap_template_unavailable") {
+    return wrapProblem(
+      409,
+      "WF-WRAP-TEMPLATE",
+      "The selected Template Variant is no longer available.",
+      "A replacement must use an Active verified Template Variant.",
+      "Choose the current catalog variant and retry.",
+    );
+  }
   if (
     message === "wrap_metadata_invalid" ||
     message === "invalid_tag" ||
@@ -270,6 +324,15 @@ function mapError(message: string) {
     );
   }
   return databaseProblem();
+}
+
+function isUuid(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
 }
 
 function databaseProblem() {

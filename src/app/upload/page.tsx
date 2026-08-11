@@ -12,7 +12,11 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
-export default async function UploadPage() {
+export default async function UploadPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ replace?: string | string[] }>;
+}) {
   const access = await readProfileAccess();
   if (access.status === "guest") redirect("/sign-in?next=%2Fupload");
   if (access.status === "incomplete") redirect("/onboarding?next=%2Fupload");
@@ -20,7 +24,17 @@ export default async function UploadPage() {
     redirect("/sign-in?error=profile_unavailable&next=%2Fupload");
   }
 
+  const requested = (await searchParams)?.replace;
+  const replacementSlug = Array.isArray(requested) ? requested[0] : requested;
   return (
-    <UploadStudio catalog={await getCatalog()} username={access.username} />
+    <UploadStudio
+      catalog={await getCatalog()}
+      replacementSlug={
+        replacementSlug && /^[a-z0-9][a-z0-9-]{2,79}$/.test(replacementSlug)
+          ? replacementSlug
+          : undefined
+      }
+      username={access.username}
+    />
   );
 }

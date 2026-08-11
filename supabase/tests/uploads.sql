@@ -326,6 +326,11 @@ select lives_ok($$
   $do$
 $$, 'database start/failure transitions accept every official Template Variant');
 reset role;
+select ok(
+  (select count(*) from public.asset_cleanup_jobs
+   where reason = 'FAILED_FINALIZATION') > 0,
+  'a Failed Pending Upload always queues staging cleanup'
+);
 
 select lives_ok($$
   do $do$
@@ -365,6 +370,11 @@ select lives_ok($$
   end
   $do$
 $$, 'database completion reaches READY for every official Template Variant');
+select ok(
+  (select count(*) from public.asset_cleanup_jobs
+   where reason = 'STAGING_AFTER_READY') > 0,
+  'a READY transition queues staging cleanup before Storage removal'
+);
 
 select lives_ok($$
   do $do$

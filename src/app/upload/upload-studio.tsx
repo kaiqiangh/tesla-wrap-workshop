@@ -9,14 +9,18 @@ import { validateWrapMetadata, type LicenseType } from "@/lib/wraps/metadata";
 
 import { signOut } from "../auth/actions";
 
-type Props = { catalog: CatalogModel[]; username: string };
+type Props = {
+  catalog: CatalogModel[];
+  replacementSlug?: string;
+  username: string;
+};
 type Status = "idle" | "preflight" | "uploading" | "validating" | "ready";
 type PublicError = Pick<UploadProblem, "rule" | "nextAction"> & {
   code: string;
   problem: string;
 };
 
-export function UploadStudio({ catalog, username }: Props) {
+export function UploadStudio({ catalog, replacementSlug, username }: Props) {
   const [variantId, setVariantId] = useState("");
   const [asserted, setAsserted] = useState(false);
   const [distributionAsserted, setDistributionAsserted] = useState(false);
@@ -240,6 +244,37 @@ export function UploadStudio({ catalog, username }: Props) {
     }
   }
 
+  async function replaceAsset() {
+    if (!revision || !variant || !replacementSlug) return;
+    setStatus("validating");
+    setError(undefined);
+    try {
+      const response = await fetch(`/api/wraps/${replacementSlug}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          action: "replace",
+          assetRevisionId: revision.id,
+          templateVariantId: variant.id,
+        }),
+      });
+      const body = (await response.json()) as {
+        wrap?: { slug: string; status: string };
+        error?: PublicError;
+      };
+      if (!response.ok || !body.wrap) {
+        setStatus("ready");
+        setError(body.error ?? fallback());
+        return;
+      }
+      setPublishedWrap(body.wrap);
+      setStatus("ready");
+    } catch {
+      setStatus("ready");
+      setError(fallback());
+    }
+  }
+
   return (
     <main className="studio-shell">
       <header className="studio-header">
@@ -417,7 +452,7 @@ export function UploadStudio({ catalog, username }: Props) {
             )}
           </section>
 
-          {revision && variant && (
+          {revision && variant && !replacementSlug && (
             <section className="publish-step" aria-labelledby="details-step">
               <p className="eyebrow">STEP 03</p>
               <h2 id="details-step">Add Details</h2>
@@ -489,7 +524,9 @@ export function UploadStudio({ catalog, username }: Props) {
           {revision && variant && (
             <section className="publish-step" aria-labelledby="publish-step">
               <p className="eyebrow">STEP 04</p>
-              <h2 id="publish-step">Preview &amp; Publish</h2>
+              <h2 id="publish-step">
+                {replacementSlug ? "Preview & Replace" : "Preview & Publish"}
+              </h2>
               <div className="publish-preview">
                 {/* eslint-disable-next-line @next/next/no-img-element -- private preview route requires the browser session cookie */}
                 <img
@@ -511,31 +548,43 @@ export function UploadStudio({ catalog, username }: Props) {
                   </p>
                 </div>
               </div>
-              <ol
-                className="readiness-gates"
-                aria-label="Publication readiness"
-              >
-                <li className="gate-ready">Active Profile</li>
-                <li className="gate-ready">Active Template Variant</li>
-                <li className="gate-ready">Template-verified Asset Revision</li>
-                <li
-                  className={
-                    title.trim() && description.trim() ? "gate-ready" : ""
-                  }
+              {!replacementSlug && (
+                <ol
+                  className="readiness-gates"
+                  aria-label="Publication readiness"
                 >
-                  Required metadata and license
-                </li>
-                <li className={distributionAsserted ? "gate-ready" : ""}>
-                  Template and distribution assertions
-                </li>
-              </ol>
+                  <li className="gate-ready">Active Profile</li>
+                  <li className="gate-ready">Active Template Variant</li>
+                  <li className="gate-ready">
+                    Template-verified Asset Revision
+                  </li>
+                  <li
+                    className={
+                      title.trim() && description.trim() ? "gate-ready" : ""
+                    }
+                  >
+                    Required metadata and license
+                  </li>
+                  <li className={distributionAsserted ? "gate-ready" : ""}>
+                    Template and distribution assertions
+                  </li>
+                </ol>
+              )}
               <button
                 className="button"
                 type="button"
-                onClick={() => void publish()}
+                onClick={() =>
+                  void (replacementSlug ? replaceAsset() : publish())
+                }
                 disabled={status === "validating" || Boolean(publishedWrap)}
               >
-                {publishedWrap ? "Published" : "Publish Wrap"}
+                {publishedWrap
+                  ? replacementSlug
+                    ? "Replaced"
+                    : "Published"
+                  : replacementSlug
+                    ? "Replace Asset Revision"
+                    : "Publish Wrap"}
               </button>
               {publishedWrap && (
                 <div className="ready-result" role="status">

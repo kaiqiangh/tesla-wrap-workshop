@@ -14,6 +14,26 @@ select has_table(
   'public', 'discovery_ranking_state',
   'Discovery ranking state is migrated'
 );
+select has_table(
+  'public', 'asset_revision_cleanup_jobs',
+  'Asset Revision cleanup work is durable'
+);
+select has_table(
+  'public', 'asset_revision_cleanup_holds',
+  'Asset Revision cleanup holds are durable'
+);
+select has_table(
+  'public', 'asset_orphan_cleanup_jobs',
+  'Storage orphan cleanup work is durable'
+);
+select has_table(
+  'public', 'asset_revision_reconciliation_issues',
+  'Missing Storage objects have durable reconciliation state'
+);
+select has_function(
+  'public', 'reconcile_asset_revision_cleanup', array['integer'],
+  'Asset Revision reconciliation is service-owned'
+);
 select has_function(
   'public', 'record_discovery_engagement_event',
   array['uuid', 'uuid', 'text', 'timestamp with time zone'],
@@ -264,9 +284,30 @@ select is(
   'public preview availability follows the actual Storage object'
 );
 reset role;
+set local role service_role;
+select public.reconcile_asset_revision_cleanup(100);
+select ok(
+  (select count(*) from public.asset_revision_reconciliation_issues i
+   join public.wraps w on w.asset_revision_id = i.asset_revision_id
+   where w.slug = current_setting('test.model3_slug')
+     and i.resolved_at is null) > 0,
+  'reconciliation records a missing required Storage object'
+);
+reset role;
 update storage.objects
 set name = left(name, length(name) - length('-missing'))
 where bucket_id = 'wrap-derived' and name like '%-missing';
+set local role service_role;
+select public.reconcile_asset_revision_cleanup(100);
+select is(
+  (select count(*) from public.asset_revision_reconciliation_issues i
+   join public.wraps w on w.asset_revision_id = i.asset_revision_id
+   where w.slug = current_setting('test.model3_slug')
+     and i.resolved_at is null),
+  0::bigint,
+  'a second reconciliation clears a repaired missing-object issue'
+);
+reset role;
 
 select has_function(
   'public', 'get_discovery_wraps', array['text', 'text', 'integer'],
@@ -715,6 +756,129 @@ select is(
   'first publication time remains immutable after edit'
 );
 
+select set_config(
+  'test.old_model3_revision',
+  (select asset_revision_id::text from public.wraps where title = 'Updated Model 3'),
+  true
+);
+do $replace_fixture$
+declare
+  v_variant record;
+  v_upload uuid := '91000000-0000-0000-0000-000000000001';
+  v_revision uuid := '91000000-0000-0000-0000-000000000002';
+  v_owner uuid := '80000000-0000-0000-0000-000000000001';
+  v_key text := '80000000-0000-0000-0000-000000000001/91000000-0000-0000-0000-000000000002';
+begin
+  select id, width_px, height_px into v_variant
+  from public.template_variants where catalog_key = 'model3';
+  insert into public.pending_uploads (
+    id, owner_id, template_variant_id, staging_key, original_filename,
+    declared_mime_type, template_asserted, state
+  ) values (
+    v_upload, v_owner, v_variant.id, v_key || '/source.png',
+    'replacement.png', 'image/png', true, 'CREATED'
+  );
+  insert into public.asset_revisions (
+    id, owner_id, template_variant_id, source_pending_upload_id,
+    width_px, height_px, byte_size, sha256, template_verified
+  ) values (
+    v_revision, v_owner, v_variant.id, v_upload, v_variant.width_px,
+    v_variant.height_px, 100, repeat('9', 64), true
+  );
+  update public.pending_uploads
+  set asset_revision_id = v_revision, state = 'READY'
+  where id = v_upload;
+  insert into storage.objects (bucket_id, name, owner_id, metadata)
+  values
+    ('wrap-originals', v_key || '/original.png', v_owner::text, '{"size":100}'::jsonb),
+    ('wrap-derived', v_key || '/preview.png', v_owner::text, '{"size":80}'::jsonb),
+    ('wrap-derived', v_key || '/thumbnail.png', v_owner::text, '{"size":60}'::jsonb);
+  insert into public.wrap_assets (
+    asset_revision_id, kind, bucket_id, object_key,
+    width_px, height_px, byte_size, sha256
+  ) values
+    (v_revision, 'ORIGINAL', 'wrap-originals', v_key || '/original.png', v_variant.width_px, v_variant.height_px, 100, repeat('9', 64)),
+    (v_revision, 'PREVIEW', 'wrap-derived', v_key || '/preview.png', v_variant.width_px, v_variant.height_px, 80, repeat('8', 64)),
+    (v_revision, 'THUMBNAIL', 'wrap-derived', v_key || '/thumbnail.png', 320, 240, 60, repeat('7', 64));
+end
+$replace_fixture$;
+select set_config(
+  'test.model3_variant',
+  (select id::text from public.template_variants where catalog_key = 'model3'),
+  true
+);
+set local role service_role;
+select is(
+  (select created from public.replace_wrap_asset(
+    '80000000-0000-0000-0000-000000000001',
+    (select slug from public.wraps where title = 'Updated Model 3' limit 1),
+    '91000000-0000-0000-0000-000000000002',
+    current_setting('test.model3_variant')::uuid
+  )),
+  true,
+  'replacement atomically switches the active Asset Revision'
+);
+select is(
+  (select asset_revision_id from public.wraps where title = 'Updated Model 3'),
+  '91000000-0000-0000-0000-000000000002'::uuid,
+  'replacement points the Wrap at the new immutable revision'
+);
+select is(
+  (select count(*) from public.asset_revision_cleanup_jobs
+   where asset_revision_id = current_setting('test.old_model3_revision')::uuid),
+  3::bigint,
+  'replacement queues all old immutable objects for delayed cleanup'
+);
+select ok(
+  public.set_asset_revision_cleanup_hold(
+    current_setting('test.old_model3_revision')::uuid, true
+  ),
+  'a cleanup hold is durable even after the revision job is created'
+);
+select is(
+  (select count(*) from public.asset_revision_cleanup_jobs
+   where asset_revision_id = current_setting('test.old_model3_revision')::uuid
+     and legal_hold),
+  3::bigint,
+  'a cleanup hold applies to every immutable object'
+);
+update public.asset_revision_cleanup_jobs
+set available_after = clock_timestamp()
+where asset_revision_id = current_setting('test.old_model3_revision')::uuid;
+select is(
+  (select count(*) from public.claim_asset_revision_cleanup_jobs(10)),
+  0::bigint,
+  'a held revision cannot be claimed by the cleanup worker'
+);
+select ok(
+  public.set_asset_revision_cleanup_hold(
+    current_setting('test.old_model3_revision')::uuid, false
+  ),
+  'a cleanup hold can be released'
+);
+select is(
+  (select created from public.replace_wrap_asset(
+    '80000000-0000-0000-0000-000000000001',
+    (select slug from public.wraps where title = 'Updated Model 3' limit 1),
+    '91000000-0000-0000-0000-000000000002',
+    current_setting('test.model3_variant')::uuid
+  )),
+  false,
+  'repeating the same replacement is idempotent'
+);
+select throws_ok(
+  $$ select * from public.publish_wrap(
+    '80000000-0000-0000-0000-000000000001',
+    current_setting('test.old_model3_revision')::uuid,
+    current_setting('test.model3_variant')::uuid,
+    'Old Revision Attempt', 'A bounded public description.',
+    'PERSONAL_USE_ALLOWED', '{Community}', true, true
+  ) $$,
+  'P0001', 'wrap_revision_cleanup_pending',
+  'a revision awaiting cleanup cannot be republished'
+);
+reset role;
+
 select lives_ok($$
   select * from public.unpublish_wrap(
     '80000000-0000-0000-0000-000000000001',
@@ -743,6 +907,14 @@ select is(
   (select status from public.wraps where title = 'Updated Model 3'),
   'REMOVED',
   'removal is terminal'
+);
+select is(
+  (select count(*) from public.asset_revision_cleanup_jobs
+   where asset_revision_id = (
+     select asset_revision_id from public.wraps where title = 'Updated Model 3'
+   )),
+  3::bigint,
+  'creator removal queues the active revision for delayed cleanup'
 );
 select throws_ok(
   $$ select * from public.publish_wrap(

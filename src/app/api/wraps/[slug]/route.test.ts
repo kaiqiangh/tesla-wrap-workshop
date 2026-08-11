@@ -134,6 +134,48 @@ describe("/api/wraps/[slug] management", () => {
     });
   });
 
+  it("replaces an immutable Asset Revision through the server RPC", async () => {
+    setupOwner();
+    mocks.adminRpc.mockResolvedValue({
+      data: [
+        {
+          id: "1",
+          slug: "night-drive-abc123",
+          status: "PUBLISHED",
+          asset_revision_id: "30000000-0000-4000-8000-000000000002",
+          previous_asset_revision_id: "30000000-0000-4000-8000-000000000001",
+          created: true,
+        },
+      ],
+      error: null,
+    });
+    const response = await POST(
+      jsonRequest({
+        action: "replace",
+        assetRevisionId: "30000000-0000-4000-8000-000000000002",
+        templateVariantId: "10000000-0000-4000-8000-000000000001",
+      }),
+      { params },
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.adminRpc).toHaveBeenCalledWith("replace_wrap_asset", {
+      p_asset_revision_id: "30000000-0000-4000-8000-000000000002",
+      p_creator_id: "20000000-0000-0000-0000-000000000001",
+      p_slug: "night-drive-abc123",
+      p_template_variant_id: "10000000-0000-4000-8000-000000000001",
+    });
+  });
+
+  it("rejects an incomplete replacement request before RPC", async () => {
+    setupOwner();
+    const response = await POST(
+      jsonRequest({ action: "replace", assetRevisionId: "not-a-uuid" }),
+      { params },
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.adminRpc).not.toHaveBeenCalled();
+  });
+
   it("removes through the terminal transition RPC", async () => {
     setupOwner();
     mocks.adminRpc.mockResolvedValue({
