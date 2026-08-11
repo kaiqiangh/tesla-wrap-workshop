@@ -114,6 +114,8 @@ insert into public.wraps (
   '91000000-0000-0000-0000-000000000002', 'PERSONAL_USE_ALLOWED', true, true,
   'PUBLISHED', now()
 );
+insert into public.profile_username_aliases (alias, profile_id)
+values ('social-old', '81000000-0000-0000-0000-000000000002');
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
@@ -128,6 +130,154 @@ select throws_ok(
   'Guests cannot read Favorite identities'
 );
 reset role;
+
+select has_function(
+  'public', 'toggle_creator_follow', array['text', 'boolean'],
+  'Creator Follow mutation uses one typed RPC'
+);
+select has_function(
+  'public', 'get_creator_follow_state', array['text'],
+  'Creator Follow viewer state uses a private typed RPC'
+);
+select ok(
+  has_function_privilege(
+    'authenticated', 'public.toggle_creator_follow(text,boolean)', 'execute'
+  ),
+  'authenticated Users can use the Creator Follow mutation RPC'
+);
+select ok(
+  not has_function_privilege(
+    'anon', 'public.toggle_creator_follow(text,boolean)', 'execute'
+  ),
+  'Guests cannot use the Creator Follow mutation RPC'
+);
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select throws_ok(
+  $$ select * from public.creator_follows $$,
+  '42501', 'permission denied for table creator_follows',
+  'Guests cannot read Follow identities'
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.creator_follows $$,
+  '42501', 'permission denied for table creator_follows',
+  'Users cannot bypass the Creator Follow RPC boundary'
+);
+select results_eq(
+  $$ select following, follower_count
+     from public.toggle_creator_follow('social-old', true) $$,
+  $$ values (true, 1::bigint) $$,
+  'an eligible User can Follow a Creator through a permanent Username Alias'
+);
+select results_eq(
+  $$ select following, follower_count
+     from public.toggle_creator_follow('social-creator', true) $$,
+  $$ values (true, 1::bigint) $$,
+  'repeating Follow is idempotent'
+);
+select results_eq(
+  $$ select following from public.get_creator_follow_state('social-creator') $$,
+  $$ values (true) $$,
+  'an eligible User can read only their own Follow state'
+);
+select throws_ok(
+  $$ select * from public.toggle_creator_follow('social-actor', true) $$,
+  'P0001', 'follow_self',
+  'a User cannot Follow their own Profile'
+);
+select throws_ok(
+  $$ select * from public.toggle_creator_follow('social-incomplete', true) $$,
+  'P0001', 'follow_creator_unavailable',
+  'a non-Creator target cannot receive a Follow'
+);
+reset role;
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select results_eq(
+  $$ select follower_count from public.get_public_profile_details('social-creator') $$,
+  $$ values (1::bigint) $$,
+  'public Profiles expose only the eligible Followers count'
+);
+reset role;
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = '81000000-0000-0000-0000-000000000001';
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select results_eq(
+  $$ select follower_count from public.get_public_profile_details('social-creator') $$,
+  $$ values (0::bigint) $$,
+  'a suspended follower is excluded from the public count'
+);
+reset role;
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '81000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.toggle_creator_follow('social-creator', false) $$,
+  'P0001', 'follow_actor_unavailable',
+  'an ineligible actor cannot mutate an existing Follow'
+);
+reset role;
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000001';
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = '81000000-0000-0000-0000-000000000002';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.toggle_creator_follow('social-creator', false) $$,
+  'P0001', 'follow_creator_unavailable',
+  'a deactivated Creator cannot receive a Follow mutation'
+);
+reset role;
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000002';
+update public.wraps
+set status = 'UNPUBLISHED'
+where id = '92000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select following, follower_count
+     from public.toggle_creator_follow('social-creator', true) $$,
+  $$ values (true, 1::bigint) $$,
+  'Follow persists while a Creator has no currently Published Wraps'
+);
+select results_eq(
+  $$ select following, follower_count
+     from public.toggle_creator_follow('social-creator', false) $$,
+  $$ values (false, 0::bigint) $$,
+  'unfollowing returns the authoritative state and count'
+);
+reset role;
+update public.wraps
+set status = 'PUBLISHED'
+where id = '92000000-0000-0000-0000-000000000001';
 
 set local role authenticated;
 select set_config(

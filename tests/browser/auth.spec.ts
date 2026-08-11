@@ -320,6 +320,14 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(
     page.getByRole("link", { name: "Cybertruck Night Drive" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Follow", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Follow", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("cannot Follow");
+  await expect(
+    page.getByRole("button", { name: "Follow", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
   await page.goto(`/wrap/${publishedSlug}`);
   await expect(
     page.getByRole("heading", { name: "Cybertruck Night Drive" }),
@@ -362,11 +370,109 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     await actorPage.getByLabel("Display name").fill("Social Viewer");
     await actorPage.getByRole("button", { name: "Complete Profile" }).click();
     await expect(actorPage).toHaveURL(`/wrap/${publishedSlug}`);
+    await actorPage.goto(`/u/${username}`);
+    await expect(
+      actorPage.getByRole("button", { name: "Follow", exact: true }),
+    ).toBeVisible();
+    const firstFollowResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/profiles/${username}/follow`) &&
+        response.request().method() === "POST",
+    );
+    await actorPage
+      .getByRole("button", { name: "Follow", exact: true })
+      .click();
+    expect((await firstFollowResponse).status()).toBe(200);
+    await expect(
+      actorPage.getByRole("button", { name: "Following", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await actorPage.reload();
+    await expect(
+      actorPage.getByRole("button", { name: "Following", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const firstUnfollowResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/profiles/${username}/follow`) &&
+        response.request().method() === "POST",
+    );
+    await actorPage
+      .getByRole("button", { name: "Following", exact: true })
+      .click();
+    expect((await firstUnfollowResponse).status()).toBe(200);
+    await expect(
+      actorPage.getByRole("button", { name: "Follow", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+    const actorProfile = await admin
+      .from("profiles")
+      .select("user_id")
+      .eq("username", actorUsername)
+      .single();
+    expect(actorProfile.error).toBeNull();
+    const suspendedActor = await admin
+      .from("profiles")
+      .update({ participation_state: "SUSPENDED" })
+      .eq("user_id", actorProfile.data?.user_id ?? "");
+    expect(suspendedActor.error).toBeNull();
+    const deniedActorFollow = await actorPage.request.post(
+      `/api/profiles/${username}/follow`,
+      { data: { enabled: true } },
+    );
+    expect(deniedActorFollow.status()).toBe(403);
+    expect(await deniedActorFollow.json()).toMatchObject({
+      error: { code: "WF-FOLLOW-PARTICIPATION" },
+    });
+    const restoredActor = await admin
+      .from("profiles")
+      .update({ participation_state: "ACTIVE" })
+      .eq("user_id", actorProfile.data?.user_id ?? "");
+    expect(restoredActor.error).toBeNull();
+    await actorPage.goto(`/u/${username}`);
+    const restoredFollowResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/profiles/${username}/follow`) &&
+        response.request().method() === "POST",
+    );
+    await actorPage
+      .getByRole("button", { name: "Follow", exact: true })
+      .click();
+    expect((await restoredFollowResponse).status()).toBe(200);
+    await expect(
+      actorPage.getByRole("button", { name: "Following", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await actorPage.reload();
+    await expect(
+      actorPage.getByRole("button", { name: "Following", exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const restoredUnfollowResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/profiles/${username}/follow`) &&
+        response.request().method() === "POST",
+    );
+    await actorPage
+      .getByRole("button", { name: "Following", exact: true })
+      .click();
+    expect((await restoredUnfollowResponse).status()).toBe(200);
+    await expect(
+      actorPage.getByRole("button", { name: "Follow", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await actorPage.goto(`/wrap/${publishedSlug}`);
+    const likeResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/wraps/${publishedSlug}/engagement`) &&
+        response.request().method() === "POST",
+    );
     await actorPage.getByRole("button", { name: /^Like/ }).click();
+    expect((await likeResponse).status()).toBe(200);
     await expect(
       actorPage.getByRole("button", { name: /^Liked/ }),
     ).toHaveAttribute("aria-pressed", "true");
+    const favoriteResponse = actorPage.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/wraps/${publishedSlug}/engagement`) &&
+        response.request().method() === "POST",
+    );
     await actorPage.getByRole("button", { name: /^Favorite/ }).click();
+    expect((await favoriteResponse).status()).toBe(200);
     await expect(
       actorPage.getByRole("button", { name: /^Favorited/ }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -517,6 +623,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     },
   ]);
   const guestPage = await guestContext.newPage();
+  await guestPage.goto(`/u/${username}`);
+  await guestPage.getByRole("button", { name: "Follow", exact: true }).click();
+  await expect(guestPage).toHaveURL(`/sign-in?next=%2Fu%2F${username}`);
   await guestPage.goto(`/wrap/${publishedSlug}`);
   await guestPage.getByRole("button", { name: /^Like/ }).click();
   await expect(guestPage).toHaveURL(`/sign-in?next=%2Fwrap%2F${publishedSlug}`);
@@ -885,6 +994,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       name: "No published Wraps are available right now.",
     }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Follow", exact: true }),
+  ).toBeVisible();
   await expect(page.locator("body")).not.toContainText(email);
 
   await page.goto("/settings/profile");
@@ -945,6 +1057,14 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     }),
   ).toBeVisible();
   await expect(page.locator("body")).not.toContainText(email);
+  const suspendedFollow = await page.request.post(
+    `/api/profiles/${renamedUsername}/follow`,
+    { data: { enabled: true } },
+  );
+  expect(suspendedFollow.status()).toBe(403);
+  expect(await suspendedFollow.json()).toMatchObject({
+    error: { code: "WF-FOLLOW-PARTICIPATION" },
+  });
 
   const restored = await admin
     .from("profiles")

@@ -3,9 +3,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
+import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { FollowControl } from "./follow-control";
 
 type Props = {
   params: Promise<{ username: string }>;
@@ -69,6 +71,22 @@ export default async function PublicProfilePage({
   if (wrapsError)
     return unavailable("Published Wraps are temporarily unavailable.");
 
+  let initialFollowing = false;
+  if (profile.ever_published) {
+    try {
+      const access = await readProfileAccess(supabase);
+      if (access.status === "active") {
+        const { data: followState } = await supabase.rpc(
+          "get_creator_follow_state",
+          { p_username: profile.username },
+        );
+        initialFollowing = followState?.[0]?.following ?? false;
+      }
+    } catch {
+      initialFollowing = false;
+    }
+  }
+
   return (
     <main className="profile-shell">
       <header className="site-header">
@@ -92,6 +110,13 @@ export default async function PublicProfilePage({
           <h1 id="profile-name">{profile.display_name}</h1>
           <p className="profile-username">@{profile.username}</p>
           {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
+          {profile.ever_published ? (
+            <FollowControl
+              username={profile.username}
+              initialFollowing={initialFollowing}
+              initialFollowerCount={profile.follower_count}
+            />
+          ) : null}
         </div>
       </section>
       <dl className="profile-stats" aria-label="Creator statistics">

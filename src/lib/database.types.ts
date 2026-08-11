@@ -962,6 +962,12 @@ export type Database = {
         Args: { p_code: string; p_detail: Json; p_id: string };
         Returns: undefined;
       };
+      get_creator_follow_state: {
+        Args: { p_username: string };
+        Returns: {
+          following: boolean;
+        }[];
+      };
       get_discovery_wraps: {
         Args: { p_kind: string; p_limit?: number; p_model_slug?: string };
         Returns: {
@@ -1366,6 +1372,13 @@ export type Database = {
           id: string;
           idempotency_key: string;
           staging_key: string;
+        }[];
+      };
+      toggle_creator_follow: {
+        Args: { p_enabled: boolean; p_username: string };
+        Returns: {
+          follower_count: number;
+          following: boolean;
         }[];
       };
       toggle_wrap_engagement: {

@@ -641,6 +641,19 @@ summary:focus-visible {
 .profile-bio {
   max-width: 620px;
 }
+.follow-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.follow-control .form-message {
+  flex-basis: 100%;
+  margin: 0;
+}
 .profile-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
