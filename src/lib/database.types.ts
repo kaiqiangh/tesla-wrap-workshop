@@ -139,6 +139,39 @@ export type Database = {
           },
         ];
       };
+      creator_follows: {
+        Row: {
+          created_at: string;
+          creator_id: string;
+          follower_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          creator_id: string;
+          follower_id: string;
+        };
+        Update: {
+          created_at?: string;
+          creator_id?: string;
+          follower_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "creator_follows_creator_id_fkey";
+            columns: ["creator_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+          {
+            foreignKeyName: "creator_follows_follower_id_fkey";
+            columns: ["follower_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
       discovery_cursor_snapshots: {
         Row: {
           calculated_at: string;
@@ -330,8 +363,140 @@ export type Database = {
           },
         ];
       };
+      profile_avatar_assets: {
+        Row: {
+          byte_size: number;
+          created_at: string;
+          derived_bucket: string;
+          derived_key: string;
+          height_px: number;
+          id: string;
+          profile_id: string;
+          retired_at: string | null;
+          sha256: string;
+          source_bucket: string;
+          source_key: string;
+          state: string;
+          width_px: number;
+        };
+        Insert: {
+          byte_size: number;
+          created_at?: string;
+          derived_bucket?: string;
+          derived_key: string;
+          height_px: number;
+          id?: string;
+          profile_id: string;
+          retired_at?: string | null;
+          sha256: string;
+          source_bucket?: string;
+          source_key: string;
+          state?: string;
+          width_px: number;
+        };
+        Update: {
+          byte_size?: number;
+          created_at?: string;
+          derived_bucket?: string;
+          derived_key?: string;
+          height_px?: number;
+          id?: string;
+          profile_id?: string;
+          retired_at?: string | null;
+          sha256?: string;
+          source_bucket?: string;
+          source_key?: string;
+          state?: string;
+          width_px?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profile_avatar_assets_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
+      profile_cleanup_jobs: {
+        Row: {
+          attempts: number;
+          avatar_asset_id: string | null;
+          bucket_id: string;
+          claimed_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          object_key: string;
+          profile_id: string;
+          state: string;
+        };
+        Insert: {
+          attempts?: number;
+          avatar_asset_id?: string | null;
+          bucket_id: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          object_key: string;
+          profile_id: string;
+          state?: string;
+        };
+        Update: {
+          attempts?: number;
+          avatar_asset_id?: string | null;
+          bucket_id?: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          object_key?: string;
+          profile_id?: string;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profile_cleanup_jobs_avatar_asset_id_fkey";
+            columns: ["avatar_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "profile_avatar_assets";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "profile_cleanup_jobs_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
+      profile_username_aliases: {
+        Row: {
+          alias: string;
+          created_at: string;
+          profile_id: string;
+        };
+        Insert: {
+          alias: string;
+          created_at?: string;
+          profile_id: string;
+        };
+        Update: {
+          alias?: string;
+          created_at?: string;
+          profile_id?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: {
+          avatar_asset_id: string | null;
           avatar_url: string | null;
           bio: string;
           created_at: string;
@@ -344,6 +509,7 @@ export type Database = {
           username_changed_at: string | null;
         };
         Insert: {
+          avatar_asset_id?: string | null;
           avatar_url?: string | null;
           bio?: string;
           created_at?: string;
@@ -356,6 +522,7 @@ export type Database = {
           username_changed_at?: string | null;
         };
         Update: {
+          avatar_asset_id?: string | null;
           avatar_url?: string | null;
           bio?: string;
           created_at?: string;
@@ -367,7 +534,15 @@ export type Database = {
           username?: string | null;
           username_changed_at?: string | null;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "profiles_avatar_asset_id_fkey";
+            columns: ["avatar_asset_id"];
+            isOneToOne: false;
+            referencedRelation: "profile_avatar_assets";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       tags: {
         Row: {
@@ -661,6 +836,17 @@ export type Database = {
           state: string;
         }[];
       };
+      claim_profile_cleanup_jobs: {
+        Args: { p_limit?: number };
+        Returns: {
+          attempts: number;
+          avatar_asset_id: string;
+          bucket_id: string;
+          id: string;
+          object_key: string;
+          profile_id: string;
+        }[];
+      };
       complete_pending_upload: {
         Args: {
           p_height: number;
@@ -686,12 +872,22 @@ export type Database = {
           username: string;
         }[];
       };
+      complete_profile_cleanup_job: {
+        Args: { p_error?: string; p_id: string; p_success: boolean };
+        Returns: boolean;
+      };
       current_profile_access: {
         Args: never;
         Returns: {
           may_onboard: boolean;
           may_participate: boolean;
           username: string;
+        }[];
+      };
+      deactivate_profile: {
+        Args: never;
+        Returns: {
+          deactivated: boolean;
         }[];
       };
       edit_wrap: {
@@ -787,7 +983,7 @@ export type Database = {
         }[];
       };
       get_public_creator_wraps: {
-        Args: { p_username: string };
+        Args: { p_offset?: number; p_username: string };
         Returns: {
           availability_caveat: string;
           comment_count: number;
@@ -822,6 +1018,22 @@ export type Database = {
           bio: string;
           display_name: string;
           username: string;
+        }[];
+      };
+      get_public_profile_details: {
+        Args: { p_username: string };
+        Returns: {
+          availability: string;
+          avatar_url: string | null;
+          bio: string | null;
+          display_name: string | null;
+          download_count: number;
+          ever_published: boolean;
+          follower_count: number;
+          is_alias: boolean;
+          published_wrap_count: number;
+          requested_username: string | null;
+          username: string | null;
         }[];
       };
       get_public_vehicle_model: {
@@ -941,6 +1153,20 @@ export type Database = {
           status: string;
         }[];
       };
+      replace_profile_avatar: {
+        Args: {
+          p_byte_size: number;
+          p_derived_key: string;
+          p_height_px: number;
+          p_profile_id: string;
+          p_sha256: string;
+          p_source_key: string;
+          p_width_px: number;
+        };
+        Returns: {
+          avatar_url: string;
+        }[];
+      };
       republish_wrap: {
         Args: { p_creator_id: string; p_slug: string };
         Returns: {
@@ -982,6 +1208,14 @@ export type Database = {
           id: string;
           slug: string;
           status: string;
+        }[];
+      };
+      update_profile: {
+        Args: { p_bio: string; p_display_name: string; p_username: string };
+        Returns: {
+          bio: string;
+          display_name: string;
+          username: string;
         }[];
       };
     };

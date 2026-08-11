@@ -307,6 +307,16 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     () => page.request.get(`/u/${username}`),
     "Cybertruck Night Drive",
   );
+  await page.goto(`/u/${username}`);
+  await expect(
+    page.getByText("Published Wraps", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Counted Downloads", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Cybertruck Night Drive" }),
+  ).toBeVisible();
   await page.goto(`/wrap/${publishedSlug}`);
   await expect(
     page.getByRole("heading", { name: "Cybertruck Night Drive" }),
@@ -475,6 +485,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     (beforeGuestWrap?.download_count ?? 0) + 1,
   );
   await guestContext.close();
+  await page.goto(`/u/${username}`);
+  await expect(page.locator(".profile-stats dd").nth(1)).toHaveText("1");
+  await expect(page.locator(".profile-stats dd").nth(2)).toHaveText("2");
   await page.goto(`/wrap/${publishedSlug}`);
   await Promise.all([
     page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
@@ -770,9 +783,43 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     page.getByRole("heading", { name: "Road Builder" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "No published wraps yet." }),
+    page.getByRole("heading", {
+      name: "No published Wraps are available right now.",
+    }),
   ).toBeVisible();
   await expect(page.locator("body")).not.toContainText(email);
+
+  await page.goto("/settings/profile");
+  await expect(
+    page.getByRole("heading", { name: "Make your identity yours." }),
+  ).toBeVisible();
+  await page.getByLabel("Username").fill("-bad");
+  await page.getByRole("button", { name: "Save Profile" }).click();
+  await expect(page.getByText(/Username must be/)).toBeVisible();
+  const renamedUsername = `${username}new`;
+  await page.getByLabel("Username").fill(renamedUsername);
+  await page.getByLabel("Bio").fill("A Dublin creator.");
+  await page.getByLabel("Avatar").setInputFiles({
+    name: "avatar.webp",
+    mimeType: "image/webp",
+    buffer: await sharp({
+      create: { width: 12, height: 8, channels: 4, background: "#a8f7d2" },
+    })
+      .webp()
+      .toBuffer(),
+  });
+  await page.getByRole("button", { name: "Save Profile" }).click();
+  await expect(page).toHaveURL(`/u/${renamedUsername}`);
+  await page.goto(`/u/${username.toUpperCase()}`);
+  await expect(page).toHaveURL(`/u/${renamedUsername}`);
+  await expect(page.getByText("A Dublin creator.")).toBeVisible();
+  await expect(page.locator(".profile-avatar img")).toBeVisible();
+  const avatarResponse = await page.request.get(
+    `/api/profiles/${renamedUsername}/avatar`,
+  );
+  expect(avatarResponse.status()).toBe(200);
+  expect((await avatarResponse.body()).byteLength).toBeGreaterThan(0);
+
   expect(
     (
       await new AxeBuilder({ page })
@@ -793,8 +840,13 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     data: { username: "another", displayName: "Another" },
   });
   expect(denied.status()).toBe(403);
-  await page.goto(`/u/${username}`);
-  await expect(page.getByText("This page could not be found")).toBeVisible();
+  await page.goto(`/u/${renamedUsername}`);
+  await expect(
+    page.getByRole("heading", {
+      name: "This Profile is temporarily unavailable.",
+    }),
+  ).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(email);
 
   const restored = await admin
     .from("profiles")

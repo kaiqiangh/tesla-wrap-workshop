@@ -391,5 +391,203 @@ select lives_ok(
 );
 reset role;
 
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select * from public.update_profile('road-renamed', 'Road Renamed', 'Updated bio.') $$,
+  $$ values ('road-renamed', 'Road Renamed', 'Updated bio.') $$,
+  'an eligible owner can edit identity fields through the RPC boundary'
+);
+select throws_ok(
+  $$ select * from public.update_profile('road-next', 'Road Next', '') $$,
+  'P0001',
+  'username_cooldown',
+  'a Username rename is limited to one per thirty days'
+);
+select results_eq(
+  $$ select username, is_alias, availability from public.get_public_profile_details('ROAD_ONE') $$,
+  $$ values ('road-renamed', true, 'PUBLIC') $$,
+  'former Username aliases resolve case-insensitively to the same active Profile'
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000004","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.complete_profile('road_one', 'Alias Claim') $$,
+  'P0001',
+  'username_unavailable',
+  'a new User cannot claim a permanently reserved former Username'
+);
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select follower_count, published_wrap_count, download_count from public.get_public_profile_details('road-renamed') $$,
+  $$ values (0::bigint, 0::bigint, 0::bigint) $$,
+  'Creator statistics start at zero for a never-published Profile'
+);
+select is(
+  pg_get_function_result('public.get_public_profile_details(text)'::regprocedure),
+  'TABLE(requested_username text, username text, display_name text, bio text, avatar_url text, follower_count bigint, published_wrap_count bigint, ever_published boolean, download_count bigint, availability text, is_alias boolean)',
+  'the statistics Profile response is an explicit public allowlist'
+);
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.replace_profile_avatar(
+    '20000000-0000-0000-0000-000000000001',
+    '20000000-0000-0000-0000-000000000001/avatar-source',
+    '20000000-0000-0000-0000-000000000001/avatar-derived',
+    4, 3, 80, repeat('a', 64)
+  ) $$,
+  '42501',
+  'permission denied for function replace_profile_avatar',
+  'authenticated clients cannot forge avatar metadata through the service-only RPC'
+);
+reset role;
+set local role service_role;
+select lives_ok(
+  $$
+    select * from public.replace_profile_avatar(
+      '20000000-0000-0000-0000-000000000001',
+      '20000000-0000-0000-0000-000000000001/avatar-source',
+      '20000000-0000-0000-0000-000000000001/avatar-derived',
+      4, 3, 80, repeat('a', 64)
+    )
+  $$,
+  'an owner can record a private normalized avatar asset through the RPC'
+);
+reset role;
+set local role service_role;
+select lives_ok(
+  $$
+    insert into public.creator_follows (follower_id, creator_id)
+    values ('20000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001')
+  $$,
+  'the private follow source accepts a server-owned aggregate input'
+);
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select throws_ok(
+  $$ select * from public.profile_username_aliases $$,
+  '42501',
+  'permission denied for table profile_username_aliases',
+  'Guests cannot enumerate permanent Username aliases'
+);
+select results_eq(
+  $$ select follower_count from public.get_public_profile_details('road-renamed') $$,
+  $$ values (0::bigint) $$,
+  'deactivated or suspended followers do not contribute to public statistics'
+);
+
+reset role;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"20000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select * from public.deactivate_profile() $$,
+  $$ values (true) $$,
+  'an owner can deactivate their Profile and enqueue avatar cleanup'
+);
+select results_eq(
+  $$ select * from public.deactivate_profile() $$,
+  $$ values (false) $$,
+  'deactivation is idempotent'
+);
+reset role;
+set local role service_role;
+select is(
+  (select count(*) from public.profile_cleanup_jobs
+    where profile_id = '20000000-0000-0000-0000-000000000001'),
+  2::bigint,
+  'deactivation creates one idempotent cleanup job per private avatar object'
+);
+select is(
+  (select count(*) from public.profile_avatar_assets
+    where profile_id = '20000000-0000-0000-0000-000000000001'
+      and state = 'ACTIVE'),
+  0::bigint,
+  'deactivation retires the active avatar before cleanup runs'
+);
+select lives_ok(
+  $$ select * from public.claim_profile_cleanup_jobs(10) $$,
+  'service cleanup claims pending avatar work with row locking'
+);
+select is(
+  (select count(*) from public.profile_cleanup_jobs
+    where profile_id = '20000000-0000-0000-0000-000000000001'
+      and state = 'PROCESSING'),
+  2::bigint,
+  'claimed avatar cleanup is auditable and retryable'
+);
+update public.profile_cleanup_jobs
+set claimed_at = clock_timestamp() - interval '11 minutes'
+where id = (
+  select id from public.profile_cleanup_jobs
+  where profile_id = '20000000-0000-0000-0000-000000000001'
+    and state = 'PROCESSING'
+  order by id desc limit 1
+);
+select is(
+  (select count(*) from public.claim_profile_cleanup_jobs(10)),
+  1::bigint,
+  'a crashed cleanup claim is reclaimed after its lease expires'
+);
+select lives_ok(
+  $$ select public.complete_profile_cleanup_job(
+    (select id from public.profile_cleanup_jobs
+      where profile_id = '20000000-0000-0000-0000-000000000001'
+      order by id limit 1), true, null
+  ) $$,
+  'service cleanup can mark a removed object complete'
+);
+reset role;
+set local role anon;
+select set_config('request.jwt.claims', '{"role":"anon"}', true);
+select results_eq(
+  $$ select availability from public.get_public_profile_details('road-renamed') $$,
+  $$ values ('UNAVAILABLE') $$,
+  'deactivated Profiles remain represented only by an honest unavailable state'
+);
+
+select throws_ok(
+  $$ select * from public.profile_avatar_assets $$,
+  '42501',
+  'permission denied for table profile_avatar_assets',
+  'Guests cannot read private avatar metadata'
+);
+
+select is(
+  (select count(*) from pg_constraint c
+   where c.conrelid = 'public.profile_username_aliases'::regclass
+     and c.contype = 'f'
+     and c.confdeltype = 'c'),
+  0::bigint,
+  'former Username reservations are not deleted by a Profile cascade'
+);
+
 select * from finish();
 rollback;

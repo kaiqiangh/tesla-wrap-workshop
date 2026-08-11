@@ -7,31 +7,67 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
 
-type Props = { params: Promise<{ username: string }> };
+type Props = {
+  params: Promise<{ username: string }>;
+  searchParams: Promise<{ page?: string }>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const username = (await params).username.toLowerCase();
   return { title: `@${username} | WrapForge` };
 }
 
-export default async function PublicProfilePage({ params }: Props) {
+export default async function PublicProfilePage({
+  params,
+  searchParams,
+}: Props) {
   const rawUsername = (await params).username;
   const username = rawUsername.toLowerCase();
+  const requestedPage = Number((await searchParams).page ?? "1");
+  const page =
+    Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const offset = (page - 1) * 24;
   if (rawUsername !== username) permanentRedirect(`/u/${username}`);
 
   const supabase = await createServerSupabaseClient();
-  const { data, error } = await supabase.rpc("get_public_profile", {
+  const { data, error } = await supabase.rpc("get_public_profile_details", {
     p_username: username,
   });
   const profile = data?.[0];
-  if (error) throw new Error("Profile is temporarily unavailable");
-  if (!profile?.username || !profile.display_name) notFound();
+  if (error) return unavailable("Profile is temporarily unavailable.");
+  if (!profile) notFound();
+  if (profile.is_alias && profile.username)
+    permanentRedirect(`/u/${profile.username}`);
+  if (profile.availability !== "PUBLIC") {
+    return (
+      <main className="profile-shell">
+        <header className="site-header">
+          <Brand />
+        </header>
+        <section
+          className="profile-empty"
+          aria-labelledby="profile-unavailable-title"
+        >
+          <p className="eyebrow">COMMUNITY PROFILE</p>
+          <h1 id="profile-unavailable-title">
+            {profile.availability === "TEMPORARILY_UNAVAILABLE"
+              ? "This Profile is temporarily unavailable."
+              : "This Profile is unavailable."}
+          </h1>
+          <p>
+            It may be incomplete, suspended, or deactivated. Public identity and
+            Wraps remain hidden.
+          </p>
+        </section>
+      </main>
+    );
+  }
   const { data: wraps, error: wrapsError } = await supabase.rpc(
     "get_public_creator_wraps",
-    { p_username: username },
+    { p_username: username, p_offset: offset },
   );
   if (wrapsError)
-    throw new Error("Published Wraps are temporarily unavailable");
+    return unavailable("Published Wraps are temporarily unavailable.");
 
   return (
     <main className="profile-shell">
@@ -42,8 +78,14 @@ export default async function PublicProfilePage({ params }: Props) {
         </Link>
       </header>
       <section className="profile-identity" aria-labelledby="profile-name">
-        <div className="profile-avatar" aria-hidden="true">
-          {profile.display_name.slice(0, 1).toUpperCase()}
+        <div className="profile-avatar">
+          {profile.avatar_url ? (
+            <Image src={profile.avatar_url} alt="" width={72} height={72} />
+          ) : (
+            <span aria-hidden="true">
+              {profile.display_name?.slice(0, 1).toUpperCase()}
+            </span>
+          )}
         </div>
         <div>
           <p className="eyebrow">COMMUNITY PROFILE</p>
@@ -52,11 +94,26 @@ export default async function PublicProfilePage({ params }: Props) {
           {profile.bio ? <p className="profile-bio">{profile.bio}</p> : null}
         </div>
       </section>
+      <dl className="profile-stats" aria-label="Creator statistics">
+        <div>
+          <dt>Followers</dt>
+          <dd>{profile.follower_count}</dd>
+        </div>
+        <div>
+          <dt>Published Wraps</dt>
+          <dd>{profile.published_wrap_count}</dd>
+        </div>
+        <div>
+          <dt>Counted Downloads</dt>
+          <dd>{profile.download_count}</dd>
+        </div>
+      </dl>
       {wraps.length ? (
         <section className="profile-wraps" aria-labelledby="profile-wraps">
           <p className="eyebrow">PUBLISHED WRAPS</p>
           <h2 id="profile-wraps">
-            {wraps.length} published Wrap{wraps.length === 1 ? "" : "s"}.
+            {profile.published_wrap_count} published Wrap
+            {profile.published_wrap_count === 1 ? "" : "s"}.
           </h2>
           <div className="profile-wrap-grid">
             {wraps.map((wrap) => (
@@ -79,17 +136,45 @@ export default async function PublicProfilePage({ params }: Props) {
               </Link>
             ))}
           </div>
+          {profile.published_wrap_count > offset + wraps.length ? (
+            <Link
+              className="button discovery-load-more"
+              href={`/u/${profile.username}?page=${page + 1}`}
+            >
+              Load more
+            </Link>
+          ) : null}
         </section>
       ) : (
         <section className="profile-empty" aria-labelledby="profile-wraps">
           <p className="eyebrow">PUBLISHED WRAPS</p>
-          <h2 id="profile-wraps">No published wraps yet.</h2>
+          <h2 id="profile-wraps">
+            {profile.ever_published
+              ? "No published Wraps are available right now."
+              : "No published wraps yet."}
+          </h2>
           <p>
-            This Profile is ready. Its first Custom Wrap will appear here after
-            publication.
+            {profile.ever_published
+              ? "Published Wraps may be temporarily unavailable."
+              : "This Profile is ready. Its first Custom Wrap will appear here after publication."}
           </p>
         </section>
       )}
+    </main>
+  );
+}
+
+function unavailable(message: string) {
+  return (
+    <main className="profile-shell">
+      <header className="site-header">
+        <Brand />
+      </header>
+      <section className="profile-empty" aria-labelledby="profile-error-title">
+        <p className="eyebrow">COMMUNITY PROFILE</p>
+        <h1 id="profile-error-title">{message}</h1>
+        <p>Try again shortly. Public identity and Wraps remain protected.</p>
+      </section>
     </main>
   );
 }

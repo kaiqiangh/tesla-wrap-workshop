@@ -3,6 +3,10 @@
     {
       "path": "/api/discovery/ranking/refresh",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/profile/cleanup",
+      "schedule": "15 * * * *"
     }
   ]
 }
