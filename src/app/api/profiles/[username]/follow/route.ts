@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -9,6 +10,16 @@ export const runtime = "nodejs";
 type Params = { params: Promise<{ username: string }> };
 
 export async function POST(request: Request, { params }: Params) {
+  return observeRoute(request, "FOLLOW_MUTATION", "PROFILE", (operation) =>
+    post(request, { params }, operation),
+  );
+}
+
+async function post(
+  request: Request,
+  { params }: Params,
+  operation: OperationContext,
+) {
   const { username } = await params;
   let input: unknown;
   try {
@@ -30,6 +41,7 @@ export async function POST(request: Request, { params }: Params) {
         "Sign in and return to this Profile to continue.",
       );
     }
+    operation.actorId = access.userId;
     if (access.status !== "active") {
       return followProblem(
         403,

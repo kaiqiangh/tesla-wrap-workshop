@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -11,6 +12,15 @@ const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export async function GET(_request: Request, { params }: Params) {
+  return observeRoute(
+    _request,
+    "REPORT_STATUS_READ",
+    "MODERATION",
+    (operation) => getReport({ params }, operation),
+  );
+}
+
+async function getReport({ params }: Params, operation: OperationContext) {
   const { id } = await params;
   if (!UUID.test(id)) {
     return reportProblem(
@@ -33,6 +43,7 @@ export async function GET(_request: Request, { params }: Params) {
         "Sign in and return to the Report receipt.",
       );
     }
+    operation.actorId = access.userId;
     if (access.status !== "active") {
       return reportProblem(
         403,

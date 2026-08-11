@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export async function POST() {
+export async function POST(request: Request) {
+  return observeRoute(request, "PROFILE_RECOVER", "PROFILE", (operation) =>
+    post(operation),
+  );
+}
+
+async function post(operation: OperationContext) {
   const supabase = await createServerSupabaseClient();
   let access;
   try {
@@ -17,6 +24,7 @@ export async function POST() {
   }
   if (access.status === "guest")
     return problem(401, "authentication_required", "Sign in to continue.");
+  operation.actorId = access.userId;
   if (access.status !== "unavailable")
     return problem(
       409,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -9,6 +10,12 @@ export const runtime = "nodejs";
 type Params = { params: Promise<{ id: string }> };
 
 export async function DELETE(_request: Request, { params }: Params) {
+  return observeRoute(_request, "COMMENT_DELETE", "WRAP", (operation) =>
+    removeComment({ params }, operation),
+  );
+}
+
+async function removeComment({ params }: Params, operation: OperationContext) {
   const { id } = await params;
   if (
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
@@ -36,6 +43,7 @@ export async function DELETE(_request: Request, { params }: Params) {
         "Sign in and return to this Wrap to continue.",
       );
     }
+    operation.actorId = access.userId;
     if (access.status !== "active") {
       return commentProblem(
         403,

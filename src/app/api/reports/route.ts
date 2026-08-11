@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -28,6 +29,12 @@ type ReportInput = {
 };
 
 export async function POST(request: Request) {
+  return observeRoute(request, "REPORT_CREATE", "MODERATION", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   let input: unknown;
   try {
     input = await request.json();
@@ -62,6 +69,7 @@ export async function POST(request: Request) {
         "Sign in and return to this target to continue.",
       );
     }
+    operation.actorId = access.userId;
     if (access.status !== "active") {
       return reportProblem(
         403,

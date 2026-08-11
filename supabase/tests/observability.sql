@@ -186,6 +186,36 @@ select is(
   'publication transitions record publish and unpublish atomically'
 );
 
+insert into public.wrap_likes (user_id, wrap_id)
+values ('90000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000004');
+insert into public.wrap_favorites (user_id, wrap_id)
+values ('90000000-0000-4000-8000-000000000001', '90000000-0000-4000-8000-000000000004');
+select is(
+  (select count(*) from public.core_loop_events
+   where target_id = '90000000-0000-4000-8000-000000000004'
+     and event_kind in ('WRAP_LIKE', 'WRAP_FAVORITE')),
+  2::bigint,
+  'eligible Like and Favorite mutations record durable events'
+);
+
+insert into public.wrap_comments (id, wrap_id, author_id, idempotency_key, body)
+values (
+  '90000000-0000-4000-8000-000000000007',
+  '90000000-0000-4000-8000-000000000004',
+  '90000000-0000-4000-8000-000000000001',
+  '90000000-0000-4000-8000-000000000008',
+  'Bounded event comment.'
+);
+delete from public.wrap_comments
+where id = '90000000-0000-4000-8000-000000000007';
+select is(
+  (select count(*) from public.core_loop_events
+   where target_id = '90000000-0000-4000-8000-000000000007'
+     and event_kind in ('COMMENT_CREATED', 'COMMENT_DELETED')),
+  2::bigint,
+  'Comment creation and deletion record durable events'
+);
+
 insert into public.download_events (
   wrap_id, principal_kind, principal_hash, counted
 ) values (

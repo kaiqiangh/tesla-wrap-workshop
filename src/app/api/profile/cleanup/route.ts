@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { readServerEnvironment } from "@/lib/env";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export function GET(request: Request) {
+  return observeRoute(
+    request,
+    "RECONCILIATION_CLEANUP",
+    "MODERATION",
+    (operation) => cleanup(request, operation),
+  );
+}
+
+async function cleanup(request: Request, operation: OperationContext) {
   const env = readServerEnvironment(process.env);
   if (
     env.WRAPFORGE_ENVIRONMENT !== "local" &&
@@ -311,21 +321,48 @@ export async function GET(request: Request) {
     else wrapCompleted += 1;
   }
 
-  return NextResponse.json(
-    {
-      anonymized: anonymized ?? 0,
-      coreLoopEventsDeleted: coreLoopEventsDeleted ?? 0,
-      assetCompleted,
-      assetFailed,
-      revisionCompleted,
-      revisionFailed,
-      orphanCompleted,
-      orphanFailed,
-      completed,
-      failed,
-      wrapCompleted,
-      wrapFailed,
-    },
-    { headers: { "cache-control": "no-store" } },
-  );
+  const failures =
+    assetFailed + revisionFailed + orphanFailed + failed + wrapFailed;
+  const result = {
+    anonymized: anonymized ?? 0,
+    coreLoopEventsDeleted: coreLoopEventsDeleted ?? 0,
+    assetCompleted,
+    assetFailed,
+    revisionCompleted,
+    revisionFailed,
+    orphanCompleted,
+    orphanFailed,
+    completed,
+    failed,
+    wrapCompleted,
+    wrapFailed,
+  };
+  if (failures > 0) {
+    console.error(
+      JSON.stringify({
+        type: "wrapforge.reconciliation_alert",
+        code: "RECONCILIATION_FAILURE",
+        correlationId: operation.correlationId,
+        failures,
+        runbook: "/runbooks/reconciliation.md",
+      }),
+    );
+    return NextResponse.json(
+      {
+        error: {
+          code: "WF-RECONCILIATION-ALERT",
+          message: "Reconciliation requires attention.",
+          runbook: "/runbooks/reconciliation.md",
+        },
+        ...result,
+      },
+      {
+        status: 503,
+        headers: { "cache-control": "no-store", "retry-after": "300" },
+      },
+    );
+  }
+  return NextResponse.json(result, {
+    headers: { "cache-control": "no-store" },
+  });
 }

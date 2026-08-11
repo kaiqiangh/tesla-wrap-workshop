@@ -5,7 +5,13 @@ import { readServerEnvironment } from "./env";
 import { createAdminSupabaseClient } from "./supabase/admin";
 
 type TargetType =
-  "AUTH" | "UPLOAD" | "WRAP" | "DOWNLOAD" | "PROFILE" | "MODERATION";
+  | "AUTH"
+  | "UPLOAD"
+  | "WRAP"
+  | "DOWNLOAD"
+  | "PROFILE"
+  | "MODERATION"
+  | "DISCOVERY";
 type OperationOutcome = "success" | "denied" | "error";
 
 export type OperationContext = {
@@ -99,7 +105,7 @@ export function logOperation(
   try {
     environment = readServerEnvironment(process.env).WRAPFORGE_ENVIRONMENT;
   } catch {
-    environment = process.env.WRAPFORGE_ENVIRONMENT?.trim() || "unknown";
+    environment = "unknown";
   }
   const secret = process.env.DOWNLOAD_PRINCIPAL_HMAC_SECRET;
   const actor = context.actorId
@@ -135,7 +141,13 @@ export async function recordCoreLoopEvent(input: {
   actorId?: string | null;
   principalKind?: "GUEST" | "USER" | null;
   principalHash?: string | null;
-  targetType: "USER" | "PROFILE" | "PENDING_UPLOAD" | "ASSET_REVISION" | "WRAP";
+  targetType:
+    | "USER"
+    | "PROFILE"
+    | "DISCOVERY"
+    | "PENDING_UPLOAD"
+    | "ASSET_REVISION"
+    | "WRAP";
   targetId: string;
   outcome: "SUCCESS" | "DUPLICATE" | "FAILURE";
   code: string;

@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { validateProfileSettings } from "@/lib/profile/settings";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function PUT(request: Request) {
+  return observeRoute(request, "PROFILE_SETTINGS", "PROFILE", (operation) =>
+    put(request, operation),
+  );
+}
+
+async function put(request: Request, operation: OperationContext) {
   let input: unknown;
   try {
     input = await request.json();
@@ -30,6 +37,7 @@ export async function PUT(request: Request) {
   }
   if (access.status === "guest")
     return problem(401, "authentication_required", "Sign in to continue.");
+  operation.actorId = access.userId;
   if (access.status !== "active")
     return problem(
       403,
