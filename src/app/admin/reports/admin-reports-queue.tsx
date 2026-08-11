@@ -260,18 +260,30 @@ export function AdminReportsQueue({ initialReports }: Props) {
                         />
                       </>
                     ) : (
-                      <ActionButton
-                        label="Suspend User"
-                        action="SUSPEND"
-                        report={report}
-                        busy={busy}
-                        onAction={moderate}
-                      />
+                      report.targetState === "ACTIVE" && (
+                        <>
+                          <ActionButton
+                            label="Suspend User"
+                            action="SUSPEND"
+                            report={report}
+                            busy={busy}
+                            onAction={moderate}
+                          />
+                          <ActionButton
+                            label="Deactivate User"
+                            action="DEACTIVATE"
+                            report={report}
+                            busy={busy}
+                            onAction={moderate}
+                          />
+                        </>
+                      )
                     )}
                   </>
                 )}
                 {report.targetKind === "USER" &&
-                  report.targetState === "SUSPENDED" && (
+                  (report.targetState === "SUSPENDED" ||
+                    report.targetState === "DEACTIVATED") && (
                     <ActionButton
                       label="Reinstate User"
                       action="REINSTATE"

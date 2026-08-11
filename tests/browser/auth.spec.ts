@@ -174,6 +174,60 @@ test("Current administrator can review and recover a private Report", async ({
   expect((await reinstateResponse).status()).toBe(200);
   await expect(reportCard.getByText("ACTIVE", { exact: true })).toBeVisible();
 
+  const deactivateReportId = randomUUID();
+  const deactivateReport = await admin.from("reports").insert({
+    id: deactivateReportId,
+    reporter_id: userId,
+    target_kind: "USER",
+    target_id: targetId,
+    target_ref: targetUsername,
+    reason: "SPAM",
+    idempotency_key: randomUUID(),
+  });
+  expect(deactivateReport.error).toBeNull();
+  await page.reload();
+  const openTargetReport = page
+    .locator(".admin-report-card")
+    .filter({ hasText: `${targetUsername} · reporter` })
+    .filter({ hasText: "USER · OPEN" });
+  await expect(openTargetReport).toBeVisible();
+  const deactivateResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/admin/reports") &&
+      response.request().method() === "POST",
+  );
+  await openTargetReport
+    .getByRole("button", { name: "Deactivate User" })
+    .click();
+  expect((await deactivateResponse).status()).toBe(200);
+  const deactivatedCard = page
+    .locator(".admin-report-card")
+    .filter({ hasText: `${targetUsername} · reporter` })
+    .filter({ hasText: "DEACTIVATED" });
+  await expect(deactivatedCard).toBeVisible();
+  await targetPage.goto(`/u/${targetUsername}`);
+  await expect(
+    targetPage.getByText("This Profile is unavailable.", { exact: true }),
+  ).toBeVisible();
+  const recoverResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/admin/reports") &&
+      response.request().method() === "POST",
+  );
+  await deactivatedCard.getByRole("button", { name: "Reinstate User" }).click();
+  expect((await recoverResponse).status()).toBe(200);
+  await expect(
+    page
+      .locator(".admin-report-card")
+      .filter({ hasText: `${targetUsername} · reporter` })
+      .last()
+      .filter({ hasText: "ACTIVE" }),
+  ).toBeVisible();
+  await targetPage.goto(`/u/${targetUsername}`);
+  await expect(
+    targetPage.getByRole("heading", { name: "Moderation Target" }),
+  ).toBeVisible();
+
   const revoke = await admin.rpc("set_admin_membership", {
     p_user_id: userId,
     p_active: false,

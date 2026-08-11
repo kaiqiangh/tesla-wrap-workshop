@@ -16,6 +16,7 @@ const ACTIONS = new Set([
   "HIDE",
   "REMOVE",
   "SUSPEND",
+  "DEACTIVATE",
   "REINSTATE",
 ]);
 const REASONS = new Set([
@@ -35,6 +36,7 @@ const OUTCOMES = new Set([
   "CONTENT_HIDDEN",
   "CONTENT_REMOVED",
   "USER_SUSPENDED",
+  "USER_DEACTIVATED",
   "DUPLICATE",
 ]);
 

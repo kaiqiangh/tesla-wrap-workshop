@@ -56,6 +56,8 @@ set username = case user_id
   display_name = 'Moderation Fixture',
   onboarding_completed_at = now()
 where user_id::text like '92000000-%';
+insert into auth.sessions (id, user_id)
+values ('92000000-0000-4000-8000-000000000030', '92000000-0000-0000-0000-000000000003');
 
 insert into private.admin_memberships (user_id)
 values ('92000000-0000-0000-0000-000000000001');
@@ -95,6 +97,45 @@ insert into public.wraps (
   '92000000-0000-0000-0000-000000000011', 'PERSONAL_USE_ALLOWED', true, true,
   'PUBLISHED', now()
 );
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values
+  ('wrap-originals', '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/original.png', '92000000-0000-0000-0000-000000000003', '{"size":100}'::jsonb),
+  ('wrap-derived', '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/preview.png', '92000000-0000-0000-0000-000000000003', '{"size":80}'::jsonb),
+  ('wrap-derived', '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/thumbnail.png', '92000000-0000-0000-0000-000000000003', '{"size":60}'::jsonb);
+insert into public.wrap_assets (
+  asset_revision_id, kind, bucket_id, object_key,
+  width_px, height_px, byte_size, sha256
+)
+select '92000000-0000-0000-0000-000000000011', kind, bucket_id, object_key,
+  tv.width_px, tv.height_px, byte_size, sha256
+from (
+  values
+    ('ORIGINAL'::text, 'wrap-originals'::text, '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/original.png'::text, 100, repeat('a', 64)),
+    ('PREVIEW'::text, 'wrap-derived'::text, '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/preview.png'::text, 80, repeat('b', 64)),
+    ('THUMBNAIL'::text, 'wrap-derived'::text, '92000000-0000-0000-0000-000000000003/92000000-0000-0000-0000-000000000011/thumbnail.png'::text, 60, repeat('c', 64))
+) as assets(kind, bucket_id, object_key, byte_size, sha256)
+cross join lateral (
+  select tv.width_px, tv.height_px
+  from public.template_variants tv
+  where tv.id = (select template_variant_id from public.asset_revisions where id = '92000000-0000-0000-0000-000000000011')
+) tv;
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values
+  ('profile-source', '92000000-0000-0000-0000-000000000003/avatar-source.png', '92000000-0000-0000-0000-000000000003', '{"size":100}'::jsonb),
+  ('profile-derived', '92000000-0000-0000-0000-000000000003/avatar-derived.png', '92000000-0000-0000-0000-000000000003', '{"size":100}'::jsonb);
+insert into public.profile_avatar_assets (
+  id, profile_id, source_key, derived_key, width_px, height_px, byte_size, sha256
+) values (
+  '92000000-0000-4000-8000-000000000031',
+  '92000000-0000-0000-0000-000000000003',
+  '92000000-0000-0000-0000-000000000003/avatar-source.png',
+  '92000000-0000-0000-0000-000000000003/avatar-derived.png',
+  128, 128, 100, repeat('d', 64)
+);
+update public.profiles
+set avatar_asset_id = '92000000-0000-4000-8000-000000000031',
+    avatar_url = '/api/profiles/moderation-target/avatar'
+where user_id = '92000000-0000-0000-0000-000000000003';
 insert into public.wrap_comments (
   id, wrap_id, author_id, idempotency_key, body, status
 ) values (
@@ -227,7 +268,54 @@ select results_eq(
   $$ values ('ACTIVE'::text) $$,
   'Reinstate returns an eligible User to Active'
 );
+select throws_ok(
+  $$ select * from public.moderate_report(
+       '92000000-0000-4000-8000-000000000023', 'REINSTATE', 'RESTORED', 'Already Active', '',
+       '92000000-0000-4000-8000-000000000106'
+     ) $$,
+  'P0001', 'moderation_conflict',
+  'An already Active User cannot be reinstated again with a new action'
+);
 
+set local role postgres;
+insert into public.reports (
+  id, reporter_id, target_kind, target_id, target_ref, reason, idempotency_key
+) values (
+  '92000000-0000-4000-8000-000000000024',
+  '92000000-0000-0000-0000-000000000002', 'USER',
+  '92000000-0000-0000-0000-000000000003', 'moderation-target', 'OTHER',
+  '92000000-0000-4000-8000-000000000024'
+);
+set local role authenticated;
+select results_eq(
+  $$ select report_status, outcome_category, target_state
+     from public.moderate_report(
+       '92000000-0000-4000-8000-000000000024', 'DEACTIVATE', 'OTHER', 'Deactivate confirmed', '',
+       '92000000-0000-4000-8000-000000000110'
+     ) $$,
+  $$ values ('RESOLVED'::text, 'USER_DEACTIVATED'::text, 'DEACTIVATED'::text) $$,
+  'Deactivate resolves the User Report and withdraws the Profile'
+);
+set local role postgres;
+select is((select participation_state from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), 'DEACTIVATED', 'Administrator deactivation preserves the Profile row but withdraws participation');
+select is((select count(*)::integer from auth.sessions where user_id = '92000000-0000-0000-0000-000000000003'), 0, 'Deactivation revokes the target User sessions');
+select ok((select recovery_until > clock_timestamp() from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), 'Deactivation opens a 30-day recovery window');
+select ok((select deactivated_at is not null from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), 'Deactivation records a lifecycle timestamp');
+select is((select count(*)::integer from public.profile_wrap_cleanup_jobs where profile_id = '92000000-0000-0000-0000-000000000003'), 3, 'Deactivation queues immutable Wrap objects for delayed cleanup');
+select is((select count(*)::integer from public.asset_cleanup_jobs where pending_upload_id = '92000000-0000-0000-0000-000000000010'), 1, 'Deactivation queues READY staging bytes for cleanup');
+set local role anon;
+select results_eq(
+  $$ select username, ever_published, availability from public.get_public_profile_details('moderation-target') $$,
+  $$ values (null::text, false, 'UNAVAILABLE'::text) $$,
+  'Deactivated Profiles redact identity and history from public reads'
+);
+
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"92000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
 select throws_ok(
   $$ select * from public.moderate_report(
        '92000000-0000-4000-8000-000000000023', 'HIDE', 'SPAM', 'Invalid User action', '',
@@ -252,14 +340,20 @@ select throws_ok(
   'P0001', 'moderation_conflict',
   'A resolved Report cannot switch to a different final action'
 );
-select throws_ok(
-  $$ select * from public.moderate_report(
-       '92000000-0000-4000-8000-000000000023', 'REINSTATE', 'RESTORED', 'Already Active', '',
+select results_eq(
+  $$ select target_state
+     from public.moderate_report(
+       '92000000-0000-4000-8000-000000000024', 'REINSTATE', 'RESTORED', 'Restore before expiry', '',
        '92000000-0000-4000-8000-000000000109'
      ) $$,
-  'P0001', 'moderation_conflict',
-  'An already Active User cannot be reinstated again with a new action'
+  $$ values ('ACTIVE'::text) $$,
+  'A deactivated User can be reinstated during the recovery window'
 );
+set local role postgres;
+select is((select participation_state from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), 'ACTIVE', 'Recovery restores active participation');
+select is((select count(*)::integer from public.profile_wrap_cleanup_jobs where profile_id = '92000000-0000-0000-0000-000000000003' and state = 'CANCELED'), 3, 'Recovery cancels delayed Wrap cleanup before expiry');
+select is((select avatar_asset_id from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), '92000000-0000-4000-8000-000000000031'::uuid, 'Recovery restores the retained avatar asset');
+select is((select state from public.profile_avatar_assets where id = '92000000-0000-4000-8000-000000000031'), 'ACTIVE', 'Recovery restores avatar media eligibility');
 
 set local role authenticated;
 select set_config(
@@ -271,7 +365,7 @@ do $$
 declare
   i integer;
 begin
-  for i in 1..5 loop
+  for i in 1..3 loop
     perform public.moderate_report(
       '92000000-0000-4000-8000-000000000021', 'HIDE', 'SPAM', '', '',
       ('92000000-0000-4000-8000-' || lpad((200 + i)::text, 12, '0'))::uuid
@@ -304,7 +398,16 @@ select throws_ok(
 set local role postgres;
 select public.set_admin_membership('92000000-0000-0000-0000-000000000001', true);
 
+update public.profiles
+set participation_state = 'DEACTIVATED', deactivated_at = clock_timestamp() - interval '31 days',
+    recovery_until = clock_timestamp() - interval '1 day', anonymized_at = null
+where user_id = '92000000-0000-0000-0000-000000000003';
+set local role service_role;
+select is(public.anonymize_expired_profiles(50), 1, 'Expired deactivation is anonymized by the service worker');
+select is((select username from public.profiles where user_id = '92000000-0000-0000-0000-000000000003'), null::text, 'Expired Profiles release public identity fields');
 set local role postgres;
+select is((select email::text from auth.users where id = '92000000-0000-0000-0000-000000000003'), null::text, 'Expired Profiles release Auth email data');
+
 select ok(
   not exists (select 1 from public.moderation_actions where action_kind = 'DISMISS' and report_id = '92000000-0000-4000-8000-000000000021'),
   'No unrelated moderation action is created'

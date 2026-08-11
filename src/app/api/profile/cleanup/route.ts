@@ -17,6 +17,54 @@ export async function GET(request: Request) {
     );
 
   const admin = createAdminSupabaseClient();
+  const { data: anonymized, error: anonymizeError } = await admin.rpc(
+    "anonymize_expired_profiles",
+    { p_limit: 50 },
+  );
+  if (anonymizeError)
+    return NextResponse.json(
+      {
+        error: {
+          code: "profile_anonymization_unavailable",
+          message: "Profile anonymization is temporarily unavailable.",
+        },
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+
+  const { data: assetJobs, error: assetClaimError } = await admin.rpc(
+    "claim_asset_cleanup_jobs",
+    { p_limit: 50 },
+  );
+  if (assetClaimError)
+    return NextResponse.json(
+      {
+        error: {
+          code: "asset_cleanup_unavailable",
+          message: "Asset cleanup is temporarily unavailable.",
+        },
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+
+  let assetCompleted = 0;
+  let assetFailed = 0;
+  for (const job of assetJobs ?? []) {
+    const removed = await admin.storage
+      .from(job.bucket_id)
+      .remove([job.object_key]);
+    const { error: completeError } = await admin.rpc(
+      "complete_asset_cleanup_job",
+      {
+        p_id: job.id,
+        p_success: !removed.error,
+        p_error: removed.error?.message,
+      },
+    );
+    if (completeError || removed.error) assetFailed += 1;
+    else assetCompleted += 1;
+  }
+
   const { data: jobs, error: claimError } = await admin.rpc(
     "claim_profile_cleanup_jobs",
     { p_limit: 50 },
@@ -51,11 +99,15 @@ export async function GET(request: Request) {
       continue;
     }
     if (activeAsset) {
-      await admin.rpc("complete_profile_cleanup_job", {
-        p_id: job.id,
-        p_success: true,
-      });
-      completed += 1;
+      const { error: completeError } = await admin.rpc(
+        "complete_profile_cleanup_job",
+        {
+          p_id: job.id,
+          p_success: true,
+        },
+      );
+      if (completeError) failed += 1;
+      else completed += 1;
       continue;
     }
     const removed = await admin.storage
@@ -73,8 +125,72 @@ export async function GET(request: Request) {
     else completed += 1;
   }
 
+  const { data: wrapJobs, error: wrapClaimError } = await admin.rpc(
+    "claim_profile_wrap_cleanup_jobs",
+    { p_limit: 50 },
+  );
+  if (wrapClaimError)
+    return NextResponse.json(
+      {
+        error: {
+          code: "profile_wrap_cleanup_unavailable",
+          message: "Wrap cleanup is temporarily unavailable.",
+        },
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+
+  let wrapCompleted = 0;
+  let wrapFailed = 0;
+  for (const job of wrapJobs ?? []) {
+    const { data: profile, error: profileError } = await admin
+      .from("profiles")
+      .select("participation_state")
+      .eq("user_id", job.profile_id)
+      .maybeSingle();
+    if (profileError) {
+      await admin.rpc("complete_profile_wrap_cleanup_job", {
+        p_id: job.id,
+        p_success: false,
+        p_error: profileError.message,
+      });
+      wrapFailed += 1;
+      continue;
+    }
+    if (profile?.participation_state === "ACTIVE") {
+      const { error: completeError } = await admin.rpc(
+        "complete_profile_wrap_cleanup_job",
+        { p_id: job.id, p_success: true },
+      );
+      if (completeError) wrapFailed += 1;
+      else wrapCompleted += 1;
+      continue;
+    }
+    const removed = await admin.storage
+      .from(job.bucket_id)
+      .remove([job.object_key]);
+    const { error: completeError } = await admin.rpc(
+      "complete_profile_wrap_cleanup_job",
+      {
+        p_id: job.id,
+        p_success: !removed.error,
+        p_error: removed.error?.message,
+      },
+    );
+    if (completeError || removed.error) wrapFailed += 1;
+    else wrapCompleted += 1;
+  }
+
   return NextResponse.json(
-    { completed, failed },
+    {
+      anonymized: anonymized ?? 0,
+      assetCompleted,
+      assetFailed,
+      completed,
+      failed,
+      wrapCompleted,
+      wrapFailed,
+    },
     { headers: { "cache-control": "no-store" } },
   );
 }

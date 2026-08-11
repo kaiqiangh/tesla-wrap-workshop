@@ -36,30 +36,42 @@ export type Database = {
     Tables: {
       asset_cleanup_jobs: {
         Row: {
+          attempts: number;
+          available_after: string;
           bucket_id: string;
+          claimed_at: string | null;
           completed_at: string | null;
           created_at: string;
           id: string;
+          last_error: string | null;
           object_key: string;
           pending_upload_id: string;
           reason: string;
           state: string;
         };
         Insert: {
+          attempts?: number;
+          available_after?: string;
           bucket_id: string;
+          claimed_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
+          last_error?: string | null;
           object_key: string;
           pending_upload_id: string;
           reason: string;
           state?: string;
         };
         Update: {
+          attempts?: number;
+          available_after?: string;
           bucket_id?: string;
+          claimed_at?: string | null;
           completed_at?: string | null;
           created_at?: string;
           id?: string;
+          last_error?: string | null;
           object_key?: string;
           pending_upload_id?: string;
           reason?: string;
@@ -478,6 +490,7 @@ export type Database = {
       profile_cleanup_jobs: {
         Row: {
           attempts: number;
+          available_after: string;
           avatar_asset_id: string | null;
           bucket_id: string;
           claimed_at: string | null;
@@ -491,6 +504,7 @@ export type Database = {
         };
         Insert: {
           attempts?: number;
+          available_after?: string;
           avatar_asset_id?: string | null;
           bucket_id: string;
           claimed_at?: string | null;
@@ -504,6 +518,7 @@ export type Database = {
         };
         Update: {
           attempts?: number;
+          available_after?: string;
           avatar_asset_id?: string | null;
           bucket_id?: string;
           claimed_at?: string | null;
@@ -550,41 +565,110 @@ export type Database = {
         };
         Relationships: [];
       };
+      profile_wrap_cleanup_jobs: {
+        Row: {
+          asset_revision_id: string;
+          attempts: number;
+          available_after: string;
+          bucket_id: string;
+          claimed_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          object_key: string;
+          profile_id: string;
+          state: string;
+        };
+        Insert: {
+          asset_revision_id: string;
+          attempts?: number;
+          available_after: string;
+          bucket_id: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          object_key: string;
+          profile_id: string;
+          state?: string;
+        };
+        Update: {
+          asset_revision_id?: string;
+          attempts?: number;
+          available_after?: string;
+          bucket_id?: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          object_key?: string;
+          profile_id?: string;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profile_wrap_cleanup_jobs_asset_revision_id_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: false;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "profile_wrap_cleanup_jobs_profile_id_fkey";
+            columns: ["profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
+          anonymized_at: string | null;
           avatar_asset_id: string | null;
           avatar_url: string | null;
           bio: string;
           created_at: string;
+          deactivated_at: string | null;
           display_name: string | null;
           onboarding_completed_at: string | null;
           participation_state: string;
+          recovery_until: string | null;
           updated_at: string;
           user_id: string;
           username: string | null;
           username_changed_at: string | null;
         };
         Insert: {
+          anonymized_at?: string | null;
           avatar_asset_id?: string | null;
           avatar_url?: string | null;
           bio?: string;
           created_at?: string;
+          deactivated_at?: string | null;
           display_name?: string | null;
           onboarding_completed_at?: string | null;
           participation_state?: string;
+          recovery_until?: string | null;
           updated_at?: string;
           user_id: string;
           username?: string | null;
           username_changed_at?: string | null;
         };
         Update: {
+          anonymized_at?: string | null;
           avatar_asset_id?: string | null;
           avatar_url?: string | null;
           bio?: string;
           created_at?: string;
+          deactivated_at?: string | null;
           display_name?: string | null;
           onboarding_completed_at?: string | null;
           participation_state?: string;
+          recovery_until?: string | null;
           updated_at?: string;
           user_id?: string;
           username?: string | null;
@@ -1040,6 +1124,10 @@ export type Database = {
           slug: string;
         }[];
       };
+      anonymize_expired_profiles: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       claim_pending_upload: {
         Args: { p_id: string; p_owner: string };
         Returns: {
@@ -1048,11 +1136,31 @@ export type Database = {
           state: string;
         }[];
       };
+      claim_asset_cleanup_jobs: {
+        Args: { p_limit?: number };
+        Returns: {
+          attempts: number;
+          bucket_id: string;
+          id: string;
+          object_key: string;
+          pending_upload_id: string;
+        }[];
+      };
       claim_profile_cleanup_jobs: {
         Args: { p_limit?: number };
         Returns: {
           attempts: number;
           avatar_asset_id: string;
+          bucket_id: string;
+          id: string;
+          object_key: string;
+          profile_id: string;
+        }[];
+      };
+      claim_profile_wrap_cleanup_jobs: {
+        Args: { p_limit?: number };
+        Returns: {
+          attempts: number;
           bucket_id: string;
           id: string;
           object_key: string;
@@ -1078,6 +1186,10 @@ export type Database = {
         };
         Returns: string;
       };
+      complete_asset_cleanup_job: {
+        Args: { p_error?: string; p_id: string; p_success: boolean };
+        Returns: boolean;
+      };
       complete_profile: {
         Args: { p_display_name: string; p_username: string };
         Returns: {
@@ -1085,6 +1197,10 @@ export type Database = {
         }[];
       };
       complete_profile_cleanup_job: {
+        Args: { p_error?: string; p_id: string; p_success: boolean };
+        Returns: boolean;
+      };
+      complete_profile_wrap_cleanup_job: {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
@@ -1554,6 +1670,12 @@ export type Database = {
           counted: boolean;
           download_count: number;
           event_id: string;
+        }[];
+      };
+      recover_profile: {
+        Args: never;
+        Returns: {
+          recovered: boolean;
         }[];
       };
       refresh_discovery_ranking: { Args: never; Returns: string };

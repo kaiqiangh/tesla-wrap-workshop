@@ -532,6 +532,9 @@ select is(
   0::bigint,
   'deactivation retires the active avatar before cleanup runs'
 );
+update public.profile_cleanup_jobs
+set available_after = clock_timestamp()
+where profile_id = '20000000-0000-0000-0000-000000000001';
 select lives_ok(
   $$ select * from public.claim_profile_cleanup_jobs(10) $$,
   'service cleanup claims pending avatar work with row locking'
