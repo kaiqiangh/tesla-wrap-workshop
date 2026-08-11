@@ -200,7 +200,8 @@ begin
 end;
 $$;
 select ok(
-  nth_ok and nth_count_ok and n_plus_one_ok and recovery_ok and recovery_count_ok,
+  nth_ok and nth_count_ok and n_plus_one_ok and n_plus_one_count_ok
+    and n_plus_one_window_ok and recovery_ok and recovery_count_ok,
   policy_key || ' passes N/N+1 and fake-clock recovery'
 )
 from limit_boundary_results
