@@ -75,6 +75,24 @@ begin
     raise exception using errcode = 'P0001', message = 'social_auth_required';
   end if;
 
+  select w.creator_id
+  into v_creator_id
+  from public.wraps w
+  where w.id = p_wrap_id;
+
+  if not found then
+    raise exception using errcode = 'P0001', message = 'social_wrap_unavailable';
+  end if;
+  if v_creator_id = p_actor_id then
+    raise exception using errcode = 'P0001', message = 'social_self_action';
+  end if;
+
+  perform 1
+  from public.profiles p
+  where p.user_id in (p_actor_id, v_creator_id)
+  order by p.user_id
+  for update;
+
   if not exists (
     select 1
     from public.profiles p
@@ -88,13 +106,35 @@ begin
   select w.creator_id
   into v_creator_id
   from public.wraps w
-  join public.profiles creator on creator.user_id = w.creator_id
+  join public.profiles creator
+    on creator.user_id = w.creator_id
+   and creator.participation_state = 'ACTIVE'
+   and creator.onboarding_completed_at is not null
+  join public.vehicle_models vm
+    on vm.id = w.vehicle_model_id
+   and vm.active
+  join public.template_variants tv
+    on tv.id = w.template_variant_id
+   and tv.vehicle_model_id = w.vehicle_model_id
+  join public.asset_revisions ar
+    on ar.id = w.asset_revision_id
+   and ar.template_verified
+   and ar.template_variant_id = w.template_variant_id
+   and ar.width_px = tv.width_px
+   and ar.height_px = tv.height_px
+  join public.wrap_assets preview
+    on preview.asset_revision_id = ar.id
+   and preview.kind = 'PREVIEW'
+   and preview.bucket_id = 'wrap-derived'
+   and preview.width_px > 0
+   and preview.height_px > 0
+  join storage.objects preview_object
+    on preview_object.bucket_id = preview.bucket_id
+   and preview_object.name = preview.object_key
   where w.id = p_wrap_id
     and w.status = 'PUBLISHED'
     and w.deleted_at is null
-    and creator.participation_state = 'ACTIVE'
-    and creator.onboarding_completed_at is not null
-  for update of w;
+  for update of w, creator, vm, tv, ar, preview, preview_object;
 
   if not found then
     raise exception using errcode = 'P0001', message = 'social_wrap_unavailable';
@@ -126,7 +166,6 @@ as $$
 declare
   v_actor_id uuid := auth.uid();
   v_wrap_id uuid;
-  v_creator_id uuid;
   v_affected integer := 0;
   v_enabled boolean;
   v_like_count bigint;
@@ -143,15 +182,7 @@ begin
   if v_wrap_id is null then
     raise exception using errcode = 'P0001', message = 'social_wrap_unavailable';
   end if;
-  perform 1
-  from public.wraps w
-  where w.id = v_wrap_id
-  for update;
-  if not found then
-    raise exception using errcode = 'P0001', message = 'social_wrap_unavailable';
-  end if;
-
-  v_creator_id := private.assert_social_target(v_wrap_id, v_actor_id);
+  perform private.assert_social_target(v_wrap_id, v_actor_id);
 
   if p_kind = 'LIKE' then
     if p_enabled then

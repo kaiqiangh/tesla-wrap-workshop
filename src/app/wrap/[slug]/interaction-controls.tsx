@@ -52,7 +52,7 @@ export function InteractionControls({
         setLikeCount(previous.likeCount);
         setFavoriteCount(previous.favoriteCount);
         router.push(
-          `/sign-in?next=${encodeURIComponent(window.location.pathname)}`,
+          `/sign-in?next=${encodeURIComponent(window.location.pathname + window.location.search)}`,
         );
         return;
       }
