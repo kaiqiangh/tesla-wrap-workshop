@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 
 import { searchDiscoveryWraps } from "@/lib/discovery";
 import { parseDiscoveryQuery } from "../../../../lib/discovery-query";
+import { observeRoute } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export function GET(request: Request) {
+  return observeRoute(request, "DISCOVERY_SEARCH", "WRAP", () => get(request));
+}
+
+async function get(request: Request) {
   const query = parseDiscoveryQuery(new URL(request.url).searchParams);
   if (!query) {
     return NextResponse.json(

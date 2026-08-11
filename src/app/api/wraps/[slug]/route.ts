@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import {
   validateWrapMetadata,
   type WrapMetadataInput,
@@ -13,7 +14,17 @@ export const runtime = "nodejs";
 
 type Context = { params: Promise<{ slug: string }> };
 
-export async function PATCH(request: Request, { params }: Context) {
+export function PATCH(request: Request, context: Context) {
+  return observeRoute(request, "WRAP_EDIT", "WRAP", (operation) =>
+    patch(request, context, operation),
+  );
+}
+
+async function patch(
+  request: Request,
+  { params }: Context,
+  operation: OperationContext,
+) {
   const slug = await readSlug(params);
   if (!slug) return notFound();
   let input: unknown;
@@ -39,6 +50,7 @@ export async function PATCH(request: Request, { params }: Context) {
   }
   const owner = await activeOwner();
   if (owner.response) return owner.response;
+  operation.actorId = owner.userId;
   const { data, error } = await createAdminSupabaseClient().rpc("edit_wrap", {
     p_creator_id: owner.userId,
     p_description: metadata.value.description,
@@ -56,7 +68,17 @@ export async function PATCH(request: Request, { params }: Context) {
   );
 }
 
-export async function POST(request: Request, { params }: Context) {
+export function POST(request: Request, context: Context) {
+  return observeRoute(request, "WRAP_VISIBILITY", "WRAP", (operation) =>
+    post(request, context, operation),
+  );
+}
+
+async function post(
+  request: Request,
+  { params }: Context,
+  operation: OperationContext,
+) {
   const slug = await readSlug(params);
   if (!slug) return notFound();
   let input: unknown;
@@ -76,6 +98,7 @@ export async function POST(request: Request, { params }: Context) {
   }
   const owner = await activeOwner();
   if (owner.response) return owner.response;
+  operation.actorId = owner.userId;
   const admin = createAdminSupabaseClient();
   const functionName =
     (input as { action: "unpublish" | "republish" }).action === "unpublish"
@@ -94,11 +117,18 @@ export async function POST(request: Request, { params }: Context) {
   );
 }
 
-export async function DELETE(_request: Request, { params }: Context) {
+export function DELETE(request: Request, context: Context) {
+  return observeRoute(request, "WRAP_REMOVE", "WRAP", (operation) =>
+    remove(context, operation),
+  );
+}
+
+async function remove({ params }: Context, operation: OperationContext) {
   const slug = await readSlug(params);
   if (!slug) return notFound();
   const owner = await activeOwner();
   if (owner.response) return owner.response;
+  operation.actorId = owner.userId;
   const { data, error } = await createAdminSupabaseClient().rpc("remove_wrap", {
     p_creator_id: owner.userId,
     p_slug: slug,

@@ -4,6 +4,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import {
+  logOperation,
+  recordCoreLoopEvent,
+  type OperationContext,
+} from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
@@ -52,6 +57,10 @@ export default async function WrapDetailPage({ params }: Props) {
   const wrap = data?.[0];
   if (!wrap) notFound();
   const access = await readProfileAccess(supabase);
+  await recordWrapView(
+    wrap.id,
+    access.status === "active" ? access.userId : null,
+  );
   const { data: commentData, error: commentError } = await supabase.rpc(
     "get_public_wrap_comments",
     {
@@ -196,5 +205,29 @@ export default async function WrapDetailPage({ params }: Props) {
         }
       />
     </main>
+  );
+}
+
+async function recordWrapView(wrapId: string, actorId: string | null) {
+  const viewOperation: OperationContext = {
+    correlationId: crypto.randomUUID(),
+    action: "WRAP_VIEW",
+    targetType: "WRAP",
+    startedAt: performance.now(),
+    ...(actorId ? { actorId } : {}),
+  };
+  const viewRecorded = await recordCoreLoopEvent({
+    eventKind: "WRAP_VIEW",
+    actorId,
+    targetType: "WRAP",
+    targetId: wrapId,
+    outcome: "SUCCESS",
+    code: "WRAP_VIEW",
+    correlationId: viewOperation.correlationId,
+  });
+  logOperation(
+    viewOperation,
+    viewRecorded ? "success" : "error",
+    viewRecorded ? "WRAP_VIEW" : "EVENT_WRITE_FAILED",
   );
 }

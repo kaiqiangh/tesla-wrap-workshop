@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadProblem } from "@/lib/upload/problem";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "UPLOAD_START", "UPLOAD", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   let input: unknown;
   try {
     input = await request.json();
@@ -35,6 +42,7 @@ export async function POST(request: Request) {
       "Complete or restore your Profile before trying again.",
     );
   }
+  operation.actorId = access.userId;
 
   const { data, error } = await supabase.rpc("start_pending_upload", {
     p_template_variant_id: input.templateVariantId,

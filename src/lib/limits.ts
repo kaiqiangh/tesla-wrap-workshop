@@ -4,7 +4,7 @@ export const SEARCH_SESSION_COOKIE = "wf_search_session";
 
 export function hmacPrincipal(
   secret: string,
-  kind: "email" | "network" | "search",
+  kind: "actor" | "email" | "network" | "search",
   value: string,
 ) {
   const digest = createHmac("sha256", secret).update(value).digest("hex");

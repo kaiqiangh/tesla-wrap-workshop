@@ -2,12 +2,17 @@ import { NextResponse } from "next/server";
 
 import { hmacPrincipal, requestNetworkPrincipal } from "../../../../lib/limits";
 import { readServerEnvironment } from "@/lib/env";
+import { observeRoute } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "OTP", "AUTH", () => post(request));
+}
+
+async function post(request: Request) {
   let input: unknown;
   try {
     input = await request.json();

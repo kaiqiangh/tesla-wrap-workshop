@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import {
   validateWrapMetadata,
   type WrapMetadataInput,
@@ -11,7 +12,13 @@ import { wrapProblem } from "@/lib/wraps/problem";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "WRAP_PUBLISH", "WRAP", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   let input: unknown;
   try {
     input = await request.json();
@@ -51,6 +58,7 @@ export async function POST(request: Request) {
       "Complete or restore your Profile before publishing.",
     );
   }
+  operation.actorId = access.userId;
 
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin.rpc("publish_wrap", {

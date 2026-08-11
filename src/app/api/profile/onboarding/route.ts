@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { validateOnboardingInput } from "@/lib/profile/onboarding";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "PROFILE_ONBOARD", "PROFILE", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   let input: unknown;
   try {
     input = await request.json();
@@ -30,6 +37,7 @@ export async function POST(request: Request) {
 
   const supabase = await createServerSupabaseClient();
   const access = await readProfileAccess(supabase);
+  if (access.status !== "guest") operation.actorId = access.userId;
   if (access.status === "guest") {
     return problem(401, "authentication_required", "Sign in to continue.");
   }
@@ -43,7 +51,6 @@ export async function POST(request: Request) {
       "Your Profile is already complete.",
     );
   }
-
   const { data, error } = await supabase.rpc("complete_profile", {
     p_username: validated.value.username,
     p_display_name: validated.value.displayName,

@@ -34,6 +34,54 @@ export type Database = {
   };
   public: {
     Tables: {
+      core_loop_events: {
+        Row: {
+          actor_id: string | null;
+          code: string;
+          correlation_id: string | null;
+          counted: boolean | null;
+          event_kind: string;
+          expires_at: string;
+          id: string;
+          occurred_at: string;
+          outcome: string;
+          principal_hash: string | null;
+          principal_kind: string | null;
+          target_id: string;
+          target_type: string;
+        };
+        Insert: {
+          actor_id?: string | null;
+          code: string;
+          correlation_id?: string | null;
+          counted?: boolean | null;
+          event_kind: string;
+          expires_at?: string;
+          id?: string;
+          occurred_at?: string;
+          outcome: string;
+          principal_hash?: string | null;
+          principal_kind?: string | null;
+          target_id: string;
+          target_type: string;
+        };
+        Update: {
+          actor_id?: string | null;
+          code?: string;
+          correlation_id?: string | null;
+          counted?: boolean | null;
+          event_kind?: string;
+          expires_at?: string;
+          id?: string;
+          occurred_at?: string;
+          outcome?: string;
+          principal_hash?: string | null;
+          principal_kind?: string | null;
+          target_id?: string;
+          target_type?: string;
+        };
+        Relationships: [];
+      };
       asset_cleanup_jobs: {
         Row: {
           attempts: number;
@@ -1124,6 +1172,7 @@ export type Database = {
           slug: string;
         }[];
       };
+      cleanup_core_loop_events: { Args: never; Returns: number };
       anonymize_expired_profiles: {
         Args: { p_limit?: number };
         Returns: number;
@@ -1687,6 +1736,21 @@ export type Database = {
           download_count: number;
           event_id: string;
         }[];
+      };
+      record_core_loop_event: {
+        Args: {
+          p_actor_id: string | null;
+          p_code: string;
+          p_correlation_id: string | null;
+          p_counted: boolean | null;
+          p_event_kind: string;
+          p_outcome: string;
+          p_principal_hash: string | null;
+          p_principal_kind: string | null;
+          p_target_id: string;
+          p_target_type: string;
+        };
+        Returns: string;
       };
       recover_profile: {
         Args: never;

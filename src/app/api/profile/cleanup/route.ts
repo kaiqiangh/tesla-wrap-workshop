@@ -17,6 +17,18 @@ export async function GET(request: Request) {
     );
 
   const admin = createAdminSupabaseClient();
+  const { data: coreLoopEventsDeleted, error: coreLoopEventsError } =
+    await admin.rpc("cleanup_core_loop_events");
+  if (coreLoopEventsError)
+    return NextResponse.json(
+      {
+        error: {
+          code: "core_loop_event_cleanup_unavailable",
+          message: "Core-loop event cleanup is temporarily unavailable.",
+        },
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
   const { data: anonymized, error: anonymizeError } = await admin.rpc(
     "anonymize_expired_profiles",
     { p_limit: 50 },
@@ -184,6 +196,7 @@ export async function GET(request: Request) {
   return NextResponse.json(
     {
       anonymized: anonymized ?? 0,
+      coreLoopEventsDeleted: coreLoopEventsDeleted ?? 0,
       assetCompleted,
       assetFailed,
       completed,

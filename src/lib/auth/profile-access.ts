@@ -5,8 +5,8 @@ import { createServerSupabaseClient } from "../supabase/server";
 
 export type ProfileAccess =
   | { status: "guest" }
-  | { status: "unavailable" }
-  | { status: "incomplete" }
+  | { status: "unavailable"; userId: string }
+  | { status: "incomplete"; userId: string }
   | { status: "active"; username: string; userId: string };
 
 export async function readProfileAccess(
@@ -21,10 +21,10 @@ export async function readProfileAccess(
   if (error) throw new Error("Profile access is temporarily unavailable");
   const access = data[0];
   if (!access || !access.may_onboard) {
-    return { status: "unavailable" };
+    return { status: "unavailable", userId: identity.claims.sub };
   }
   if (!access.may_participate || !access.username) {
-    return { status: "incomplete" };
+    return { status: "incomplete", userId: identity.claims.sub };
   }
   return {
     status: "active",

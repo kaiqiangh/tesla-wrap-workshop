@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -40,12 +41,22 @@ const OUTCOMES = new Set([
   "DUPLICATE",
 ]);
 
-export async function GET(request: Request) {
+export function GET(request: Request) {
+  return observeRoute(
+    request,
+    "ADMIN_REPORT_QUEUE",
+    "MODERATION",
+    (operation) => get(request, operation),
+  );
+}
+
+async function get(request: Request, operation: OperationContext) {
   try {
     const supabase = await createServerSupabaseClient();
     const access = await readProfileAccess(supabase);
     const authProblem = activeProblem(access.status);
     if (authProblem) return authProblem;
+    if (access.status === "active") operation.actorId = access.userId;
     const value = new URL(request.url).searchParams.get("status");
     const status = value ? value.toUpperCase() : null;
     if (status && !STATUSES.has(status)) {
@@ -70,7 +81,13 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "ADMIN_MODERATION", "MODERATION", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   if (!sameOriginRequest(request)) {
     return adminProblem(
       403,
@@ -93,6 +110,7 @@ export async function POST(request: Request) {
     const access = await readProfileAccess(supabase);
     const authProblem = activeProblem(access.status);
     if (authProblem) return authProblem;
+    if (access.status === "active") operation.actorId = access.userId;
     const { data, error } = await supabase.rpc("moderate_report", {
       p_report_id: input.reportId,
       p_action_kind: input.actionKind,

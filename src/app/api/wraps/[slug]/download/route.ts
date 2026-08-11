@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import {
   createGuestToken,
   GUEST_DOWNLOAD_COOKIE,
@@ -16,9 +17,19 @@ import { wrapProblem } from "@/lib/wraps/problem";
 
 export const runtime = "nodejs";
 
-export async function POST(
+export function POST(
+  request: Request,
+  context: { params: Promise<{ slug: string }> },
+) {
+  return observeRoute(request, "WRAP_DOWNLOAD", "DOWNLOAD", (operation) =>
+    post(request, context, operation),
+  );
+}
+
+async function post(
   request: Request,
   { params }: { params: Promise<{ slug: string }> },
+  operation: OperationContext,
 ) {
   const { slug } = await params;
   if (!/^[a-z0-9][a-z0-9-]{2,79}$/.test(slug)) {
@@ -52,6 +63,7 @@ export async function POST(
       "Your Profile cannot download right now.",
     );
   }
+  if (access.status === "active") operation.actorId = access.userId;
 
   const cookieStore = await cookies();
   const existingToken = cookieStore.get(GUEST_DOWNLOAD_COOKIE)?.value;

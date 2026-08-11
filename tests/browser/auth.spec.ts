@@ -499,6 +499,23 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  const publishedRow = await admin
+    .from("wraps")
+    .select("id")
+    .eq("slug", publishedSlug)
+    .single();
+  expect(publishedRow.error).toBeNull();
+  await expect
+    .poll(async () => {
+      const viewEvents = await admin
+        .from("core_loop_events")
+        .select("id")
+        .eq("event_kind", "WRAP_VIEW")
+        .eq("target_id", publishedRow.data!.id);
+      expect(viewEvents.error).toBeNull();
+      return viewEvents.data?.length ?? 0;
+    })
+    .toBeGreaterThan(0);
   const comments = page.locator(".comments-section");
   const commentStat = page
     .locator(".wrap-stats div")
@@ -801,6 +818,9 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     `/api/wraps/${publishedSlug}/download`,
   );
   expect(firstDownload.status()).toBe(200);
+  expect(firstDownload.headers()["x-correlation-id"]).toMatch(
+    /^[0-9a-f-]{36}$/,
+  );
   const firstDownloadBody = (await firstDownload.json()) as {
     downloadUrl: string;
     expiresAt: string;

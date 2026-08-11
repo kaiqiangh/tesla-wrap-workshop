@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import type { Json } from "@/lib/database.types";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { finalizePng, UploadValidationError } from "@/lib/upload/image";
@@ -15,9 +16,18 @@ export const maxDuration = 15;
 
 type Pending = Awaited<ReturnType<typeof readPending>>;
 
-export async function POST(
-  _request: Request,
+export function POST(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  return observeRoute(request, "UPLOAD_FINALIZE", "UPLOAD", (operation) =>
+    post(context, operation),
+  );
+}
+
+async function post(
   { params }: { params: Promise<{ id: string }> },
+  operation: OperationContext,
 ) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) return notFound();
@@ -33,6 +43,7 @@ export async function POST(
       "Restore your Profile or sign in again.",
     );
   }
+  operation.actorId = access.userId;
 
   let pending = await readPending(supabase, id);
   if (!pending) return notFound();
