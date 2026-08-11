@@ -140,6 +140,22 @@ function sameOriginRequest(request: Request, siteUrl: string) {
 }
 
 function mapDatabaseError(message: string) {
+  if (message === "download_minute_rate_limited") {
+    return downloadProblem(
+      429,
+      "WF-DOWNLOAD-RATE",
+      "Download activity is temporarily limited.",
+      { "retry-after": "60" },
+    );
+  }
+  if (message === "download_hour_rate_limited") {
+    return downloadProblem(
+      429,
+      "WF-DOWNLOAD-RATE",
+      "Download activity is temporarily limited.",
+      { "retry-after": "3600" },
+    );
+  }
   if (message === "download_unavailable") {
     return downloadProblem(
       404,
@@ -178,13 +194,19 @@ function mapDatabaseError(message: string) {
   return databaseProblem();
 }
 
-function downloadProblem(status: number, code: string, problem: string) {
+function downloadProblem(
+  status: number,
+  code: string,
+  problem: string,
+  headers: HeadersInit = {},
+) {
   return wrapProblem(
     status,
     code,
     problem,
     "Published Original Wrap Assets are served only through the private delivery endpoint.",
     "Retry the download after checking the Wrap and your Profile state.",
+    headers,
   );
 }
 

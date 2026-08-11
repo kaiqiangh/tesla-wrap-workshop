@@ -71,7 +71,7 @@ export function DiscoveryState({
   label,
   clearHref,
 }: {
-  state: "empty" | "error" | "missing" | "invalid";
+  state: "empty" | "error" | "missing" | "invalid" | "rate_limited";
   label: string;
   clearHref?: string;
 }) {
@@ -91,6 +91,10 @@ export function DiscoveryState({
     invalid: {
       title: "Check the Discovery filters.",
       body: "That search URL is not valid. Clear the filters and try again.",
+    },
+    rate_limited: {
+      title: "Search is temporarily limited.",
+      body: "This Guest Session has reached its short search budget. Retry shortly.",
     },
   }[state];
 

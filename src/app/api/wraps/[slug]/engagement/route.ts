@@ -122,9 +122,9 @@ function mapDatabaseError(message: string) {
       429,
       "WF-SOCIAL-RATE",
       "Social actions are temporarily limited.",
-      "At most ten Like or Favorite operations are allowed per User per rolling hour.",
+      "At most sixty Like or Favorite operations are allowed per User per rolling minute.",
       "Wait before trying another social action.",
-      { "retry-after": "3600" },
+      { "retry-after": "60" },
     );
   }
   return databaseProblem();

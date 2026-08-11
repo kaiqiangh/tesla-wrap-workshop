@@ -20,15 +20,23 @@ export function SignInForm({ next, siteUrl, googleEnabled }: Props) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
-    const supabase = createBrowserSupabaseClient();
-
     if (!codeSent) {
-      const { error } = await supabase.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: true },
-      });
+      let response: Response;
+      try {
+        response = await fetch("/api/auth/otp", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "send", email }),
+        });
+      } catch {
+        setBusy(false);
+        setMessage(
+          "We could not reach sign-in. Check your connection and try again.",
+        );
+        return;
+      }
       setBusy(false);
-      if (error) {
+      if (!response.ok) {
         setMessage("We could not send a code. Wait a moment and try again.");
         return;
       }
@@ -37,13 +45,22 @@ export function SignInForm({ next, siteUrl, googleEnabled }: Props) {
       return;
     }
 
-    const { error } = await supabase.auth.verifyOtp({
-      email,
-      token: code,
-      type: "email",
-    });
+    let response: Response;
+    try {
+      response = await fetch("/api/auth/otp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "verify", email, token: code }),
+      });
+    } catch {
+      setBusy(false);
+      setMessage(
+        "We could not reach sign-in. Check your connection and try again.",
+      );
+      return;
+    }
     setBusy(false);
-    if (error) {
+    if (!response.ok) {
       setMessage(
         "That code is invalid or expired. Request a new code and try again.",
       );

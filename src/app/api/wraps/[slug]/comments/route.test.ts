@@ -129,14 +129,14 @@ describe("POST /api/wraps/[slug]/comments", () => {
 
     mocks.rpc.mockResolvedValue({
       data: null,
-      error: { message: "comment_rate_limited" },
+      error: { message: "comment_minute_rate_limited" },
     });
     const rate = await POST(
       jsonRequest({ body: "hello", idempotencyKey: key }),
       { params },
     );
     expect(rate.status).toBe(429);
-    expect(rate.headers.get("retry-after")).toBe("3600");
+    expect(rate.headers.get("retry-after")).toBe("60");
 
     mocks.rpc.mockResolvedValue({
       data: null,

@@ -96,7 +96,7 @@ begin
       (v_revision, 'ORIGINAL', 'wrap-originals', v_owner::text || '/' || v_revision::text || '/original.png', v_variant.width_px, v_variant.height_px, 100, repeat('a', 64)),
       (v_revision, 'PREVIEW', 'wrap-derived', v_owner::text || '/' || v_revision::text || '/preview.png', v_variant.width_px, v_variant.height_px, 80, repeat('b', 64)),
       (v_revision, 'THUMBNAIL', 'wrap-derived', v_owner::text || '/' || v_revision::text || '/thumbnail.png', 320, 240, 60, repeat('c', 64));
-    perform public.publish_wrap(
+    perform public.publish_wrap_base(
       v_owner, v_revision, v_variant.id, v_title,
       'A bounded public description.', 'PERSONAL_USE_ALLOWED',
       array['Community', 'tesla'], true, true
@@ -390,7 +390,7 @@ begin
   end loop;
 end
 $boundary$;
-set local role anon;
+set local role service_role;
 select is(
   jsonb_array_length((select public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)->'items')),
   24,
@@ -429,7 +429,7 @@ select is(
 );
 reset role;
 delete from public.wraps where slug like 'boundary-wrap-%';
-set local role anon;
+set local role service_role;
 select has_function(
   'public', 'search_discovery_wraps',
   array['text', 'text', 'text', 'text', 'text', 'integer'],
@@ -556,7 +556,7 @@ reset role;
 update public.discovery_ranking_state
 set calculated_at = current_timestamp - interval '3 hours', status = 'LIVE'
 where id;
-set local role anon;
+set local role service_role;
 select is(
   (select public.search_discovery_wraps(null, null, null, 'TRENDING', null, 1)->>'ranking_status'),
   'FALLBACK_NEWEST',
@@ -588,7 +588,7 @@ where wt.tag_id = t.id
 update public.wraps
 set download_count = 100
 where title = 'Cybertruck Wrap';
-set local role anon;
+set local role service_role;
 select is(
   (select (public.search_discovery_wraps(null, null, null, 'MOST_DOWNLOADED', null, 1)->'items'->0->>'title')),
   'Cybertruck Wrap',

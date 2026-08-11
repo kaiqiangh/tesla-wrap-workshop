@@ -162,4 +162,12 @@ describe("discovery read boundary", () => {
       await searchDiscoveryWraps(client({ items: [], ranking_status: "LIVE" })),
     ).toEqual({ status: "error", wraps: [], nextCursor: null });
   });
+
+  it("preserves search rate limits as a distinct state", async () => {
+    expect(
+      await searchDiscoveryWraps(
+        client(null, { message: "search_rate_limited" }),
+      ),
+    ).toEqual({ status: "rate_limited", wraps: [], nextCursor: null });
+  });
 });

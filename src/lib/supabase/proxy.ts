@@ -27,5 +27,14 @@ export async function refreshSupabaseSession(request: NextRequest) {
   );
 
   await supabase.auth.getClaims();
+  if (!request.cookies.get("wf_search_session")) {
+    response.cookies.set("wf_search_session", crypto.randomUUID(), {
+      httpOnly: true,
+      maxAge: 86_400,
+      path: "/",
+      sameSite: "lax",
+      secure: env.WRAPFORGE_ENVIRONMENT !== "local",
+    });
+  }
   return response;
 }

@@ -44,11 +44,12 @@ export async function POST(request: Request) {
   });
   if (error?.message === "too_many_active_uploads") {
     return uploadProblem(
-      409,
+      429,
       "WF-UPLOAD-ACTIVE-LIMIT",
       "You already have two active uploads.",
       "At most two Pending Uploads may be active.",
       "Finish or wait for an existing upload to expire, then try again.",
+      { "retry-after": "60" },
     );
   }
   if (error?.message === "upload_rate_limited") {
@@ -77,6 +78,15 @@ export async function POST(request: Request) {
       "That Template Variant is no longer Active.",
       "New uploads require an Active database-backed Template Variant.",
       "Choose another Active Template Variant.",
+    );
+  }
+  if (error?.message === "launch_policy_missing") {
+    return uploadProblem(
+      503,
+      "WF-UPLOAD-DATABASE",
+      "Upload protection is temporarily unavailable.",
+      "The upload limit policy is unavailable, so no Pending Upload was created.",
+      "Retry after the service recovers.",
     );
   }
   const upload = data?.[0];

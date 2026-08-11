@@ -165,7 +165,7 @@ describe("POST /api/wraps/[slug]/engagement", () => {
       { params },
     );
     expect(response.status).toBe(429);
-    expect(response.headers.get("retry-after")).toBe("3600");
+    expect(response.headers.get("retry-after")).toBe("60");
     expect((await response.json()).error.code).toBe("WF-SOCIAL-RATE");
   });
 });

@@ -212,6 +212,10 @@ select results_eq(
   $$ values ('USER'::text, 'SPAM'::text, true) $$,
   'an eligible User can Report another public Profile'
 );
+set local role service_role;
+delete from private.launch_rate_buckets
+where principal_key = 'v1:user:87000000-0000-0000-0000-000000000001';
+reset role;
 select results_eq(
   $$
     select reasons.reason, report.created
@@ -271,8 +275,16 @@ where user_id = '87000000-0000-0000-0000-000000000001';
 
 reset role;
 
-update private.report_rate_limits
-set operation_count = 9;
+set local role service_role;
+insert into private.launch_rate_buckets (
+  policy_key, principal_key, window_started_at, operation_count
+) values
+  ('report_user_hour', 'v1:user:87000000-0000-0000-0000-000000000001', clock_timestamp(), 4),
+  ('report_user_day', 'v1:user:87000000-0000-0000-0000-000000000001', clock_timestamp(), 4)
+on conflict (policy_key, principal_key) do update
+set window_started_at = excluded.window_started_at,
+    operation_count = excluded.operation_count;
+reset role;
 
 set local role authenticated;
 select set_config(
@@ -290,8 +302,12 @@ select results_eq(
 );
 reset role;
 
-update private.report_rate_limits
-set operation_count = 10;
+set local role service_role;
+update private.launch_rate_buckets
+set operation_count = 5
+where principal_key = 'v1:user:87000000-0000-0000-0000-000000000001'
+  and policy_key in ('report_user_hour', 'report_user_day');
+reset role;
 
 set local role authenticated;
 select set_config(
@@ -304,7 +320,7 @@ select throws_ok(
        'USER', 'report-creator', 'OFFENSIVE_CONTENT', null,
        '8b000000-0000-4000-8000-000000000009'
      ) $$,
-  'P0001', 'report_rate_limited',
+  'P0001', 'report_hour_rate_limited',
   'the rolling Report limit denies the eleventh mutation'
 );
 reset role;

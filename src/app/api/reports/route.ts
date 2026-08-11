@@ -206,14 +206,24 @@ function mapDatabaseError(message: string) {
       "Start a new Report if the target or reason changed.",
     );
   }
-  if (message === "report_rate_limited") {
+  if (message === "report_hour_rate_limited") {
     return reportProblem(
       429,
       "WF-REPORT-RATE",
       "Reports are temporarily limited.",
-      "At most ten new Reports are allowed per User per rolling hour.",
+      "At most five new Reports are allowed per User per rolling hour.",
       "Wait before submitting another Report.",
       { "retry-after": "3600" },
+    );
+  }
+  if (message === "report_day_rate_limited") {
+    return reportProblem(
+      429,
+      "WF-REPORT-RATE",
+      "Reports are temporarily limited.",
+      "At most twenty new Reports are allowed per User per rolling day.",
+      "Wait before submitting another Report.",
+      { "retry-after": "86400" },
     );
   }
   return databaseProblem();

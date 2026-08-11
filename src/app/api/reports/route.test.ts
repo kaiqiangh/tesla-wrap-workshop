@@ -120,7 +120,7 @@ describe("POST /api/reports", () => {
     mocks.readProfileAccess.mockResolvedValue({ status: "active" });
     for (const [message, status, code] of [
       ["report_self_target", 409, "WF-REPORT-SELF"],
-      ["report_rate_limited", 429, "WF-REPORT-RATE"],
+      ["report_hour_rate_limited", 429, "WF-REPORT-RATE"],
       ["opaque database detail", 503, "WF-REPORT-DATABASE"],
     ] as const) {
       mocks.rpc.mockResolvedValue({ data: null, error: { message } });

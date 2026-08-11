@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 export type DiscoveryKind = "TRENDING" | "NEWEST" | "MODEL";
 export type DiscoverySort = "TRENDING" | "NEWEST" | "MOST_DOWNLOADED";
 export type DiscoveryRankingStatus = "LIVE" | "STALE" | "FALLBACK_NEWEST";
@@ -65,6 +67,7 @@ export type DiscoverySearchResult =
       rankingStatus: DiscoveryRankingStatus;
     }
   | { status: "invalid"; wraps: []; nextCursor: null }
+  | { status: "rate_limited"; wraps: []; nextCursor: null }
   | { status: "error"; wraps: []; nextCursor: null };
 
 export type PublicVehicleModel = {
@@ -74,6 +77,11 @@ export type PublicVehicleModel = {
 };
 
 type DiscoveryClient = {
+  auth?: {
+    getUser?: () => PromiseLike<{
+      data: { user: { id: string } | null };
+    }>;
+  };
   rpc: {
     (
       name: "get_discovery_wraps",
@@ -96,6 +104,19 @@ type DiscoveryClient = {
         p_q?: string;
         p_sort?: DiscoverySort;
         p_variant_key?: string;
+      },
+    ): PromiseLike<{ data: unknown; error: unknown }>;
+    (
+      name: "search_discovery_wraps_for_principal",
+      args: {
+        p_cursor?: string;
+        p_limit?: number;
+        p_model_slug?: string;
+        p_principal_key: string;
+        p_q?: string;
+        p_sort?: DiscoverySort;
+        p_variant_key?: string;
+        p_viewer_id?: string | null;
       },
     ): PromiseLike<{ data: unknown; error: unknown }>;
   };
@@ -156,14 +177,25 @@ export async function searchDiscoveryWraps(
     limit?: number;
   } = {},
 ): Promise<DiscoverySearchResult> {
-  const { data, error } = await client.rpc("search_discovery_wraps", {
+  const principal = await readSearchPrincipal();
+  const args = {
     ...(options.q ? { p_q: options.q } : {}),
     ...(options.modelSlug ? { p_model_slug: options.modelSlug } : {}),
     ...(options.variantKey ? { p_variant_key: options.variantKey } : {}),
     p_sort: options.sort ?? "NEWEST",
     ...(options.cursor ? { p_cursor: options.cursor } : {}),
     p_limit: options.limit ?? 24,
-  });
+  };
+  const { data, error } = principal
+    ? await (async () => {
+        const viewerId = await readViewerId(client);
+        const { createAdminSupabaseClient } = await import("./supabase/admin");
+        return createAdminSupabaseClient().rpc(
+          "search_discovery_wraps_for_principal",
+          { ...args, p_principal_key: principal, p_viewer_id: viewerId },
+        );
+      })()
+    : await client.rpc("search_discovery_wraps", args);
   if (error) {
     const message =
       typeof error === "object" && error !== null && "message" in error
@@ -171,6 +203,9 @@ export async function searchDiscoveryWraps(
         : "";
     if (message.includes("invalid_discovery_")) {
       return { status: "invalid", wraps: [], nextCursor: null };
+    }
+    if (message === "search_rate_limited") {
+      return { status: "rate_limited", wraps: [], nextCursor: null };
     }
     if (options.sort === "TRENDING" && !options.cursor) {
       const fallback = await searchDiscoveryWraps(client, {
@@ -226,6 +261,32 @@ export async function searchDiscoveryWraps(
     calculatedAt,
     rankingStatus,
   };
+}
+
+async function readSearchPrincipal() {
+  try {
+    const [{ cookies }, { hmacPrincipal }] = await Promise.all([
+      import("next/headers"),
+      import("./limits"),
+    ]);
+    const session =
+      (await cookies()).get("wf_search_session")?.value ?? randomUUID();
+    const secret = process.env.DOWNLOAD_PRINCIPAL_HMAC_SECRET;
+    if (!secret) throw new Error("search_principal_unavailable");
+    return hmacPrincipal(secret, "search", session);
+  } catch (error) {
+    if (process.env.NODE_ENV === "test") return undefined;
+    throw error;
+  }
+}
+
+async function readViewerId(client: DiscoveryClient) {
+  try {
+    const result = await client.auth?.getUser?.();
+    return result?.data.user?.id ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export async function searchDiscoveryWrapsForPage(

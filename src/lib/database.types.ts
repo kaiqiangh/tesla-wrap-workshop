@@ -1204,6 +1204,22 @@ export type Database = {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
+      consume_otp_failure_limit: {
+        Args: { p_email_principal: string; p_network_principal: string };
+        Returns: undefined;
+      };
+      consume_otp_limit: {
+        Args: { p_email_principal: string; p_network_principal: string };
+        Returns: undefined;
+      };
+      consume_user_launch_limit: {
+        Args: {
+          p_error_code?: string;
+          p_policy_key: string;
+          p_user_id: string;
+        };
+        Returns: undefined;
+      };
       create_report: {
         Args: {
           p_detail: string;
@@ -1727,6 +1743,19 @@ export type Database = {
           p_q?: string;
           p_sort?: string;
           p_variant_key?: string;
+        };
+        Returns: Json;
+      };
+      search_discovery_wraps_for_principal: {
+        Args: {
+          p_cursor?: string;
+          p_limit?: number;
+          p_model_slug?: string;
+          p_principal_key?: string;
+          p_q?: string;
+          p_sort?: string;
+          p_variant_key?: string;
+          p_viewer_id?: string | null;
         };
         Returns: Json;
       };

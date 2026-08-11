@@ -1,7 +1,12 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type BrowserContext,
+} from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
 
@@ -248,6 +253,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   const suffix = `${testInfo.project.name}-${randomUUID()}`;
   const email = `browser-${suffix}@example.test`;
   const username = `road${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+  const guestPrincipal = `browser-guest-principal-${suffix}`;
 
   await page.goto("/upload");
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fupload$/);
@@ -887,7 +893,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   await guestContext.addCookies([
     {
       name: "wf_guest_download",
-      value: "browser-guest-principal",
+      value: guestPrincipal,
       domain: "127.0.0.1",
       path: "/",
       secure: true,
@@ -916,8 +922,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     .single();
   const guestResponses = await Promise.all(
     Array.from({ length: 20 }, () =>
-      guestPage.request.post(`/api/wraps/${publishedSlug}/download`, {
-        headers: { cookie: "wf_guest_download=browser-guest-principal" },
+      postWithRetry(guestPage.request, `/api/wraps/${publishedSlug}/download`, {
+        headers: { cookie: `wf_guest_download=${guestPrincipal}` },
       }),
     ),
   );
@@ -937,7 +943,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     "sha256",
     requiredEnvironment("DOWNLOAD_PRINCIPAL_HMAC_SECRET"),
   )
-    .update("browser-guest-principal")
+    .update(guestPrincipal)
     .digest("hex")}`;
   const { data: guestEvents, error: guestEventsError } = await admin
     .from("download_events")
@@ -1096,7 +1102,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   expect(parallelTransfer.status()).toBe(200);
   const concurrent = await Promise.all(
     Array.from({ length: 20 }, async () => {
-      let response = await page.request.post(
+      let response = await postWithRetry(
+        page.request,
         `/api/uploads/${parallel.id}/finalize`,
       );
       for (
@@ -1109,7 +1116,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
         };
         expect(response.status()).toBe(503);
         expect(body.error?.code).toBe("WF-UPLOAD-BUSY");
-        response = await page.request.post(
+        response = await postWithRetry(
+          page.request,
           `/api/uploads/${parallel.id}/finalize`,
         );
       }
@@ -1130,7 +1138,7 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   ).toBe(1);
   const repeated = await Promise.all(
     Array.from({ length: 20 }, () =>
-      page.request.post(`/api/uploads/${startBody.id}/finalize`),
+      postWithRetry(page.request, `/api/uploads/${startBody.id}/finalize`),
     ),
   );
   expect(repeated.every((response) => response.status() === 200)).toBe(true);
@@ -1423,6 +1431,23 @@ async function expectRouteBodyContains(
       { timeout: 15000 },
     )
     .toContain(expected);
+}
+
+async function postWithRetry(
+  request: APIRequestContext,
+  url: string,
+  options?: Parameters<APIRequestContext["post"]>[1],
+) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await request.post(url, options);
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+  }
+  throw lastError;
 }
 
 async function readSessionCookie(context: BrowserContext): Promise<Session> {

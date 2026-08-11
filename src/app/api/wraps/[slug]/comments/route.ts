@@ -129,12 +129,22 @@ function mapDatabaseError(message: string) {
   ) {
     return requestProblem();
   }
-  if (message === "comment_rate_limited") {
+  if (message === "comment_minute_rate_limited") {
     return commentProblem(
       429,
       "WF-COMMENT-RATE",
       "Comments are temporarily limited.",
-      "At most ten new Comments are allowed per User per rolling hour.",
+      "At most five new Comments are allowed per User per rolling minute.",
+      "Wait before adding another Comment.",
+      { "retry-after": "60" },
+    );
+  }
+  if (message === "comment_hour_rate_limited") {
+    return commentProblem(
+      429,
+      "WF-COMMENT-RATE",
+      "Comments are temporarily limited.",
+      "At most thirty new Comments are allowed per User per rolling hour.",
       "Wait before adding another Comment.",
       { "retry-after": "3600" },
     );

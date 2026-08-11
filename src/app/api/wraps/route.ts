@@ -130,6 +130,16 @@ function requestProblem() {
 }
 
 function mapDatabaseError(message: string) {
+  if (message === "publish_rate_limited") {
+    return wrapProblem(
+      429,
+      "WF-WRAP-RATE",
+      "Publication activity is temporarily limited.",
+      "A User may publish or unpublish at most ten times per rolling hour.",
+      "Wait before changing Wrap visibility again.",
+      { "retry-after": "3600" },
+    );
+  }
   if (message === "wrap_not_allowed") {
     return wrapProblem(
       403,

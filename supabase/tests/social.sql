@@ -352,12 +352,19 @@ select results_eq(
   $$ values (true, true) $$,
   'the Discovery projection shares the Favorite viewer state'
 );
+reset role;
+set local role service_role;
 select is(
-  (public.search_discovery_wraps(null, null, null, 'NEWEST', null, 24)
-    -> 'items' -> 0 ->> 'liked')::boolean,
+  (public.search_discovery_wraps_for_principal(
+    null, null, null, 'NEWEST', null, 24,
+    'v1:user:81000000-0000-0000-0000-000000000001',
+    '81000000-0000-0000-0000-000000000001'
+  ) -> 'items' -> 0 ->> 'liked')::boolean,
   true,
   'the paginated Discovery projection shares the Like viewer state'
 );
+reset role;
+set local role authenticated;
 select results_eq(
   $$ select slug, liked, favorited
      from public.get_my_favorites(0, 25) $$,
@@ -582,12 +589,14 @@ select results_eq(
   'the rate-limit fixture starts from an existing Like'
 );
 reset role;
-insert into private.social_toggle_rate_limits (
-  user_id, window_started_at, operation_count
+insert into private.launch_rate_buckets (
+  policy_key, principal_key, window_started_at, operation_count
 ) values (
-  '81000000-0000-0000-0000-000000000001', clock_timestamp(), 10
+  'social_user_minute',
+  'v1:user:81000000-0000-0000-0000-000000000001',
+  clock_timestamp(), 60
 )
-on conflict (user_id) do update
+on conflict (policy_key, principal_key) do update
 set window_started_at = excluded.window_started_at,
     operation_count = excluded.operation_count;
 set local role authenticated;
@@ -620,8 +629,9 @@ select is(
   1::bigint,
   'a rate-limited operation does not add an engagement event'
 );
-delete from private.social_toggle_rate_limits
-where user_id = '81000000-0000-0000-0000-000000000001';
+delete from private.launch_rate_buckets
+where policy_key = 'social_user_minute'
+  and principal_key = 'v1:user:81000000-0000-0000-0000-000000000001';
 set local role authenticated;
 select set_config(
   'request.jwt.claims',

@@ -76,11 +76,12 @@ export async function POST(request: Request, { params }: Context) {
   }
   const owner = await activeOwner();
   if (owner.response) return owner.response;
+  const admin = createAdminSupabaseClient();
   const functionName =
     (input as { action: "unpublish" | "republish" }).action === "unpublish"
       ? "unpublish_wrap"
       : "republish_wrap";
-  const { data, error } = await createAdminSupabaseClient().rpc(functionName, {
+  const { data, error } = await admin.rpc(functionName, {
     p_creator_id: owner.userId,
     p_slug: slug,
   });
@@ -187,6 +188,16 @@ function notFound() {
 }
 
 function mapError(message: string) {
+  if (message === "publish_rate_limited") {
+    return wrapProblem(
+      429,
+      "WF-WRAP-RATE",
+      "Publication activity is temporarily limited.",
+      "A User may publish or unpublish at most ten times per rolling hour.",
+      "Wait before changing Wrap visibility again.",
+      { "retry-after": "3600" },
+    );
+  }
   if (message === "wrap_not_found") return notFound();
   if (message === "wrap_not_allowed") {
     return wrapProblem(
