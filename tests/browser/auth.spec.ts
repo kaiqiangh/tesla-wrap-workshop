@@ -425,8 +425,13 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
       response.url().endsWith(`/api/wraps/${publishedSlug}/download`) &&
       response.request().method() === "POST",
   );
+  const signedNavigation = Promise.race([
+    page.waitForEvent("download", { timeout: 10000 }),
+    page.waitForURL(/\/storage\/v1\/object\/sign\//, { timeout: 10000 }),
+  ]);
   await page.getByRole("button", { name: "Download Original Wrap" }).click();
   expect((await uiDownloadResponse).status()).toBe(200);
+  await signedNavigation.catch(() => undefined);
   await page.goto(`/wrap/${publishedSlug}/download`);
   const guestContext = await browser.newContext({
     baseURL: "http://127.0.0.1:3000",
