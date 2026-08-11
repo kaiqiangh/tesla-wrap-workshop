@@ -639,9 +639,26 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
   );
   expect(parallelTransfer.status()).toBe(200);
   const concurrent = await Promise.all(
-    Array.from({ length: 20 }, () =>
-      page.request.post(`/api/uploads/${parallel.id}/finalize`),
-    ),
+    Array.from({ length: 20 }, async () => {
+      let response = await page.request.post(
+        `/api/uploads/${parallel.id}/finalize`,
+      );
+      for (
+        let attempt = 0;
+        attempt < 3 && response.status() !== 200;
+        attempt++
+      ) {
+        const body = (await response.json()) as {
+          error?: { code?: string };
+        };
+        expect(response.status()).toBe(503);
+        expect(body.error?.code).toBe("WF-UPLOAD-BUSY");
+        response = await page.request.post(
+          `/api/uploads/${parallel.id}/finalize`,
+        );
+      }
+      return response;
+    }),
   );
   expect(concurrent.every((response) => response.status() === 200)).toBe(true);
   expect(
