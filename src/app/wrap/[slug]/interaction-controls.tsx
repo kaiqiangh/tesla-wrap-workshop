@@ -7,16 +7,20 @@ type Props = {
   slug: string;
   initialLikeCount: number;
   initialFavoriteCount: number;
+  initialLiked: boolean;
+  initialFavorited: boolean;
 };
 
 export function InteractionControls({
   slug,
   initialLikeCount,
   initialFavoriteCount,
+  initialLiked,
+  initialFavorited,
 }: Props) {
   const router = useRouter();
-  const [liked, setLiked] = useState(false);
-  const [favorited, setFavorited] = useState(false);
+  const [liked, setLiked] = useState(initialLiked);
+  const [favorited, setFavorited] = useState(initialFavorited);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
   const [favoriteCount, setFavoriteCount] = useState(initialFavoriteCount);
   const [busy, setBusy] = useState(false);
@@ -43,6 +47,10 @@ export function InteractionControls({
         error?: { problem?: string };
       };
       if (response.status === 401) {
+        setLiked(previous.liked);
+        setFavorited(previous.favorited);
+        setLikeCount(previous.likeCount);
+        setFavoriteCount(previous.favoriteCount);
         router.push(
           `/sign-in?next=${encodeURIComponent(window.location.pathname)}`,
         );
@@ -59,6 +67,7 @@ export function InteractionControls({
       if (typeof body.favoriteCount === "number") {
         setFavoriteCount(body.favoriteCount);
       }
+      router.refresh();
     } catch (cause) {
       setLiked(previous.liked);
       setFavorited(previous.favorited);

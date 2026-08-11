@@ -197,6 +197,48 @@ select results_eq(
   $$ values ('FAVORITE'::text, false, 0::bigint, 0::bigint) $$,
   'Unfavorite removes the eligible Favorite aggregate'
 );
+select throws_ok(
+  $$ select * from public.toggle_wrap_engagement(
+       'social-fixture-wrap', null::text, true
+     ) $$,
+  '22023', 'invalid_social_kind',
+  'the RPC rejects a null social kind'
+);
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', true) $$,
+  $$ values ('LIKE'::text, true, 1::bigint, 0::bigint) $$,
+  'a Like can be restored before an actor state transition'
+);
+reset role;
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = '81000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'suspending an actor immediately removes cached Like influence'
+);
+update public.profiles
+set participation_state = 'ACTIVE'
+where user_id = '81000000-0000-0000-0000-000000000001';
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'restoring an actor restores independently eligible Like influence'
+);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'LIKE', false) $$,
+  $$ values ('LIKE'::text, false, 0::bigint, 0::bigint) $$,
+  'the state-transition fixture can be cleared idempotently'
+);
 select set_config(
   'request.jwt.claims',
   '{"sub":"81000000-0000-0000-0000-000000000002","role":"authenticated"}',

@@ -48,6 +48,11 @@ export default async function WrapDetailPage({ params }: Props) {
   const wrap = data?.[0];
   if (!wrap) notFound();
   const access = await readProfileAccess(supabase);
+  const { data: engagementData } = await supabase.rpc(
+    "get_wrap_engagement_state",
+    { p_slug: wrap.slug },
+  );
+  const engagement = engagementData?.[0];
   const canManage =
     access.status === "active" && access.username === wrap.creator_username;
   const license =
@@ -122,8 +127,12 @@ export default async function WrapDetailPage({ params }: Props) {
           </div>
           <InteractionControls
             slug={wrap.slug}
-            initialLikeCount={wrap.like_count}
-            initialFavoriteCount={wrap.favorite_count}
+            initialLikeCount={engagement?.like_count ?? wrap.like_count}
+            initialFavoriteCount={
+              engagement?.favorite_count ?? wrap.favorite_count
+            }
+            initialLiked={engagement?.liked ?? false}
+            initialFavorited={engagement?.favorited ?? false}
           />
           <p className="download-coming-soon">
             Download confirmation shows the exact Template Variant and current

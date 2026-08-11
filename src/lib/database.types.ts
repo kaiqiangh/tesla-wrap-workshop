@@ -1133,6 +1133,15 @@ export type Database = {
           sha256: string;
         }[];
       };
+      get_wrap_engagement_state: {
+        Args: { p_slug: string };
+        Returns: {
+          favorite_count: number;
+          favorited: boolean;
+          like_count: number;
+          liked: boolean;
+        }[];
+      };
       prepare_original_download: {
         Args: { p_slug: string; p_user_id: string };
         Returns: {
