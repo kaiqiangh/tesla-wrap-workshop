@@ -72,6 +72,18 @@ _Avoid_: Seller, artist account
 A registered community member who may interact with Wraps and becomes a Creator by publishing one.
 _Avoid_: Account, customer
 
+**Google Identity**:
+The verified identity returned by Google OAuth and used to authenticate a WrapForge User. WrapForge accepts Google accounts without a Workspace-domain restriction.
+_Avoid_: Google profile, email account
+
+**Email Sign-in**:
+The legacy email-based authentication path that is not part of the supported login experience after the Google-only transition.
+_Avoid_: Email identity, password account
+
+**Onboarding**:
+The required first-use step where a newly authenticated User completes the Profile information needed to participate in the community.
+_Avoid_: Registration form, account setup
+
 **Profile**:
 The public identity and attribution record for a User, addressed by a unique Username.
 _Avoid_: Account, creator page
