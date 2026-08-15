@@ -1387,6 +1387,8 @@ async function seedGoogleTestSession(context: BrowserContext, email: string) {
   }
 
   const sessionId = randomUUID();
+  const identityId = randomUUID();
+  const providerId = `google-${created.data.user.id}`;
   const refreshToken = randomBytes(9).toString("base64url");
   const now = Math.floor(Date.now() / 1000);
   const accessToken = signTestJwt(
@@ -1422,12 +1424,18 @@ async function seedGoogleTestSession(context: BrowserContext, email: string) {
       `session_id=${sessionId}`,
       "-v",
       `refresh_token=${refreshToken}`,
+      "-v",
+      `identity_id=${identityId}`,
+      "-v",
+      `provider_id=${providerId}`,
+      "-v",
+      `email=${email}`,
       "-f",
       "-",
     ],
     {
       input:
-        "insert into auth.sessions (id, user_id, created_at, updated_at, aal) values (:'session_id'::uuid, :'user_id'::uuid, now(), now(), 'aal1'); insert into auth.refresh_tokens (instance_id, token, user_id, revoked, created_at, updated_at, session_id) values ('00000000-0000-0000-0000-000000000000'::uuid, :'refresh_token', :'user_id', false, now(), now(), :'session_id'::uuid);\n",
+        "delete from auth.identities where user_id = :'user_id'::uuid; insert into auth.identities (provider_id, user_id, identity_data, provider, email, id, created_at, updated_at) values (:'provider_id', :'user_id'::uuid, jsonb_build_object('provider_id', :'provider_id', 'sub', :'provider_id', 'email', :'email', 'email_verified', true, 'name', 'Test Google User'), 'google', :'email', :'identity_id'::uuid, now(), now()); insert into auth.sessions (id, user_id, created_at, updated_at, aal) values (:'session_id'::uuid, :'user_id'::uuid, now(), now(), 'aal1'); insert into auth.refresh_tokens (instance_id, token, user_id, revoked, created_at, updated_at, session_id) values ('00000000-0000-0000-0000-000000000000'::uuid, :'refresh_token', :'user_id', false, now(), now(), :'session_id'::uuid);\n",
       stdio: ["pipe", "ignore", "pipe"],
     },
   );
