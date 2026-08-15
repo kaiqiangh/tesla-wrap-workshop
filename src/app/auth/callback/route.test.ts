@@ -50,6 +50,36 @@ describe("GET /auth/callback", () => {
     );
   });
 
+  it("maps an unexpected Supabase client failure to the stable sign-in error", async () => {
+    mocks.createServer.mockRejectedValue(new Error("database unavailable"));
+    const response = await GET(
+      new Request(
+        "http://127.0.0.1:3000/auth/callback?code=valid&next=%2Fupload",
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:3000/sign-in?error=oauth_failed&next=%2Fupload",
+    );
+  });
+
+  it("maps an unexpected code exchange failure to the stable sign-in error", async () => {
+    mocks.createServer.mockResolvedValue({
+      auth: {
+        exchangeCodeForSession: vi
+          .fn()
+          .mockRejectedValue(new Error("database unavailable")),
+      },
+    });
+    const response = await GET(
+      new Request(
+        "http://127.0.0.1:3000/auth/callback?code=valid&next=%2Fupload",
+      ),
+    );
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:3000/sign-in?error=oauth_failed&next=%2Fupload",
+    );
+  });
+
   it("continues to auth completion after a successful PKCE exchange", async () => {
     const exchangeCodeForSession = vi.fn().mockResolvedValue({ error: null });
     mocks.createServer.mockResolvedValue({

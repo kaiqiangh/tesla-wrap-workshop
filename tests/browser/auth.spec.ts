@@ -77,6 +77,39 @@ test("Guest can begin Google sign-in", async ({ page }) => {
   await expect(page).toHaveURL(/\/sign-in\?next=%2Ffavorites$/);
 });
 
+test("Google sign-in recovers from a client dependency failure", async ({
+  page,
+}) => {
+  await page.goto("/sign-in?next=/upload");
+  await page.evaluate(() => {
+    const subtle = window.crypto.subtle;
+    const originalDigest = subtle.digest.bind(subtle);
+    Object.defineProperty(subtle, "digest", {
+      configurable: true,
+      value: async () => {
+        Object.defineProperty(subtle, "digest", {
+          configurable: true,
+          value: originalDigest,
+        });
+        throw new Error("forced PKCE dependency failure");
+      },
+    });
+  });
+
+  const button = page.getByRole("button", { name: "Continue with Google" });
+  await button.click();
+  await expect(
+    page.getByText(
+      "Google sign-in is temporarily unavailable. Please try again.",
+    ),
+  ).toBeVisible();
+  await expect(button).toBeEnabled();
+
+  const authorizeRequest = page.waitForRequest("**/auth/v1/authorize**");
+  await button.click({ noWaitAfter: true });
+  expect((await authorizeRequest).url()).toContain("provider=google");
+});
+
 test("OAuth callback rejects missing codes and external destinations", async ({
   page,
 }) => {

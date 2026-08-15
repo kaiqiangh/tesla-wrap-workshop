@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { readProfileAccessOrRedirect } from "@/lib/auth/entry-access";
 import { safeNextPath } from "@/lib/auth/redirect";
 
 import { Brand } from "../brand";
@@ -19,7 +19,7 @@ export default async function OnboardingPage({
   searchParams: Promise<{ next?: string }>;
 }) {
   const next = safeNextPath((await searchParams).next);
-  const access = await readProfileAccess();
+  const access = await readProfileAccessOrRedirect(next);
   if (access.status === "guest") {
     redirect(`/sign-in?next=${encodeURIComponent(next)}`);
   }

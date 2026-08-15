@@ -11,26 +11,27 @@ export async function GET(request: Request) {
   const code = requestUrl.searchParams.get("code");
 
   if (!code) {
-    return NextResponse.redirect(
-      new URL(
-        `/sign-in?error=oauth_failed&next=${encodeURIComponent(next)}`,
-        siteUrl,
-      ),
-    );
+    return oauthFailure(siteUrl, next);
   }
 
-  const supabase = await createServerSupabaseClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
-  if (error) {
-    return NextResponse.redirect(
-      new URL(
-        `/sign-in?error=oauth_failed&next=${encodeURIComponent(next)}`,
-        siteUrl,
-      ),
-    );
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return oauthFailure(siteUrl, next);
+  } catch {
+    return oauthFailure(siteUrl, next);
   }
 
   return NextResponse.redirect(
     new URL(`/auth/complete?next=${encodeURIComponent(next)}`, siteUrl),
+  );
+}
+
+function oauthFailure(siteUrl: string, next: string) {
+  return NextResponse.redirect(
+    new URL(
+      `/sign-in?error=oauth_failed&next=${encodeURIComponent(next)}`,
+      siteUrl,
+    ),
   );
 }

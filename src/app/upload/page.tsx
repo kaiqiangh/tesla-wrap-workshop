@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { readProfileAccessOrRedirect } from "@/lib/auth/entry-access";
 import { getCatalog } from "@/lib/catalog";
 
 import { UploadStudio } from "./upload-studio";
@@ -17,7 +17,7 @@ export default async function UploadPage({
 }: {
   searchParams?: Promise<{ replace?: string | string[] }>;
 }) {
-  const access = await readProfileAccess();
+  const access = await readProfileAccessOrRedirect("/upload");
   if (access.status === "guest") redirect("/sign-in?next=%2Fupload");
   if (access.status === "incomplete") redirect("/onboarding?next=%2Fupload");
   if (access.status === "unavailable") {

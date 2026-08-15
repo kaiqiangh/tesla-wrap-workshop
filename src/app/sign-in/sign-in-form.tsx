@@ -6,6 +6,8 @@ import { authCallbackUrl } from "@/lib/auth/redirect";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
 type Props = { next: string; siteUrl: string };
+const googleSignInErrorMessage =
+  "Google sign-in is temporarily unavailable. Please try again.";
 
 export function SignInForm({ next, siteUrl }: Props) {
   const [busy, setBusy] = useState(false);
@@ -14,16 +16,19 @@ export function SignInForm({ next, siteUrl }: Props) {
   async function continueWithGoogle() {
     setBusy(true);
     setMessage("");
-    const { error } = await createBrowserSupabaseClient().auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: authCallbackUrl(siteUrl, next) },
-    });
-    setBusy(false);
-    if (error) {
-      setMessage(
-        "Google sign-in is temporarily unavailable. Please try again.",
-      );
+    try {
+      const { error } =
+        await createBrowserSupabaseClient().auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo: authCallbackUrl(siteUrl, next) },
+        });
+      if (!error) return;
+    } catch {
+      // Use the same stable message as returned provider failures.
+    } finally {
+      setBusy(false);
     }
+    setMessage(googleSignInErrorMessage);
   }
 
   return (
