@@ -22,6 +22,7 @@
 
 # generated local evidence
 /artifacts/
+/.playwright-mcp/
 
 # operating systems and editors
 .DS_Store
