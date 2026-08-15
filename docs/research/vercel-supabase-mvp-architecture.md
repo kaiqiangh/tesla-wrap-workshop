@@ -36,12 +36,17 @@ main / Vercel Production -> production Supabase
 - **Fact:** Next.js recommends treating Server Actions and Route Handlers as public-facing endpoints and performing authorization checks inside each action/handler, not only in page-level UI. ([Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication))
 - **Recommendation (inference):** Use Server Components for public discovery/detail/profile reads; use Server Actions for small authenticated mutations; use Route Handlers where HTTP semantics matter (OAuth callback, upload finalization, download redirect). Verify identity and authorization again at every mutation boundary, and never cache a personalized response or a response that refreshes auth cookies.
 
-## Email OTP and Google authentication
+## Google authentication
 
-- **Fact:** Email OTP is enabled by default, uses `signInWithOtp()` followed by `verifyOtp()`, and requires the email template to contain `{{ .Token }}` rather than the Magic Link. The default resend window is 60 seconds and default expiry is one hour. By default `signInWithOtp()` creates a user unless `shouldCreateUser: false` is set. ([Supabase passwordless email guide](https://supabase.com/docs/guides/auth/auth-email-passwordless))
-- **Fact:** Supabase's built-in SMTP service is for non-production testing, sends only to authorized team addresses, and is currently limited to two messages per hour. Supabase recommends custom SMTP for production. ([Supabase custom SMTP guide](https://supabase.com/docs/guides/auth/auth-smtp))
-- **Fact:** For Google OAuth with SSR/PKCE, `signInWithOAuth()` must redirect to an allow-listed application callback which exchanges the returned code for a session. Google's OAuth client must also use the Supabase project callback URI; local Supabase uses `http://127.0.0.1:54321/auth/v1/callback`. ([Supabase Google login guide](https://supabase.com/docs/guides/auth/social-login/auth-google), [Supabase redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls))
-- **Recommendation (inference):** Implement six-digit email OTP plus Google OAuth. Give local, development, preview, and production projects separate Google credentials where practical; configure exact production/dev callback URLs and the documented Vercel preview wildcard only for preview. Use custom SMTP, CAPTCHA, and tuned Auth rate limits before public launch. Do not reuse production OAuth/SMTP secrets in Preview.
+Email OTP was evaluated in this research baseline and is superseded by the
+accepted Google-only authentication ADR. For Google OAuth with SSR/PKCE,
+`signInWithOAuth()` must redirect to an allow-listed application callback which
+exchanges the returned code for a session. Google's OAuth client must use the
+Supabase project callback URI; local Supabase uses
+`http://127.0.0.1:54321/auth/v1/callback`. ([Supabase Google login guide](https://supabase.com/docs/guides/auth/social-login/auth-google), [Supabase redirect URL guide](https://supabase.com/docs/guides/auth/redirect-urls))
+
+Use separate Google credentials for local, hosted development/Preview, and
+Production. Do not reuse production OAuth secrets in Preview.
 
 ## Storage, upload, and image validation
 
@@ -96,7 +101,7 @@ main / Vercel Production -> production Supabase
 - **Fact:** Vercel creates Preview deployments for non-production branches/PRs and Production deployments from the production branch. `vercel inspect` can wait for completion and show build logs; `vercel logs` filters runtime logs by deployment, environment, level, status, request ID, or time. ([Vercel environments](https://vercel.com/docs/deployments/environments), [`vercel inspect`](https://vercel.com/docs/cli/inspect), [`vercel logs`](https://vercel.com/docs/cli/logs))
 - **Fact:** Vercel's current promotion guide says promoting Preview to Production performs a production rebuild using Production environment variables. A green Preview therefore does not prove Production configuration. ([Promoting a Preview deployment](https://vercel.com/docs/deployments/promote-preview-to-production))
 - **Recommendation (inference):** Before merging any feature into `dev`, require application CI plus migration/RLS checks and browser journeys against the exact Vercel Preview/Supabase development pairing. Before opening `dev -> main`, rerun the complete visitor, creator, community, admin, SEO, and mobile journeys on `dev`, inspect the exact deployment/commit, and scan error logs. Open the PR but do not merge it.
-- **Recommendation (inference):** After the user merges, verify the new Production build independently: confirm the commit and environment, migrations, Auth callback/OTP delivery, public reads, private upload, publish/discover, deduped guest download and original contents, admin denial/allow paths, sitemap/robots/OG output, security headers, Web Analytics/Speed Insights intake, and early 4xx/5xx/runtime logs. Production success must not be inferred from Preview success.
+- **Recommendation (inference):** After the user merges, verify the new Production build independently: confirm the commit and environment, migrations, Google Auth callback, public reads, private upload, publish/discover, deduped guest download and original contents, admin denial/allow paths, sitemap/robots/OG output, security headers, Web Analytics/Speed Insights intake, and early 4xx/5xx/runtime logs. Production success must not be inferred from Preview success.
 
 ## Principal risks to retain in tickets
 
@@ -104,4 +109,4 @@ main / Vercel Production -> production Supabase
 2. Shared development Supabase causes cross-PR schema/data interference; use branching or serialize those tests.
 3. Service-role code has total bypass power; keep it server-only, minimal, and gated by fresh admin checks.
 4. Counter caches can drift unless event insertion, dedupe, and increment are one transaction and periodically reconcilable.
-5. OTP launch depends on custom SMTP, template configuration, redirect allow-lists, CAPTCHA, and rate-limit verification in every environment.
+5. Google launch depends on exact provider callback allow-lists, separate environment credentials, and browser verification in every environment pair.

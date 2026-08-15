@@ -28,7 +28,6 @@ const child = spawnSync(executable, executableArgs, {
     // Local-only convenience; hosted environments must provide a separate secret.
     DOWNLOAD_PRINCIPAL_HMAC_SECRET: local.JWT_SECRET,
     SUPABASE_JWT_SECRET: local.JWT_SECRET,
-    SUPABASE_MAILPIT_URL: local.MAILPIT_URL,
   },
   stdio: "inherit",
 });

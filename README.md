@@ -23,11 +23,11 @@ node --version        # must print v22.x
 ```
 
 If `nvm` is not installed, run `brew install nvm`, create `~/.nvm`, then run
-the same commands. To use the already-installed binary for one command without
-changing the shell, use:
+the same commands. To use Node 22 for one command without changing the shell,
+use:
 
 ```sh
-PATH="$HOME/.nvm/versions/node/v22.23.2/bin:$PATH" pnpm test
+nvm exec 22 pnpm test
 ```
 
 Enable the pinned pnpm release once per Node installation:
@@ -64,10 +64,26 @@ SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=...
 SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=...
 ```
 
-Then set `enabled = true` in `[auth.external.google]` in
-`supabase/config.toml`, restart Supabase, and run `pnpm dev:local`. Keep a
-separate Google OAuth client and Supabase credentials for each hosted
-Environment Pair (development/preview and production).
+Keep `enabled = true` in `[auth.external.google]` in `supabase/config.toml`,
+restart Supabase, and run `pnpm dev:local`. Keep a separate Google OAuth
+client and Supabase credentials for each hosted Environment Pair
+(development/preview and production).
+
+OAuth callback matrix:
+
+| Environment Pair           | Google Authorized redirect URI                | Supabase Auth redirect allow-list               |
+| -------------------------- | --------------------------------------------- | ----------------------------------------------- |
+| Local                      | `http://127.0.0.1:54321/auth/v1/callback`     | `http://127.0.0.1:3000/auth/callback`           |
+| Hosted Development/Preview | `<development-supabase-url>/auth/v1/callback` | `<preview-or-development-origin>/auth/callback` |
+| Production                 | `<production-supabase-url>/auth/v1/callback`  | `<production-origin>/auth/callback`             |
+
+Replace angle-bracket values with the real Environment Pair URLs in Google
+Cloud and the matching Supabase Auth URL settings. Never reuse a Production
+client or secret in Preview.
+
+In each hosted Supabase project, disable the Email provider in Auth →
+Providers. The repository migration retires the OTP RPCs and policies, but
+dashboard provider state is intentionally configured per project.
 
 For CI and unit tests, Google is represented by an admin-created test identity;
 no email OTP or Mailpit flow is supported. For a direct Next.js run using `.env`

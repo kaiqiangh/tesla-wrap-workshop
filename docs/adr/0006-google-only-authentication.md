@@ -10,5 +10,5 @@ WrapForge will authenticate Users through Supabase Auth's Google OAuth provider 
 
 - Google OAuth callback and Supabase session handling remain the authentication boundary.
 - Profile, Username, onboarding, authorization, and audit concepts remain provider-agnostic.
-- Email OTP UI, routes, tests, configuration, and retired rate-limit/database artifacts can be removed in a follow-up implementation.
+- Email OTP UI, routes, tests, configuration, and retired rate-limit/database artifacts are removed by the Google-only implementation.
 - A later decision to support another provider or recover email accounts would require a new ADR.

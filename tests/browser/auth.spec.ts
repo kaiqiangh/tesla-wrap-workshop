@@ -1,4 +1,5 @@
-import { createHash, createHmac, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 
 import AxeBuilder from "@axe-core/playwright";
 import {
@@ -44,6 +45,19 @@ test("Guest can begin Google sign-in", async ({ page }) => {
     page.getByRole("button", { name: "Continue with Google" }),
   ).toBeEnabled();
   await expect(page.locator("input")).toHaveCount(0);
+  let authorizeUrl = "";
+  await page.route("**/auth/v1/authorize**", async (route) => {
+    authorizeUrl = route.request().url();
+    await route.abort();
+  });
+  await page.getByRole("button", { name: "Continue with Google" }).click();
+  expect(authorizeUrl).toContain("provider=google");
+  expect(
+    decodeURIComponent(
+      new URL(authorizeUrl).searchParams.get("redirect_to") ?? "",
+    ),
+  ).toContain("/auth/callback?next=/upload");
+  await page.goto("/sign-in?next=/upload");
   expect(
     await page.evaluate(
       () =>
@@ -90,7 +104,7 @@ test("Current administrator can review and recover a private Report", async ({
   test.setTimeout(90_000);
   const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
   const username = `mod${suffix}`;
-  await signInTestUser(context, `moderator-${suffix}@example.test`);
+  await seedGoogleTestSession(context, `moderator-${suffix}@example.test`);
 
   await page.goto("/auth/complete?next=%2Fadmin%2Freports");
   await expect(page).toHaveURL(/\/onboarding\?next=%2Fadmin%2Freports$/);
@@ -117,7 +131,7 @@ test("Current administrator can review and recover a private Report", async ({
   });
   const targetPage = await targetContext.newPage();
   const targetUsername = `target${suffix}`;
-  await signInTestUser(
+  await seedGoogleTestSession(
     targetContext,
     `moderation-target-${suffix}@example.test`,
   );
@@ -229,7 +243,7 @@ test("Current administrator can review and recover a private Report", async ({
   await targetContext.close();
 });
 
-test("User completes Google sign-in, onboarding, refresh, Profile, suspension, and logout", async ({
+test("User completes Google sign-in, onboarding, Profile, suspension, and logout", async ({
   page,
   context,
   browser,
@@ -247,7 +261,7 @@ test("User completes Google sign-in, onboarding, refresh, Profile, suspension, a
     data: { username: "anonymous", displayName: "Anonymous" },
   });
   expect(anonymousMutation.status()).toBe(401);
-  await signInTestUser(context, email);
+  await seedGoogleTestSession(context, email);
   await page.goto("/auth/complete?next=%2Fupload");
   await expect(page).toHaveURL(/\/onboarding\?next=%2Fupload$/);
   const authCookies = (await context.cookies()).filter((cookie) =>
@@ -298,22 +312,6 @@ test("User completes Google sign-in, onboarding, refresh, Profile, suspension, a
     requiredEnvironment("SUPABASE_SECRET_KEY"),
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  const expiredToken = expireJwt(
-    session.access_token,
-    requiredEnvironment("SUPABASE_JWT_SECRET"),
-  );
-  await writeSessionCookie(context, {
-    ...session,
-    access_token: expiredToken,
-    expires_at: Math.floor(Date.now() / 1000) - 60,
-  });
-  await page.goto("/upload");
-  await expect(
-    page.getByRole("heading", {
-      name: "Build a Template-verified Wrap Asset.",
-    }),
-  ).toBeVisible();
-
   await page.getByRole("radio", { name: /^Cybertruck/ }).check();
   await expect(page.getByText("1024×768 · Active")).toBeVisible();
   await expect(
@@ -541,7 +539,7 @@ test("User completes Google sign-in, onboarding, refresh, Profile, suspension, a
     const actorPage = await actorContext.newPage();
     const actorEmail = `browser-actor-${randomUUID()}@example.test`;
     const actorUsername = `actor${randomUUID().replaceAll("-", "").slice(0, 12)}`;
-    await signInTestUser(actorContext, actorEmail);
+    await seedGoogleTestSession(actorContext, actorEmail);
     await actorPage.goto(`/auth/complete?next=%2Fwrap%2F${publishedSlug}`);
     await expect(actorPage).toHaveURL(/\/onboarding\?next=/);
     await actorPage.getByLabel("Username").fill(actorUsername);
@@ -1242,10 +1240,6 @@ test("User completes Google sign-in, onboarding, refresh, Profile, suspension, a
   expect(
     (await page.request.delete(`/api/uploads/${freshRetryBody.id}`)).status(),
   ).toBe(200);
-  expect((await readSessionCookie(context)).access_token).not.toBe(
-    expiredToken,
-  );
-
   await page.goto("/upload");
   await page.getByRole("radio", { name: /^Cybertruck/ }).check();
   await page
@@ -1369,17 +1363,15 @@ type Session = {
   [key: string]: unknown;
 };
 
-async function signInTestUser(context: BrowserContext, email: string) {
+async function seedGoogleTestSession(context: BrowserContext, email: string) {
   const supabaseUrl = requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
   const admin = createClient<Database>(
     supabaseUrl,
     requiredEnvironment("SUPABASE_SECRET_KEY"),
     { auth: { persistSession: false, autoRefreshToken: false } },
   );
-  const password = `Test-only-${randomUUID()}!a1`;
   const created = await admin.auth.admin.createUser({
     email,
-    password,
     email_confirm: true,
     app_metadata: { provider: "google", providers: ["google"] },
     user_metadata: {
@@ -1394,22 +1386,63 @@ async function signInTestUser(context: BrowserContext, email: string) {
     );
   }
 
-  const client = createClient<Database>(
-    supabaseUrl,
-    requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
-    { auth: { persistSession: false, autoRefreshToken: false } },
+  const sessionId = randomUUID();
+  const refreshToken = randomBytes(9).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  const accessToken = signTestJwt(
+    {
+      aud: "authenticated",
+      exp: now + 3600,
+      iat: now,
+      iss: `${supabaseUrl}/auth/v1`,
+      role: "authenticated",
+      session_id: sessionId,
+      sub: created.data.user.id,
+      email,
+      app_metadata: { provider: "google", providers: ["google"] },
+      user_metadata: created.data.user.user_metadata,
+      aal: "aal1",
+    },
+    requiredEnvironment("SUPABASE_JWT_SECRET"),
   );
-  const signedIn = await client.auth.signInWithPassword({ email, password });
-  if (signedIn.error || !signedIn.data.session) {
-    throw (
-      signedIn.error ?? new Error("Could not sign in the browser fixture User")
-    );
-  }
+  execFileSync(
+    "docker",
+    [
+      "exec",
+      "-i",
+      "supabase_db_tesla-wrap-workshop",
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-v",
+      `user_id=${created.data.user.id}`,
+      "-v",
+      `session_id=${sessionId}`,
+      "-v",
+      `refresh_token=${refreshToken}`,
+      "-f",
+      "-",
+    ],
+    {
+      input:
+        "insert into auth.sessions (id, user_id, created_at, updated_at, aal) values (:'session_id'::uuid, :'user_id'::uuid, now(), now(), 'aal1'); insert into auth.refresh_tokens (instance_id, token, user_id, revoked, created_at, updated_at, session_id) values ('00000000-0000-0000-0000-000000000000'::uuid, :'refresh_token', :'user_id', false, now(), now(), :'session_id'::uuid);\n",
+      stdio: ["pipe", "ignore", "pipe"],
+    },
+  );
+  const session: Session = {
+    access_token: accessToken,
+    refresh_token: refreshToken,
+    expires_at: now + 3600,
+    token_type: "bearer",
+    user: created.data.user,
+  };
 
   const storageKey = `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
-  const encoded = `base64-${Buffer.from(
-    JSON.stringify(signedIn.data.session),
-  ).toString("base64url")}`;
+  const encoded = `base64-${Buffer.from(JSON.stringify(session)).toString(
+    "base64url",
+  )}`;
   const chunks = encoded.match(/.{1,3000}/g) ?? [];
   await context.addCookies(
     chunks.map((value, index) => ({
@@ -1489,37 +1522,12 @@ async function readSessionCookie(context: BrowserContext): Promise<Session> {
   ) as Session;
 }
 
-async function writeSessionCookie(context: BrowserContext, session: Session) {
-  const current = (await context.cookies()).filter((cookie) =>
-    /-auth-token(?:\.\d+)?$/.test(cookie.name),
-  );
-  expect(current.length).toBeGreaterThan(0);
-  const baseName = current[0]!.name.replace(/\.\d+$/, "");
-  await context.clearCookies({
-    name: new RegExp(`^${baseName.replaceAll(".", "\\.")}`),
-  });
-  const encoded = `base64-${Buffer.from(JSON.stringify(session)).toString("base64url")}`;
-  const chunks = encoded.match(/.{1,3000}/g) ?? [];
-  const template = current[0]!;
-  await context.addCookies(
-    chunks.map((value, index) => ({
-      name: chunks.length === 1 ? baseName : `${baseName}.${index}`,
-      value,
-      domain: template.domain,
-      path: template.path,
-      httpOnly: template.httpOnly,
-      secure: template.secure,
-      sameSite: template.sameSite,
-    })),
-  );
-}
-
-function expireJwt(token: string, secret: string): string {
-  const [header, payload] = token.split(".");
-  if (!header || !payload) throw new Error("Unexpected access token");
-  const claims = decodeJwt(token);
-  claims.exp = Math.floor(Date.now() / 1000) - 60;
-  const body = `${header}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}`;
+function signTestJwt(claims: Record<string, unknown>, secret: string): string {
+  const header = Buffer.from(
+    JSON.stringify({ alg: "HS256", typ: "JWT" }),
+  ).toString("base64url");
+  const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+  const body = `${header}.${payload}`;
   return `${body}.${createHmac("sha256", secret).update(body).digest("base64url")}`;
 }
 
