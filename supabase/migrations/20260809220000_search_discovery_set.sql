@@ -2,15 +2,15 @@ create extension if not exists unaccent with schema extensions;
 create extension if not exists pg_trgm with schema extensions;
 
 create index wraps_title_trgm_idx
-  on public.wraps using gin (lower(title) gin_trgm_ops);
+  on public.wraps using gin (lower(title) extensions.gin_trgm_ops);
 create index wraps_description_trgm_idx
-  on public.wraps using gin (lower(description) gin_trgm_ops);
+  on public.wraps using gin (lower(description) extensions.gin_trgm_ops);
 create index profiles_username_trgm_idx
-  on public.profiles using gin (lower(username) gin_trgm_ops);
+  on public.profiles using gin (lower(username) extensions.gin_trgm_ops);
 create index profiles_display_name_trgm_idx
-  on public.profiles using gin (lower(display_name) gin_trgm_ops);
+  on public.profiles using gin (lower(display_name) extensions.gin_trgm_ops);
 create index tags_display_name_trgm_idx
-  on public.tags using gin (lower(display_name) gin_trgm_ops);
+  on public.tags using gin (lower(display_name) extensions.gin_trgm_ops);
 
 create table public.discovery_cursor_snapshots (
   token text primary key check (token ~ '^[0-9a-f]{36}$'),
