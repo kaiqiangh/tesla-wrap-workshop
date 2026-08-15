@@ -45,11 +45,7 @@ export default async function SignInPage({
             {message}
           </p>
         ) : null}
-        <SignInForm
-          next={next}
-          siteUrl={env.NEXT_PUBLIC_SITE_URL}
-          googleEnabled={env.WRAPFORGE_ENVIRONMENT !== "local"}
-        />
+        <SignInForm next={next} siteUrl={env.NEXT_PUBLIC_SITE_URL} />
       </section>
     </main>
   );

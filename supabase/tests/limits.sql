@@ -7,7 +7,7 @@ select has_table('private', 'launch_rate_policies', 'launch limits have one priv
 select has_table('private', 'launch_rate_buckets', 'launch limit buckets are private');
 select is(
   (select count(*) from private.launch_rate_policies),
-  20::bigint,
+  15::bigint,
   'all launch policies are seeded'
 );
 select is(
@@ -20,11 +20,6 @@ select is(
     'download_guest_minute',
     'download_user_hour',
     'download_user_minute',
-    'otp_email_hour',
-    'otp_email_minute',
-    'otp_failure_email_hour',
-    'otp_failure_network_10m',
-    'otp_network_hour',
     'page_view_network_minute',
     'page_view_session_minute',
     'publish_user',
@@ -38,10 +33,9 @@ select is(
   'the expected launch policy keys are configured'
 );
 select ok(
-  not has_function_privilege(
-    'anon', 'public.consume_otp_limit(text,text)', 'execute'
-  ),
-  'Guests cannot call the server-only OTP limiter'
+  to_regprocedure('public.consume_otp_limit(text,text)') is null
+    and to_regprocedure('public.consume_otp_failure_limit(text,text)') is null,
+  'Email Sign-in OTP limiters are retired'
 );
 select ok(
   not has_function_privilege(

@@ -49,7 +49,7 @@ insert into auth.users (
 ) values (
   '90000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated',
   'event-user@example.test', now(),
-  '{"provider":"email","providers":["email"]}', '{}', now(), now()
+  '{"provider":"google","providers":["google"]}', '{}', now(), now()
 );
 select is(
   (select count(*) from public.core_loop_events

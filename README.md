@@ -52,12 +52,26 @@ pnpm exec supabase db reset
 pnpm dev:local
 ```
 
-Open `http://127.0.0.1:3000`. Local email OTP messages are captured at
-`http://127.0.0.1:54324`; no external SMTP is required. The Google PKCE entry
-point and callback are present locally, but real Google provider credentials
-are verified only in the isolated hosted development Environment Pair.
+Open `http://127.0.0.1:3000`. Sign-in is Google-only. Local Google OAuth uses
+the Supabase callback `http://127.0.0.1:54321/auth/v1/callback`, then returns to
+the app callback at `http://127.0.0.1:3000/auth/callback`.
 
-For a direct Next.js run using `.env` instead of the wrapper, use `pnpm dev`.
+To enable real local Google sign-in, put the OAuth client values in the ignored
+`.env` file (never commit them):
+
+```dotenv
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=...
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=...
+```
+
+Then set `enabled = true` in `[auth.external.google]` in
+`supabase/config.toml`, restart Supabase, and run `pnpm dev:local`. Keep a
+separate Google OAuth client and Supabase credentials for each hosted
+Environment Pair (development/preview and production).
+
+For CI and unit tests, Google is represented by an admin-created test identity;
+no email OTP or Mailpit flow is supported. For a direct Next.js run using `.env`
+instead of the wrapper, use `pnpm dev`.
 If the local Supabase project is recreated and its keys change, rerun
 `pnpm exec supabase status -o json` and refresh the ignored `.env` values; the
 `:local` scripts avoid this manual step.

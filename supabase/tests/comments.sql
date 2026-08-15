@@ -47,11 +47,11 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('83000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
-   'comment-author@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'comment-author@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('83000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
-   'comment-other@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'comment-other@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('83000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
-   'comment-incomplete@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+   'comment-incomplete@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now());
 
 update public.profiles
 set username = case user_id

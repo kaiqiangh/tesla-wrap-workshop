@@ -87,95 +87,6 @@ export type Database = {
           },
         ];
       };
-      asset_revision_cleanup_jobs: {
-        Row: {
-          asset_revision_id: string;
-          attempts: number;
-          available_after: string;
-          bucket_id: string;
-          claimed_at: string | null;
-          completed_at: string | null;
-          created_at: string;
-          id: string;
-          legal_hold: boolean;
-          last_error: string | null;
-          object_key: string;
-          owner_id: string;
-          state: string;
-        };
-        Insert: {
-          asset_revision_id: string;
-          attempts?: number;
-          available_after: string;
-          bucket_id: string;
-          claimed_at?: string | null;
-          completed_at?: string | null;
-          created_at?: string;
-          id?: string;
-          legal_hold?: boolean;
-          last_error?: string | null;
-          object_key: string;
-          owner_id: string;
-          state?: string;
-        };
-        Update: {
-          asset_revision_id?: string;
-          attempts?: number;
-          available_after?: string;
-          bucket_id?: string;
-          claimed_at?: string | null;
-          completed_at?: string | null;
-          created_at?: string;
-          id?: string;
-          legal_hold?: boolean;
-          last_error?: string | null;
-          object_key?: string;
-          owner_id?: string;
-          state?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "asset_revision_cleanup_jobs_asset_revision_id_fkey";
-            columns: ["asset_revision_id"];
-            isOneToOne: false;
-            referencedRelation: "asset_revisions";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "asset_revision_cleanup_jobs_owner_id_fkey";
-            columns: ["owner_id"];
-            isOneToOne: false;
-            referencedRelation: "profiles";
-            referencedColumns: ["user_id"];
-          },
-        ];
-      };
-      asset_revision_cleanup_holds: {
-        Row: {
-          asset_revision_id: string;
-          held: boolean;
-          updated_at: string;
-        };
-        Insert: {
-          asset_revision_id: string;
-          held?: boolean;
-          updated_at?: string;
-        };
-        Update: {
-          asset_revision_id?: string;
-          held?: boolean;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "asset_revision_cleanup_holds_asset_revision_id_fkey";
-            columns: ["asset_revision_id"];
-            isOneToOne: true;
-            referencedRelation: "asset_revisions";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       asset_orphan_cleanup_jobs: {
         Row: {
           attempts: number;
@@ -214,6 +125,95 @@ export type Database = {
           state?: string;
         };
         Relationships: [];
+      };
+      asset_revision_cleanup_holds: {
+        Row: {
+          asset_revision_id: string;
+          held: boolean;
+          updated_at: string;
+        };
+        Insert: {
+          asset_revision_id: string;
+          held?: boolean;
+          updated_at?: string;
+        };
+        Update: {
+          asset_revision_id?: string;
+          held?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asset_revision_cleanup_holds_asset_revision_id_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: true;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      asset_revision_cleanup_jobs: {
+        Row: {
+          asset_revision_id: string;
+          attempts: number;
+          available_after: string;
+          bucket_id: string;
+          claimed_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          id: string;
+          last_error: string | null;
+          legal_hold: boolean;
+          object_key: string;
+          owner_id: string;
+          state: string;
+        };
+        Insert: {
+          asset_revision_id: string;
+          attempts?: number;
+          available_after: string;
+          bucket_id: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          legal_hold?: boolean;
+          object_key: string;
+          owner_id: string;
+          state?: string;
+        };
+        Update: {
+          asset_revision_id?: string;
+          attempts?: number;
+          available_after?: string;
+          bucket_id?: string;
+          claimed_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          id?: string;
+          last_error?: string | null;
+          legal_hold?: boolean;
+          object_key?: string;
+          owner_id?: string;
+          state?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asset_revision_cleanup_jobs_asset_revision_id_fkey";
+            columns: ["asset_revision_id"];
+            isOneToOne: false;
+            referencedRelation: "asset_revisions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "asset_revision_cleanup_jobs_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["user_id"];
+          },
+        ];
       };
       asset_revision_reconciliation_issues: {
         Row: {
@@ -1355,19 +1355,19 @@ export type Database = {
           pending_upload_id: string;
         }[];
       };
-      claim_asset_revision_cleanup_jobs: {
+      claim_asset_orphan_cleanup_jobs: {
         Args: { p_limit?: number };
         Returns: {
-          asset_revision_id: string;
           attempts: number;
           bucket_id: string;
           id: string;
           object_key: string;
         }[];
       };
-      claim_asset_orphan_cleanup_jobs: {
+      claim_asset_revision_cleanup_jobs: {
         Args: { p_limit?: number };
         Returns: {
+          asset_revision_id: string;
           attempts: number;
           bucket_id: string;
           id: string;
@@ -1408,11 +1408,11 @@ export type Database = {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
-      complete_asset_revision_cleanup_job: {
+      complete_asset_orphan_cleanup_job: {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
-      complete_asset_orphan_cleanup_job: {
+      complete_asset_revision_cleanup_job: {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
       };
@@ -1448,14 +1448,6 @@ export type Database = {
       complete_profile_wrap_cleanup_job: {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
-      };
-      consume_otp_failure_limit: {
-        Args: { p_email_principal: string; p_network_principal: string };
-        Returns: undefined;
-      };
-      consume_otp_limit: {
-        Args: { p_email_principal: string; p_network_principal: string };
-        Returns: undefined;
       };
       consume_page_view_limit: {
         Args: { p_network_principal: string; p_session_principal: string };
@@ -1521,10 +1513,7 @@ export type Database = {
           status: string;
         }[];
       };
-      expire_pending_uploads: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
+      expire_pending_uploads: { Args: { p_limit?: number }; Returns: number };
       fail_pending_upload: {
         Args: { p_code: string; p_detail: Json; p_id: string };
         Returns: undefined;
@@ -1760,6 +1749,13 @@ export type Database = {
           username: string;
         }[];
       };
+      get_public_sitemap_entries: {
+        Args: never;
+        Returns: {
+          last_modified: string;
+          path: string;
+        }[];
+      };
       get_public_vehicle_model: {
         Args: { p_slug: string };
         Returns: {
@@ -1961,6 +1957,10 @@ export type Database = {
           template_variant_id: string;
         }[];
       };
+      reconcile_asset_revision_cleanup: {
+        Args: { p_limit?: number };
+        Returns: number;
+      };
       reconcile_download_counts: { Args: never; Returns: undefined };
       record_core_loop_event: {
         Args: {
@@ -2045,29 +2045,14 @@ export type Database = {
         };
         Returns: {
           asset_revision_id: string;
-          cleanup_available_after: string | null;
+          cleanup_available_after: string;
           created: boolean;
           first_published_at: string;
           id: string;
-          previous_asset_revision_id: string | null;
+          previous_asset_revision_id: string;
           slug: string;
           status: string;
           template_variant_id: string;
-        }[];
-      };
-      reconcile_asset_revision_cleanup: {
-        Args: { p_limit?: number };
-        Returns: number;
-      };
-      set_asset_revision_cleanup_hold: {
-        Args: { p_asset_revision_id: string; p_held: boolean };
-        Returns: boolean;
-      };
-      get_public_sitemap_entries: {
-        Args: never;
-        Returns: {
-          path: string;
-          last_modified: string | null;
         }[];
       };
       republish_wrap: {
@@ -2125,6 +2110,10 @@ export type Database = {
       };
       set_admin_membership: {
         Args: { p_active: boolean; p_user_id: string };
+        Returns: boolean;
+      };
+      set_asset_revision_cleanup_hold: {
+        Args: { p_asset_revision_id: string; p_held: boolean };
         Returns: boolean;
       };
       start_pending_upload: {

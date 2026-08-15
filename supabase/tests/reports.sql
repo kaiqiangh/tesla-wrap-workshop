@@ -39,13 +39,13 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('87000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
-   'report-reporter@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'report-reporter@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('87000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
-   'report-creator@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'report-creator@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('87000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
-   'report-other@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'report-other@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('87000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated',
-   'report-incomplete@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+   'report-incomplete@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now());
 
 update public.profiles
 set username = case user_id

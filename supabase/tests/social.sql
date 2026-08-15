@@ -36,13 +36,13 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('81000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
-   'social-actor@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'social-actor@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('81000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
-   'social-creator@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'social-creator@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('81000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
-   'social-incomplete@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'social-incomplete@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('81000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated',
-   'social-suspended@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+   'social-suspended@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now());
 
 update public.profiles
 set username = case user_id

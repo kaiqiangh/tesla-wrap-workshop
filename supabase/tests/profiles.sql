@@ -34,17 +34,17 @@ values
   (
     '20000000-0000-0000-0000-000000000001',
     'authenticated', 'authenticated', 'one@example.test', now(),
-    '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    '{"provider":"google","providers":["google"]}', '{}', now(), now()
   ),
   (
     '20000000-0000-0000-0000-000000000002',
     'authenticated', 'authenticated', 'two@example.test', now(),
-    '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    '{"provider":"google","providers":["google"]}', '{}', now(), now()
   ),
   (
     '20000000-0000-0000-0000-000000000003',
     'authenticated', 'authenticated', 'three@example.test', now(),
-    '{"provider":"email","providers":["email"]}', '{}', now(), now()
+    '{"provider":"google","providers":["google"]}', '{}', now(), now()
   );
 
 select is(
@@ -71,7 +71,7 @@ insert into auth.users (
 values (
   '20000000-0000-0000-0000-000000000004',
   'authenticated', 'authenticated', 'unverified@example.test',
-  '{"provider":"email","providers":["email"]}', '{}', now(), now()
+  '{"provider":"google","providers":["google"]}', '{}', now(), now()
 );
 select is(
   (
@@ -79,7 +79,7 @@ select is(
     where user_id = '20000000-0000-0000-0000-000000000004'
   ),
   0::bigint,
-  'requesting an OTP does not provision a Profile before verification'
+  'an unverified Google identity does not provision a Profile before verification'
 );
 update auth.users
 set email_confirmed_at = now(), updated_at = now()

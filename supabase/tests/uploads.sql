@@ -51,11 +51,11 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('30000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
-   'upload-one@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'upload-one@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('30000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
-   'upload-two@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'upload-two@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('30000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
-   'upload-three@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+   'upload-three@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now());
 update public.profiles set username = 'upload-one', display_name = 'Upload One'
 where user_id = '30000000-0000-0000-0000-000000000001';
 update public.profiles set username = 'upload-two', display_name = 'Upload Two'

@@ -54,9 +54,9 @@ insert into auth.users (
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
 ) values
   ('80000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
-   'wrap-one@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now()),
+   'wrap-one@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now()),
   ('80000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
-   'wrap-two@example.test', now(), '{"provider":"email","providers":["email"]}', '{}', now(), now());
+   'wrap-two@example.test', now(), '{"provider":"google","providers":["google"]}', '{}', now(), now());
 update public.profiles
 set username = case user_id
   when '80000000-0000-0000-0000-000000000001' then 'wrap-one'

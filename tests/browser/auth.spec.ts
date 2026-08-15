@@ -34,22 +34,16 @@ const browserVariants = [
   ["Cybertruck", "1024×768"],
 ] as const;
 
-test("Guest can begin email OTP or Google sign-in", async ({ page }) => {
+test("Guest can begin Google sign-in", async ({ page }) => {
   await page.goto("/sign-in?next=/upload");
 
   await expect(
     page.getByRole("heading", { name: "Join the workshop" }),
   ).toBeVisible();
-  await expect(page.getByLabel("Email address")).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Send six-digit code" }),
-  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Continue with Google" }),
-  ).toBeDisabled();
-  await expect(
-    page.getByText("Google sign-in is enabled in the hosted development"),
-  ).toBeVisible();
+  ).toBeEnabled();
+  await expect(page.locator("input")).toHaveCount(0);
   expect(
     await page.evaluate(
       () =>
@@ -95,15 +89,10 @@ test("Current administrator can review and recover a private Report", async ({
   test.skip(testInfo.project.name !== "chromium");
   test.setTimeout(90_000);
   const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
-  const email = `moderator-${suffix}@example.test`;
   const username = `mod${suffix}`;
+  await signInTestUser(context, `moderator-${suffix}@example.test`);
 
-  await page.goto("/sign-in?next=%2Fadmin%2Freports");
-  await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Send six-digit code" }).click();
-  await expect(page.getByText("Check your inbox")).toBeVisible();
-  await page.getByLabel("Six-digit code").fill(await readOtp(email));
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.goto("/auth/complete?next=%2Fadmin%2Freports");
   await expect(page).toHaveURL(/\/onboarding\?next=%2Fadmin%2Freports$/);
   await page.getByLabel("Username").fill(username);
   await page.getByLabel("Display name").fill("Queue Moderator");
@@ -127,16 +116,12 @@ test("Current administrator can review and recover a private Report", async ({
     extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
   });
   const targetPage = await targetContext.newPage();
-  const targetEmail = `moderation-target-${suffix}@example.test`;
   const targetUsername = `target${suffix}`;
-  await targetPage.goto("/sign-in?next=%2Fupload");
-  await targetPage.getByLabel("Email address").fill(targetEmail);
-  await targetPage.getByRole("button", { name: "Send six-digit code" }).click();
-  await expect(targetPage.getByText("Check your inbox")).toBeVisible();
-  await targetPage
-    .getByLabel("Six-digit code")
-    .fill(await readOtp(targetEmail));
-  await targetPage.getByRole("button", { name: "Verify code" }).click();
+  await signInTestUser(
+    targetContext,
+    `moderation-target-${suffix}@example.test`,
+  );
+  await targetPage.goto("/auth/complete?next=%2Fupload");
   await expect(targetPage).toHaveURL(/\/onboarding\?next=%2Fupload$/);
   await targetPage.getByLabel("Username").fill(targetUsername);
   await targetPage.getByLabel("Display name").fill("Moderation Target");
@@ -244,7 +229,7 @@ test("Current administrator can review and recover a private Report", async ({
   await targetContext.close();
 });
 
-test("User completes local OTP, onboarding, refresh, Profile, suspension, and logout", async ({
+test("User completes Google sign-in, onboarding, refresh, Profile, suspension, and logout", async ({
   page,
   context,
   browser,
@@ -262,18 +247,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     data: { username: "anonymous", displayName: "Anonymous" },
   });
   expect(anonymousMutation.status()).toBe(401);
-  await page.getByLabel("Email address").fill(email);
-  await page.getByRole("button", { name: "Send six-digit code" }).click();
-  await expect(page.getByText("Check your inbox")).toBeVisible();
-
-  const otp = await readOtp(email);
-  const wrongOtp = `${otp.slice(0, 5)}${otp.endsWith("0") ? "1" : "0"}`;
-  await page.getByLabel("Six-digit code").fill(wrongOtp);
-  await page.getByRole("button", { name: "Verify code" }).click();
-  await expect(page.getByText("invalid or expired")).toBeVisible();
-
-  await page.getByLabel("Six-digit code").fill(otp);
-  await page.getByRole("button", { name: "Verify code" }).click();
+  await signInTestUser(context, email);
+  await page.goto("/auth/complete?next=%2Fupload");
   await expect(page).toHaveURL(/\/onboarding\?next=%2Fupload$/);
   const authCookies = (await context.cookies()).filter((cookie) =>
     /-auth-token(?:\.\d+)?$/.test(cookie.name),
@@ -566,16 +541,8 @@ test("User completes local OTP, onboarding, refresh, Profile, suspension, and lo
     const actorPage = await actorContext.newPage();
     const actorEmail = `browser-actor-${randomUUID()}@example.test`;
     const actorUsername = `actor${randomUUID().replaceAll("-", "").slice(0, 12)}`;
-    await actorPage.goto(`/sign-in?next=%2Fwrap%2F${publishedSlug}`);
-    await actorPage.getByLabel("Email address").fill(actorEmail);
-    await actorPage
-      .getByRole("button", { name: "Send six-digit code" })
-      .click();
-    await expect(actorPage.getByText("Check your inbox")).toBeVisible();
-    await actorPage
-      .getByLabel("Six-digit code")
-      .fill(await readOtp(actorEmail));
-    await actorPage.getByRole("button", { name: "Verify code" }).click();
+    await signInTestUser(actorContext, actorEmail);
+    await actorPage.goto(`/auth/complete?next=%2Fwrap%2F${publishedSlug}`);
     await expect(actorPage).toHaveURL(/\/onboarding\?next=/);
     await actorPage.getByLabel("Username").fill(actorUsername);
     await actorPage.getByLabel("Display name").fill("Social Viewer");
@@ -1402,31 +1369,59 @@ type Session = {
   [key: string]: unknown;
 };
 
-async function readOtp(email: string): Promise<string> {
-  const mailpit = requiredEnvironment("SUPABASE_MAILPIT_URL");
-  let otp = "";
-  await expect
-    .poll(
-      async () => {
-        const inbox = (await fetch(`${mailpit}/api/v1/messages?limit=100`).then(
-          (response) => response.json(),
-        )) as {
-          messages: { ID: string; To: { Address: string }[] }[];
-        };
-        const message = inbox.messages.find((candidate) =>
-          candidate.To.some((recipient) => recipient.Address === email),
-        );
-        if (!message) return "";
-        const detail = (await fetch(
-          `${mailpit}/api/v1/message/${message.ID}`,
-        ).then((response) => response.json())) as { Text: string };
-        otp = detail.Text.match(/\b\d{6}\b/)?.[0] ?? "";
-        return otp;
-      },
-      { timeout: 10_000 },
-    )
-    .toMatch(/^\d{6}$/);
-  return otp;
+async function signInTestUser(context: BrowserContext, email: string) {
+  const supabaseUrl = requiredEnvironment("NEXT_PUBLIC_SUPABASE_URL");
+  const admin = createClient<Database>(
+    supabaseUrl,
+    requiredEnvironment("SUPABASE_SECRET_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const password = `Test-only-${randomUUID()}!a1`;
+  const created = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    app_metadata: { provider: "google", providers: ["google"] },
+    user_metadata: {
+      avatar_url: "https://example.test/google-avatar.png",
+      full_name: "Test Google User",
+      name: "Test Google User",
+    },
+  });
+  if (created.error || !created.data.user) {
+    throw (
+      created.error ?? new Error("Could not create the browser fixture User")
+    );
+  }
+
+  const client = createClient<Database>(
+    supabaseUrl,
+    requiredEnvironment("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"),
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+  const signedIn = await client.auth.signInWithPassword({ email, password });
+  if (signedIn.error || !signedIn.data.session) {
+    throw (
+      signedIn.error ?? new Error("Could not sign in the browser fixture User")
+    );
+  }
+
+  const storageKey = `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`;
+  const encoded = `base64-${Buffer.from(
+    JSON.stringify(signedIn.data.session),
+  ).toString("base64url")}`;
+  const chunks = encoded.match(/.{1,3000}/g) ?? [];
+  await context.addCookies(
+    chunks.map((value, index) => ({
+      name: chunks.length === 1 ? storageKey : `${storageKey}.${index}`,
+      value,
+      domain: "127.0.0.1",
+      path: "/",
+      httpOnly: true,
+      secure: false,
+      sameSite: "Lax" as const,
+    })),
+  );
 }
 
 async function expectRouteStatus(
