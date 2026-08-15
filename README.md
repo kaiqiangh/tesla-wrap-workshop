@@ -56,6 +56,12 @@ Open `http://127.0.0.1:3000`. Sign-in is Google-only. Local Google OAuth uses
 the Supabase callback `http://127.0.0.1:54321/auth/v1/callback`, then returns to
 the app callback at `http://127.0.0.1:3000/auth/callback`.
 
+The local Supabase CLI stack includes Auth, PostgREST, Storage, Kong, and
+Realtime in addition to Postgres; the app needs those services for Google
+sessions, RLS-backed API calls, and private media. Stop the whole local stack
+when you are finished with `pnpm exec supabase stop` rather than deleting one
+container by hand.
+
 To enable real local Google sign-in, put the OAuth client values in the ignored
 `.env` file (never commit them):
 
