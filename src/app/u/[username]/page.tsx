@@ -181,6 +181,8 @@ export default async function PublicProfilePage({
                   alt={`${wrap.title} Derived Wrap Asset`}
                   width={wrap.preview_width_px ?? wrap.width_px}
                   height={wrap.preview_height_px ?? wrap.height_px}
+                  loading="lazy"
+                  unoptimized
                 />
                 <span className="eyebrow">{wrap.template_variant_name}</span>
                 <strong>{wrap.title}</strong>

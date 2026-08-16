@@ -42,6 +42,7 @@ describe("GET /api/wraps/[slug]/preview", () => {
     expect(response.headers.get("cache-control")).toBe(
       "public, max-age=0, must-revalidate",
     );
+    expect(response.headers.get("content-type")).toBe("image/png");
     expect(response.headers.get("etag")).toBe(`"${sha256}"`);
     expect(response.headers.get("x-robots-tag")).toBe(
       "noindex, nofollow, noarchive",

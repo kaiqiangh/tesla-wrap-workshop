@@ -15,6 +15,7 @@ export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
             alt={`${wrap.title} Derived Wrap Asset`}
             width={wrap.preview_width_px}
             height={wrap.preview_height_px}
+            loading="lazy"
             unoptimized
           />
         ) : (
