@@ -1391,8 +1391,42 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
       .webp()
       .toBuffer(),
   });
+  let avatarAttempts = 0;
+  let profileSettingsRequests = 0;
+  page.on("request", (request) => {
+    if (
+      request.url().endsWith("/api/profile/settings") &&
+      request.method() === "PUT"
+    )
+      profileSettingsRequests += 1;
+  });
+  await page.route("**/api/profile/avatar", async (route) => {
+    avatarAttempts += 1;
+    if (avatarAttempts === 1) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: { message: "Try again after the upload service recovers." },
+        }),
+      });
+      return;
+    }
+    await route.continue();
+  });
   await page.getByRole("button", { name: "Save Profile" }).click();
+  await expect(
+    page.getByText(
+      "Profile details were saved, but your avatar could not be saved. Try again after the upload service recovers.",
+    ),
+  ).toBeVisible();
+  expect(profileSettingsRequests).toBe(1);
+  expect(avatarAttempts).toBe(1);
+  await page.getByRole("button", { name: "Retry avatar upload" }).click();
   await expect(page).toHaveURL(`/u/${renamedUsername}`);
+  expect(profileSettingsRequests).toBe(1);
+  expect(avatarAttempts).toBe(2);
+  await page.unroute("**/api/profile/avatar");
   await page.goto(`/u/${username.toUpperCase()}`);
   await expect(page).toHaveURL(`/u/${renamedUsername}`);
   await expect(page.getByText("A Dublin creator.")).toBeVisible();
