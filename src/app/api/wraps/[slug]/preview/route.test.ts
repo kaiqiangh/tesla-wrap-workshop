@@ -64,4 +64,31 @@ describe("GET /api/wraps/[slug]/preview", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
+
+  it("returns a 304 without downloading an unchanged preview", async () => {
+    const download = vi.fn();
+    mocks.admin.mockReturnValue({
+      rpc: vi.fn(async () => ({
+        data: [{ object_key: "preview/object.png", sha256 }],
+        error: null,
+      })),
+      storage: { from: vi.fn(() => ({ download })) },
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/${slug}/preview`, {
+        headers: { "if-none-match": `W/"${sha256}"` },
+      }),
+      {
+        params: Promise.resolve({ slug }),
+      },
+    );
+
+    expect(response.status).toBe(304);
+    expect(response.headers.get("cache-control")).toBe(
+      "public, max-age=0, must-revalidate",
+    );
+    expect(response.headers.get("etag")).toBe(`"${sha256}"`);
+    expect(download).not.toHaveBeenCalled();
+  });
 });

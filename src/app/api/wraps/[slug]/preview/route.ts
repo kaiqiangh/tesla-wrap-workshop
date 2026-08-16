@@ -5,7 +5,7 @@ import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
@@ -16,18 +16,34 @@ export async function GET(
   });
   const media = data?.[0];
   if (error || !media) return unavailable();
+  const etag = `"${media.sha256}"`;
+  const headers = {
+    "cache-control": "public, max-age=0, must-revalidate",
+    etag,
+    "x-robots-tag": "noindex, nofollow, noarchive",
+  };
+  if (matchesIfNoneMatch(request.headers.get("if-none-match"), etag)) {
+    return new NextResponse(null, { status: 304, headers });
+  }
   const stored = await admin.storage
     .from("wrap-derived")
     .download(media.object_key);
   if (stored.error || !stored.data) return unavailable();
   return new NextResponse(await stored.data.arrayBuffer(), {
     headers: {
-      "cache-control": "public, max-age=0, must-revalidate",
+      ...headers,
       "content-type": "image/png",
-      etag: `"${media.sha256}"`,
-      "x-robots-tag": "noindex, nofollow, noarchive",
     },
   });
+}
+
+function matchesIfNoneMatch(value: string | null, etag: string) {
+  return (
+    value?.split(",").some((candidate) => {
+      const trimmed = candidate.trim();
+      return trimmed === "*" || trimmed === etag || trimmed === `W/${etag}`;
+    }) ?? false
+  );
 }
 
 function unavailable() {

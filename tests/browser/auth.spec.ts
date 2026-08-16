@@ -974,6 +974,20 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
     page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
     page.getByRole("link", { name: "Manage Wrap" }).click(),
   ]);
+  const previewResponse = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+  );
+  expect(previewResponse.status()).toBe(200);
+  const previewEtag = previewResponse.headers().etag;
+  expect(previewEtag).toMatch(/^"[a-f0-9]{64}"$/);
+  const notModifiedPreview = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+    { headers: { "If-None-Match": previewEtag } },
+  );
+  expect(notModifiedPreview.status()).toBe(304);
+  expect(notModifiedPreview.headers()["cache-control"]).toBe(
+    "public, max-age=0, must-revalidate",
+  );
   await page.getByLabel("Title").fill("Cybertruck Night Drive Updated");
   await page.getByRole("button", { name: "Save metadata" }).click();
   await expect(page.getByLabel("Title")).toHaveValue(
@@ -981,6 +995,12 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   );
   await page.getByRole("button", { name: "Unpublish" }).click();
   await expect(page.getByText("UNPUBLISHED", { exact: true })).toBeVisible();
+  const withdrawnPreview = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+    { headers: { "If-None-Match": previewEtag } },
+  );
+  expect(withdrawnPreview.status()).toBe(404);
+  expect(withdrawnPreview.headers()["cache-control"]).toBe("no-store");
   await expect(page.getByRole("button", { name: "Republish" })).toBeVisible();
   await expectRouteStatus(
     () => page.request.get(`/wrap/${publishedSlug}`),
