@@ -1,0 +1,98 @@
+import { describe, expect, it } from "vitest";
+
+import { readPublicEnvironment, readServerEnvironment } from "./env";
+
+const valid = {
+  NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
+  WRAPFORGE_ENVIRONMENT: "local",
+  NEXT_PUBLIC_SUPABASE_URL: "http://127.0.0.1:54321",
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "local-publishable-key",
+  DOWNLOAD_PRINCIPAL_HMAC_SECRET: "local-download-secret-0123456789012345",
+};
+
+describe("readPublicEnvironment", () => {
+  it("accepts the local Docker environment", () => {
+    expect(readPublicEnvironment(valid)).toMatchObject({
+      NEXT_PUBLIC_SITE_URL: valid.NEXT_PUBLIC_SITE_URL,
+      WRAPFORGE_ENVIRONMENT: valid.WRAPFORGE_ENVIRONMENT,
+      NEXT_PUBLIC_SUPABASE_URL: valid.NEXT_PUBLIC_SUPABASE_URL,
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
+        valid.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+    });
+  });
+
+  it("fails closed when a required value is absent", () => {
+    expect(() =>
+      readPublicEnvironment({ ...valid, NEXT_PUBLIC_SUPABASE_URL: "" }),
+    ).toThrow("NEXT_PUBLIC_SUPABASE_URL");
+  });
+
+  it("rejects local Supabase credentials outside local mode", () => {
+    expect(() =>
+      readPublicEnvironment({ ...valid, WRAPFORGE_ENVIRONMENT: "production" }),
+    ).toThrow("local Supabase URL");
+  });
+
+  it("rejects hosted Supabase credentials in local mode", () => {
+    expect(() =>
+      readPublicEnvironment({
+        ...valid,
+        NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
+      }),
+    ).toThrow("Local mode requires local site and Supabase URLs");
+  });
+
+  it("rejects a browser environment identity that disagrees with the server", () => {
+    expect(() =>
+      readPublicEnvironment({
+        ...valid,
+        NEXT_PUBLIC_WRAPFORGE_ENVIRONMENT: "production",
+      }),
+    ).toThrow("environment identities must match");
+  });
+});
+
+describe("readServerEnvironment", () => {
+  it("keeps the service credential in the server-only contract", () => {
+    expect(
+      readServerEnvironment({ ...valid, SUPABASE_SECRET_KEY: "local-secret" }),
+    ).toMatchObject({ SUPABASE_SECRET_KEY: "local-secret" });
+    expect(() => readServerEnvironment(valid)).toThrow("SUPABASE_SECRET_KEY");
+    expect(() =>
+      readServerEnvironment({
+        ...valid,
+        SUPABASE_SECRET_KEY: "local-secret",
+        DOWNLOAD_PRINCIPAL_HMAC_SECRET: "short",
+      }),
+    ).toThrow("at least 32 characters");
+  });
+
+  it("requires the production ranking refresh secret", () => {
+    const hosted = {
+      ...valid,
+      NEXT_PUBLIC_SITE_URL: "https://wrapforge.example",
+      NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+      WRAPFORGE_ENVIRONMENT: "production",
+      SUPABASE_SECRET_KEY: "service-secret",
+    };
+    expect(() => readServerEnvironment(hosted)).toThrow("CRON_SECRET");
+    expect(
+      readServerEnvironment({
+        ...hosted,
+        CRON_SECRET: "cron-secret-012345678901234567890",
+      }),
+    ).toMatchObject({ CRON_SECRET: "cron-secret-012345678901234567890" });
+  });
+
+  it("fails closed for hosted development without the cron secret", () => {
+    expect(() =>
+      readServerEnvironment({
+        ...valid,
+        NEXT_PUBLIC_SITE_URL: "https://preview.wrapforge.example",
+        NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
+        WRAPFORGE_ENVIRONMENT: "development",
+        SUPABASE_SECRET_KEY: "service-secret",
+      }),
+    ).toThrow("CRON_SECRET");
+  });
+});

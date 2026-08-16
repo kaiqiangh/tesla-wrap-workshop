@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320
+        with:
+          version: 11.16.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm exec supabase start > /dev/null
+      - run: pnpm test:db
+      - name: Verify generated database types
+        run: |
+          generated_types=$(mktemp)
+          pnpm exec supabase gen types typescript --local | pnpm exec prettier --parser typescript > "$generated_types"
+          pnpm exec prettier src/lib/database.types.ts | diff -u "$generated_types" -
+      - run: pnpm exec supabase db lint
+      - run: pnpm exec supabase db advisors --local --type all --level warn --fail-on warn
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm test:browser:local
+      - run: pnpm build:local
+      - run: pnpm scan:security
+      - if: always()
+        run: pnpm exec supabase stop

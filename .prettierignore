@@ -1,0 +1,5 @@
+# Evidence snapshots keep source formatting.
+docs/research/
+
+# Generated binary assets.
+public/assets/

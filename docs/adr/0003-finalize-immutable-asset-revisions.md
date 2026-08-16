@@ -1,0 +1,3 @@
+# Finalize uploads into immutable Asset Revisions
+
+Postgres and object storage cannot commit one atomic transaction, and overwriting a published object would destroy the evidence needed for compatibility, moderation, rollback, and cleanup. WrapForge therefore moves each Pending Upload through an explicit, retryable state machine and finalizes it into a new immutable Asset Revision only after the Original Wrap Asset and every required Derived Wrap Asset exist. File replacement creates another revision; publication switches the database reference atomically, while idempotent reconciliation and cleanup repair cross-system failures.
