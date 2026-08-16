@@ -241,30 +241,30 @@ export async function searchDiscoveryWraps(
     return { status: "error", wraps: [], nextCursor: null };
   }
   if (process.env.NODE_ENV !== "test") {
-    const viewerId = await readViewerId(client);
-    const eventInput = {
-      actorId: viewerId,
-      targetType: "DISCOVERY" as const,
-      targetId: "00000000-0000-4000-8000-000000000000",
-      outcome: "SUCCESS" as const,
-      code: "DISCOVERY_SEARCH",
-      correlationId: null,
-    };
-    const { recordCoreLoopEvent } = await import("./observability");
-    const searchRecorded = await recordCoreLoopEvent({
-      eventKind: "SEARCH",
-      ...eventInput,
-    });
-    if (!searchRecorded)
-      return { status: "error", wraps: [], nextCursor: null };
-    if (options.modelSlug || options.variantKey) {
-      const filterRecorded = await recordCoreLoopEvent({
-        eventKind: "FILTER_APPLIED",
+    try {
+      const viewerId = await readViewerId(client);
+      const eventInput = {
+        actorId: viewerId,
+        targetType: "DISCOVERY" as const,
+        targetId: "00000000-0000-4000-8000-000000000000",
+        outcome: "SUCCESS" as const,
+        code: "DISCOVERY_SEARCH",
+        correlationId: null,
+      };
+      const { recordCoreLoopEvent } = await import("./observability");
+      await recordCoreLoopEvent({
+        eventKind: "SEARCH",
         ...eventInput,
-        code: "DISCOVERY_FILTER",
       });
-      if (!filterRecorded)
-        return { status: "error", wraps: [], nextCursor: null };
+      if (options.modelSlug || options.variantKey) {
+        await recordCoreLoopEvent({
+          eventKind: "FILTER_APPLIED",
+          ...eventInput,
+          code: "DISCOVERY_FILTER",
+        });
+      }
+    } catch {
+      // Discovery results remain available when optional telemetry is down.
     }
   }
   const wraps = payload.items as DiscoveryWrap[];

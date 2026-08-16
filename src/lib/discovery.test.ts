@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
+const telemetryMocks = vi.hoisted(() => ({
+  cookies: vi.fn(),
+  createAdmin: vi.fn(),
+  hmacPrincipal: vi.fn(() => "v1:search:test"),
+  recordEvent: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({ cookies: telemetryMocks.cookies }));
+vi.mock("./limits", () => ({
+  hmacPrincipal: telemetryMocks.hmacPrincipal,
+}));
+vi.mock("./observability", () => ({
+  recordCoreLoopEvent: telemetryMocks.recordEvent,
+}));
+vi.mock("./supabase/admin", () => ({
+  createAdminSupabaseClient: telemetryMocks.createAdmin,
+}));
+
 import {
   getDiscoveryWraps,
   getPublicVehicleModel,
@@ -155,6 +173,42 @@ describe("discovery read boundary", () => {
       p_sort: "NEWEST",
       p_limit: 24,
     });
+  });
+
+  it("keeps successful results when optional search telemetry fails", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+      "search-telemetry-test-secret-0123456789012345",
+    );
+    telemetryMocks.cookies.mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: "search-session" }),
+    });
+    const principalRpc = vi.fn().mockResolvedValue({
+      data: emptySearch,
+      error: null,
+    });
+    telemetryMocks.createAdmin.mockReturnValue({ rpc: principalRpc });
+    telemetryMocks.recordEvent.mockResolvedValue(false);
+
+    try {
+      const result = await searchDiscoveryWraps({
+        auth: {
+          getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+        },
+        rpc: vi.fn(),
+      } as never);
+      expect(result).toMatchObject({
+        status: "empty",
+        calculatedAt: "2026-08-11T00:00:00Z",
+      });
+      expect(telemetryMocks.recordEvent).toHaveBeenCalledWith(
+        expect.objectContaining({ eventKind: "SEARCH" }),
+      );
+    } finally {
+      vi.unstubAllEnvs();
+      vi.clearAllMocks();
+    }
   });
 
   it("does not turn a malformed search payload into an empty catalog", async () => {
