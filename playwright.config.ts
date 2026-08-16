@@ -88,6 +88,7 @@ export default defineConfig({
     command: "node scripts/with-local-supabase.mjs pnpm dev",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: false,
+    gracefulShutdown: { signal: "SIGTERM", timeout: 2_000 },
     timeout: 120_000,
   },
 });

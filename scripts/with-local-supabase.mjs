@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) throw new Error("A command is required");
@@ -16,7 +16,7 @@ const local = JSON.parse(result.stdout);
 const executable =
   command === "pnpm" ? (process.env.npm_execpath ?? "pnpm") : command;
 const executableArgs = args;
-const child = spawnSync(executable, executableArgs, {
+const child = spawn(executable, executableArgs, {
   env: {
     ...process.env,
     NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
@@ -29,7 +29,67 @@ const child = spawnSync(executable, executableArgs, {
     DOWNLOAD_PRINCIPAL_HMAC_SECRET: local.JWT_SECRET,
     SUPABASE_JWT_SECRET: local.JWT_SECRET,
   },
+  detached: process.platform !== "win32",
   stdio: "inherit",
 });
+const childProcessGroupId = child.pid;
 
-process.exit(child.status ?? 1);
+let forwardedSignal;
+let forceKillTimer;
+const killChildGroup = (signal) => {
+  if (!childProcessGroupId || process.platform === "win32") return;
+  try {
+    process.kill(-childProcessGroupId, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+};
+const waitForChildGroup = async () => {
+  if (!childProcessGroupId || process.platform === "win32") return;
+  const deadline = Date.now() + 500;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-childProcessGroupId, 0);
+    } catch (error) {
+      if (error?.code === "ESRCH" || error?.code === "EPERM") return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+};
+const forwardSignal = (signal) => {
+  if (forwardedSignal) return;
+  forwardedSignal = signal;
+  killChildGroup(signal);
+  if (process.platform !== "win32") {
+    forceKillTimer = setTimeout(() => killChildGroup("SIGKILL"), 1_500);
+    forceKillTimer.unref();
+  }
+};
+const forwardedSignals =
+  process.platform === "win32" ? [] : ["SIGINT", "SIGTERM", "SIGHUP"];
+const signalHandlers = new Map(
+  forwardedSignals.map((signal) => [signal, () => forwardSignal(signal)]),
+);
+for (const [signal, handler] of signalHandlers) {
+  process.once(signal, handler);
+}
+
+const childResult = await new Promise((resolve, reject) => {
+  child.once("error", reject);
+  child.once("exit", (code, signal) => resolve({ code, signal }));
+});
+if (forwardedSignal) {
+  killChildGroup("SIGKILL");
+  await waitForChildGroup();
+}
+clearTimeout(forceKillTimer);
+
+for (const [signal, handler] of signalHandlers) {
+  process.removeListener(signal, handler);
+}
+
+if (childResult.signal) {
+  process.kill(process.pid, childResult.signal);
+}
+process.exit(childResult.code ?? 1);
