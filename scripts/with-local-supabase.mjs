@@ -34,17 +34,28 @@ const child = spawn(executable, executableArgs, {
 });
 
 let forwardedSignal;
-const forwardSignal = (signal) => {
-  if (forwardedSignal) return;
-  forwardedSignal = signal;
-  if (process.platform === "win32" || !child.pid) {
-    child.kill(signal);
+let forceKillTimer;
+const killChildGroup = (signal) => {
+  if (!child.pid) return;
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+      stdio: "ignore",
+    });
     return;
   }
   try {
     process.kill(-child.pid, signal);
   } catch (error) {
     if (error?.code !== "ESRCH") throw error;
+  }
+};
+const forwardSignal = (signal) => {
+  if (forwardedSignal) return;
+  forwardedSignal = signal;
+  killChildGroup(signal);
+  if (process.platform !== "win32") {
+    forceKillTimer = setTimeout(() => killChildGroup("SIGKILL"), 1_500);
+    forceKillTimer.unref();
   }
 };
 const signalHandlers = new Map(
@@ -61,6 +72,8 @@ const childResult = await new Promise((resolve, reject) => {
   child.once("error", reject);
   child.once("exit", (code, signal) => resolve({ code, signal }));
 });
+if (forwardedSignal) killChildGroup("SIGKILL");
+clearTimeout(forceKillTimer);
 
 for (const [signal, handler] of signalHandlers) {
   process.removeListener(signal, handler);
