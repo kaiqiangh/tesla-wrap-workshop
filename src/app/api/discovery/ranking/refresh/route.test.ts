@@ -69,11 +69,17 @@ describe("GET /api/discovery/ranking/refresh", () => {
       new Request(
         "https://preview.wrapforge.example/api/discovery/ranking/refresh",
         {
-          headers: { authorization: "Bearer cron-secret" },
+          headers: {
+            authorization: "Bearer cron-secret",
+            "x-correlation-id": "33333333-3333-4333-8333-333333333333",
+          },
         },
       ),
     );
     expect(response.status).toBe(200);
+    expect(response.headers.get("x-correlation-id")).toBe(
+      "33333333-3333-4333-8333-333333333333",
+    );
   });
 
   it("returns a stable outage when the ranking refresh fails", async () => {
@@ -101,6 +107,17 @@ describe("GET /api/discovery/ranking/refresh", () => {
     expect((await response.json()).error.code).toBe("ranking_refresh_failed");
   });
 
+  it("maps service-client construction failures to the stable outage", async () => {
+    mocks.createAdmin.mockImplementation(() => {
+      throw new Error("admin client unavailable");
+    });
+    const response = await GET(
+      new Request("http://localhost/api/discovery/ranking/refresh"),
+    );
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe("ranking_refresh_failed");
+  });
+
   it("maps environment failures to the stable outage", async () => {
     mocks.readEnvironment.mockImplementation(() => {
       throw new Error("invalid environment");
@@ -111,5 +128,63 @@ describe("GET /api/discovery/ranking/refresh", () => {
     expect(response.status).toBe(503);
     expect((await response.json()).error.code).toBe("ranking_refresh_failed");
     expect(mocks.createAdmin).not.toHaveBeenCalled();
+  });
+
+  it("logs structured operation metadata for success, denial, and failure", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await GET(
+        new Request("http://localhost/api/discovery/ranking/refresh", {
+          headers: {
+            "x-correlation-id": "44444444-4444-4444-8444-444444444444",
+          },
+        }),
+      );
+      mocks.readEnvironment.mockReturnValue({
+        WRAPFORGE_ENVIRONMENT: "production",
+        CRON_SECRET: "cron-secret",
+      });
+      await GET(
+        new Request("https://wrapforge.example/api/discovery/ranking/refresh"),
+      );
+      mocks.readEnvironment.mockReturnValue({
+        WRAPFORGE_ENVIRONMENT: "local",
+        CRON_SECRET: "cron-secret",
+      });
+      mocks.rpc.mockResolvedValue({ data: null, error: new Error("offline") });
+      await GET(
+        new Request("http://localhost/api/discovery/ranking/refresh", {
+          headers: {
+            "x-correlation-id": "55555555-5555-4555-8555-555555555555",
+          },
+        }),
+      );
+
+      expect(JSON.parse(String(info.mock.calls[0]?.[0]))).toMatchObject({
+        type: "wrapforge.operation",
+        action: "DISCOVERY_RANKING_REFRESH",
+        targetType: "DISCOVERY",
+        outcome: "success",
+        correlationId: "44444444-4444-4444-8444-444444444444",
+      });
+      expect(JSON.parse(String(warn.mock.calls[0]?.[0]))).toMatchObject({
+        type: "wrapforge.operation",
+        action: "DISCOVERY_RANKING_REFRESH",
+        targetType: "DISCOVERY",
+        outcome: "denied",
+      });
+      expect(JSON.parse(String(error.mock.calls[0]?.[0]))).toMatchObject({
+        type: "wrapforge.operation",
+        action: "DISCOVERY_RANKING_REFRESH",
+        targetType: "DISCOVERY",
+        outcome: "error",
+        correlationId: "55555555-5555-4555-8555-555555555555",
+      });
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
