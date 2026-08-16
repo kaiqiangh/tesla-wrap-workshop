@@ -101,6 +101,7 @@ export default async function WrapDetailPage({ params }: Props) {
               width={wrap.preview_width_px ?? 640}
               height={wrap.preview_height_px ?? 640}
               priority
+              unoptimized
             />
           ) : (
             <div className="wrap-preview-unavailable">Preview unavailable</div>

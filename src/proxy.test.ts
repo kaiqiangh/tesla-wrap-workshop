@@ -13,6 +13,7 @@ import { proxy } from "./proxy";
 
 describe("global mutation boundary", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubEnv("WRAPFORGE_ENVIRONMENT", "local");
     vi.stubEnv("NEXT_PUBLIC_SITE_URL", "http://localhost:3000");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
@@ -34,6 +35,15 @@ describe("global mutation boundary", () => {
     expect(response.status).toBe(403);
     expect(response.headers.get("x-correlation-id")).toMatch(/^[0-9a-f-]{36}$/);
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+
+  it("does not attach session cookies to public preview media", async () => {
+    const response = await proxy(
+      new NextRequest("http://localhost/api/wraps/night-drive-abc/preview"),
+    );
+
+    expect(response.cookies.getAll()).toEqual([]);
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 });

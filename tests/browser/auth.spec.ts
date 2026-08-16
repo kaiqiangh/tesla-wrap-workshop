@@ -510,6 +510,10 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  await expect(page.locator(".wrap-detail-preview img")).toHaveAttribute(
+    "src",
+    `/api/wraps/${publishedSlug}/preview`,
+  );
   const publishedRow = await admin
     .from("wraps")
     .select("id")
@@ -974,6 +978,16 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
     page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
     page.getByRole("link", { name: "Manage Wrap" }).click(),
   ]);
+  const guestPreviewContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:3000",
+    extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
+  });
+  const guestPreview = await guestPreviewContext.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+  );
+  expect(guestPreview.status()).toBe(200);
+  expect(guestPreview.headers()["set-cookie"]).toBeUndefined();
+  await guestPreviewContext.close();
   const previewResponse = await page.request.get(
     `/api/wraps/${publishedSlug}/preview`,
   );

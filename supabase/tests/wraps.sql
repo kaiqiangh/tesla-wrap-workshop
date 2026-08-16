@@ -254,6 +254,7 @@ select is(
   repeat('b', 64),
   'public Wrap media exposes the immutable preview digest'
 );
+savepoint public_preview_missing_object;
 update storage.objects
 set name = name || '-public-media-missing'
 where bucket_id = 'wrap-derived'
@@ -262,10 +263,9 @@ select is_empty(
   $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
   'a missing public preview object is excluded from the media projection'
 );
-update storage.objects
-set name = current_setting('test.model3_preview_key')
-where bucket_id = 'wrap-derived'
-  and name = current_setting('test.model3_preview_key') || '-public-media-missing';
+rollback to savepoint public_preview_missing_object;
+release savepoint public_preview_missing_object;
+savepoint public_preview_unpublished;
 update public.wraps
 set status = 'UNPUBLISHED'
 where slug = current_setting('test.model3_slug');
@@ -273,9 +273,8 @@ select is_empty(
   $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
   'an unpublished Wrap is excluded from the media projection'
 );
-update public.wraps
-set status = 'PUBLISHED'
-where slug = current_setting('test.model3_slug');
+rollback to savepoint public_preview_unpublished;
+release savepoint public_preview_unpublished;
 reset role;
 set local role anon;
 select throws_ok(
@@ -283,6 +282,14 @@ select throws_ok(
   '42501', 'permission denied for function get_public_wrap_media',
   'anonymous callers cannot execute the service-owned public Wrap media RPC'
 );
+reset role;
+set local role authenticated;
+select throws_ok(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  '42501', 'permission denied for function get_public_wrap_media',
+  'authenticated callers cannot execute the service-owned public Wrap media RPC'
+);
+reset role;
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
