@@ -21,4 +21,16 @@ describe("requestContentLengthExceedsLimit", () => {
       expected,
     );
   });
+
+  it("keeps the request limit exact at the safe integer boundary", () => {
+    const maxFileBytes = Number.MAX_SAFE_INTEGER;
+    const threshold = BigInt(maxFileBytes) + BigInt(MULTIPART_OVERHEAD_BYTES);
+
+    expect(
+      requestContentLengthExceedsLimit(String(threshold), maxFileBytes),
+    ).toBe(false);
+    expect(
+      requestContentLengthExceedsLimit(String(threshold + 1n), maxFileBytes),
+    ).toBe(true);
+  });
 });

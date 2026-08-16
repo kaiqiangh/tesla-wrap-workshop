@@ -13,6 +13,7 @@ export function requestContentLengthExceedsLimit(
     return false;
   }
   return (
-    BigInt(contentLength) > BigInt(maxFileBytes + MULTIPART_OVERHEAD_BYTES)
+    BigInt(contentLength) >
+    BigInt(maxFileBytes) + BigInt(MULTIPART_OVERHEAD_BYTES)
   );
 }
