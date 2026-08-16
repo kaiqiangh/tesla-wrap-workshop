@@ -192,18 +192,47 @@ describe("discovery read boundary", () => {
     telemetryMocks.recordEvent.mockResolvedValue(false);
 
     try {
-      const result = await searchDiscoveryWraps({
-        auth: {
-          getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
-        },
-        rpc: vi.fn(),
-      } as never);
+      const result = await searchDiscoveryWraps(
+        {
+          auth: {
+            getUser: vi.fn().mockResolvedValue({
+              data: { user: { id: "20000000-0000-0000-0000-000000000001" } },
+            }),
+          },
+          rpc: vi.fn(),
+        } as never,
+        { modelSlug: "model-3", variantKey: "standard" },
+      );
       expect(result).toMatchObject({
         status: "empty",
         calculatedAt: "2026-08-11T00:00:00Z",
       });
-      expect(telemetryMocks.recordEvent).toHaveBeenCalledWith(
-        expect.objectContaining({ eventKind: "SEARCH" }),
+      expect(principalRpc).toHaveBeenCalledWith(
+        "search_discovery_wraps_for_principal",
+        {
+          p_model_slug: "model-3",
+          p_variant_key: "standard",
+          p_sort: "NEWEST",
+          p_limit: 24,
+          p_principal_key: "v1:search:test",
+          p_viewer_id: "20000000-0000-0000-0000-000000000001",
+        },
+      );
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          eventKind: "SEARCH",
+          actorId: "20000000-0000-0000-0000-000000000001",
+          code: "DISCOVERY_SEARCH",
+        }),
+      );
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          eventKind: "FILTER_APPLIED",
+          actorId: "20000000-0000-0000-0000-000000000001",
+          code: "DISCOVERY_FILTER",
+        }),
       );
     } finally {
       vi.unstubAllEnvs();
