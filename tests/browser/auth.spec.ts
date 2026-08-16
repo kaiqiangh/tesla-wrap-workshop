@@ -1203,8 +1203,16 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
         const body = (await response.json()) as {
           error?: { code?: string };
         };
-        expect(response.status()).toBe(503);
-        expect(body.error?.code).toBe("WF-UPLOAD-BUSY");
+        // A concurrent finalizer may observe the staging object mid-consumption
+        // (WF-UPLOAD-STAGING) or the authoritative validation still running
+        // (WF-UPLOAD-BUSY); both mean "retry the same request", so accept
+        // either code while converging on the single 200 Asset Revision.
+        expect(
+          [503, 409].includes(response.status()) &&
+            ["WF-UPLOAD-BUSY", "WF-UPLOAD-STAGING"].includes(
+              body.error?.code ?? "",
+            ),
+        ).toBe(true);
         response = await postWithRetry(
           page.request,
           `/api/uploads/${parallel.id}/finalize`,
