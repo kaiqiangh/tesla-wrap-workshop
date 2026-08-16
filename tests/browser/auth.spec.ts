@@ -1002,22 +1002,33 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   expect(notModifiedPreview.headers()["cache-control"]).toBe(
     "public, max-age=0, must-revalidate",
   );
-  const deactivateCreator = await admin
-    .from("profiles")
-    .update({ participation_state: "DEACTIVATED" })
-    .eq("user_id", userId);
-  expect(deactivateCreator.error).toBeNull();
-  const deactivatedPreview = await page.request.get(
+  try {
+    const deactivateCreator = await admin
+      .from("profiles")
+      .update({ participation_state: "DEACTIVATED" })
+      .eq("user_id", userId);
+    expect(deactivateCreator.error).toBeNull();
+    const deactivatedPreview = await page.request.get(
+      `/api/wraps/${publishedSlug}/preview`,
+      { headers: { "If-None-Match": previewEtag } },
+    );
+    expect(deactivatedPreview.status()).toBe(404);
+    expect(deactivatedPreview.headers()["cache-control"]).toBe("no-store");
+  } finally {
+    const reactivateCreator = await admin
+      .from("profiles")
+      .update({ participation_state: "ACTIVE" })
+      .eq("user_id", userId);
+    expect(reactivateCreator.error).toBeNull();
+  }
+  const restoredPreview = await page.request.get(
     `/api/wraps/${publishedSlug}/preview`,
     { headers: { "If-None-Match": previewEtag } },
   );
-  expect(deactivatedPreview.status()).toBe(404);
-  expect(deactivatedPreview.headers()["cache-control"]).toBe("no-store");
-  const reactivateCreator = await admin
-    .from("profiles")
-    .update({ participation_state: "ACTIVE" })
-    .eq("user_id", userId);
-  expect(reactivateCreator.error).toBeNull();
+  expect(restoredPreview.status()).toBe(304);
+  expect(restoredPreview.headers()["cache-control"]).toBe(
+    "public, max-age=0, must-revalidate",
+  );
   await page.getByLabel("Title").fill("Cybertruck Night Drive Updated");
   await page.getByRole("button", { name: "Save metadata" }).click();
   await expect(page.getByLabel("Title")).toHaveValue(
