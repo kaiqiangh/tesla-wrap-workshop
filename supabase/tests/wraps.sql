@@ -235,6 +235,42 @@ select set_config(
   (select slug from public.wraps where title = 'Model3 Wrap' limit 1),
   true
 );
+select is(
+  (select count(*) from public.get_public_wrap_media(current_setting('test.model3_slug'))),
+  1::bigint,
+  'eligible public Wrap media exposes one preview'
+);
+select is(
+  (select sha256 from public.get_public_wrap_media(current_setting('test.model3_slug'))),
+  repeat('b', 64),
+  'public Wrap media exposes the immutable preview digest'
+);
+update storage.objects
+set name = name || '-public-media-missing'
+where bucket_id = 'wrap-derived'
+  and name = (
+    select wa.object_key
+    from public.wrap_assets wa
+    join public.wraps w on w.asset_revision_id = wa.asset_revision_id
+    where w.slug = current_setting('test.model3_slug') and wa.kind = 'PREVIEW'
+  );
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'a missing public preview object is excluded from the media projection'
+);
+update storage.objects
+set name = left(name, length(name) - length('-public-media-missing'))
+where bucket_id = 'wrap-derived' and name like '%-public-media-missing';
+update public.wraps
+set status = 'UNPUBLISHED'
+where slug = current_setting('test.model3_slug');
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'an unpublished Wrap is excluded from the media projection'
+);
+update public.wraps
+set status = 'PUBLISHED'
+where slug = current_setting('test.model3_slug');
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
