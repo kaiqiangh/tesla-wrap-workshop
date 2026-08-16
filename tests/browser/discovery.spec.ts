@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("guest can reproduce Discovery filters and clear incompatible variants", async ({
   page,
 }, testInfo) => {
-  test.skip(!["desktop-1440", "mobile-chrome"].includes(testInfo.project.name));
+  test.skip(!["chromium", "mobile-chrome"].includes(testInfo.project.name));
   const originalRequests: string[] = [];
   page.on("request", (request) => {
     if (request.url().includes("/wrap-originals"))

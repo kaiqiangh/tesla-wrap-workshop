@@ -18,9 +18,9 @@
     "scan:security": "node scripts/security-scan.mjs",
     "start": "next start",
     "test": "vitest run",
-    "test:browser": "supabase db reset && node scripts/with-local-supabase.mjs pnpm exec playwright test --project=chromium --project=desktop-1440 --project=mobile-chrome",
-    "test:browser:compat": "supabase db reset && node scripts/with-local-supabase.mjs pnpm exec playwright test --project=chromium --project=firefox --project=webkit --project=mobile-chrome --project=mobile-safari",
-    "test:browser:full": "supabase db reset && node scripts/with-local-supabase.mjs pnpm exec playwright test",
+    "test:browser": "node scripts/reset-supabase-if-needed.mjs && node scripts/with-local-supabase.mjs pnpm exec playwright test --project=chromium --project=mobile-chrome",
+    "test:browser:compat": "node scripts/reset-supabase-if-needed.mjs && node scripts/with-local-supabase.mjs pnpm exec playwright test --project=chromium --project=firefox --project=webkit --project=mobile-chrome --project=mobile-safari",
+    "test:browser:full": "node scripts/reset-supabase-if-needed.mjs && node scripts/with-local-supabase.mjs pnpm exec playwright test",
     "test:browser:local": "pnpm test:browser",
     "test:db": "supabase db reset && supabase test db",
     "typecheck": "tsc --noEmit"
