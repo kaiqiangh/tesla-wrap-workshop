@@ -177,7 +177,12 @@ export async function searchDiscoveryWraps(
     limit?: number;
   } = {},
 ): Promise<DiscoverySearchResult> {
-  const principal = await readSearchPrincipal();
+  let principal: string | undefined;
+  try {
+    principal = await readSearchPrincipal();
+  } catch {
+    return { status: "error", wraps: [], nextCursor: null };
+  }
   const args = {
     ...(options.q ? { p_q: options.q } : {}),
     ...(options.modelSlug ? { p_model_slug: options.modelSlug } : {}),
@@ -186,20 +191,26 @@ export async function searchDiscoveryWraps(
     ...(options.cursor ? { p_cursor: options.cursor } : {}),
     p_limit: options.limit ?? 24,
   };
-  const { data, error } = principal
-    ? await (async () => {
-        const viewerId = await readViewerId(client);
-        const { createAdminSupabaseClient } = await import("./supabase/admin");
-        return createAdminSupabaseClient().rpc(
-          "search_discovery_wraps_for_principal",
-          {
-            ...args,
-            p_principal_key: principal,
-            p_viewer_id: viewerId ?? undefined,
-          },
-        );
-      })()
-    : await client.rpc("search_discovery_wraps", args);
+  let data: unknown;
+  let error: unknown;
+  try {
+    if (principal) {
+      const viewerId = await readViewerId(client);
+      const { createAdminSupabaseClient } = await import("./supabase/admin");
+      ({ data, error } = await createAdminSupabaseClient().rpc(
+        "search_discovery_wraps_for_principal",
+        {
+          ...args,
+          p_principal_key: principal,
+          p_viewer_id: viewerId ?? undefined,
+        },
+      ));
+    } else {
+      ({ data, error } = await client.rpc("search_discovery_wraps", args));
+    }
+  } catch {
+    return { status: "error", wraps: [], nextCursor: null };
+  }
   if (error) {
     const message =
       typeof error === "object" && error !== null && "message" in error

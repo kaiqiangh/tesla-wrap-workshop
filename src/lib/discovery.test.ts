@@ -181,6 +181,7 @@ describe("discovery read boundary", () => {
       "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
       "search-telemetry-test-secret-0123456789012345",
     );
+    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
     telemetryMocks.cookies.mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: "search-session" }),
     });
@@ -218,25 +219,76 @@ describe("discovery read boundary", () => {
           p_viewer_id: "20000000-0000-0000-0000-000000000001",
         },
       );
-      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(
-        1,
-        expect.objectContaining({
-          eventKind: "SEARCH",
-          actorId: "20000000-0000-0000-0000-000000000001",
-          code: "DISCOVERY_SEARCH",
-        }),
-      );
-      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({
-          eventKind: "FILTER_APPLIED",
-          actorId: "20000000-0000-0000-0000-000000000001",
-          code: "DISCOVERY_FILTER",
-        }),
-      );
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(1, {
+        eventKind: "SEARCH",
+        actorId: "20000000-0000-0000-0000-000000000001",
+        targetType: "DISCOVERY",
+        targetId: "00000000-0000-4000-8000-000000000000",
+        outcome: "SUCCESS",
+        code: "DISCOVERY_SEARCH",
+        correlationId: null,
+      });
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(2, {
+        eventKind: "FILTER_APPLIED",
+        actorId: "20000000-0000-0000-0000-000000000001",
+        targetType: "DISCOVERY",
+        targetId: "00000000-0000-4000-8000-000000000000",
+        outcome: "SUCCESS",
+        code: "DISCOVERY_FILTER",
+        correlationId: null,
+      });
     } finally {
       vi.unstubAllEnvs();
-      vi.clearAllMocks();
+      vi.resetAllMocks();
+    }
+  });
+
+  it("maps search principal acquisition failures to an error state", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    telemetryMocks.cookies.mockRejectedValue(new Error("cookies unavailable"));
+
+    try {
+      await expect(searchDiscoveryWraps(client(emptySearch))).resolves.toEqual({
+        status: "error",
+        wraps: [],
+        nextCursor: null,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
+    }
+  });
+
+  it("maps principal search RPC failures to an error state", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+      "search-rpc-test-secret-0123456789012345",
+    );
+    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
+    telemetryMocks.cookies.mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: "search-session" }),
+    });
+    telemetryMocks.createAdmin.mockReturnValue({
+      rpc: vi.fn().mockRejectedValue(new Error("search unavailable")),
+    });
+
+    try {
+      await expect(
+        searchDiscoveryWraps({
+          auth: {
+            getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+          },
+          rpc: vi.fn(),
+        } as never),
+      ).resolves.toEqual({
+        status: "error",
+        wraps: [],
+        nextCursor: null,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
     }
   });
 
