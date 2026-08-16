@@ -1,3 +1,9 @@
+import {
+  isValidProfileDisplayName,
+  normalizeProfileIdentity,
+  validateProfileUsername,
+} from "./identity";
+
 export type ProfileSettingsInput = {
   username: string;
   displayName: string;
@@ -15,18 +21,17 @@ export type ProfileSettingsResult =
 export function validateProfileSettings(
   input: ProfileSettingsInput,
 ): ProfileSettingsResult {
-  const username = input.username.trim().toLowerCase();
-  const displayName = input.displayName.trim();
+  const { username, displayName } = normalizeProfileIdentity(input);
   const bio = input.bio.trim();
 
-  if (!/^[a-z0-9][a-z0-9_-]{2,29}$/.test(username)) {
+  if (validateProfileUsername(username)) {
     return {
       ok: false,
       code: "invalid_username",
       message: "Username must be 3–30 lowercase letters, numbers, _ or -.",
     };
   }
-  if ([...displayName].length < 1 || [...displayName].length > 60) {
+  if (!isValidProfileDisplayName(displayName)) {
     return {
       ok: false,
       code: "invalid_display_name",
