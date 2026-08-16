@@ -12,6 +12,7 @@ describe("requestContentLengthExceedsLimit", () => {
     [null, false],
     [String(limit + MULTIPART_OVERHEAD_BYTES), false],
     [String(limit + MULTIPART_OVERHEAD_BYTES + 1), true],
+    ["999999999999999999999", true],
     ["0x210001", false],
     ["+2162689", false],
     ["not-a-length", false],

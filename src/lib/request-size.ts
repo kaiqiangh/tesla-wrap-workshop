@@ -12,9 +12,7 @@ export function requestContentLengthExceedsLimit(
   ) {
     return false;
   }
-  const length = Number(contentLength);
   return (
-    Number.isSafeInteger(length) &&
-    length > maxFileBytes + MULTIPART_OVERHEAD_BYTES
+    BigInt(contentLength) > BigInt(maxFileBytes + MULTIPART_OVERHEAD_BYTES)
   );
 }

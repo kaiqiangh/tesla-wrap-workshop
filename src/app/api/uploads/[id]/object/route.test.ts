@@ -54,6 +54,40 @@ function request() {
 }
 
 describe("POST /api/uploads/[id]/object", () => {
+  it("rejects an oversized declared body before parsing multipart data", async () => {
+    mocks.readProfileAccess.mockResolvedValue({
+      status: "active",
+      userId: "10000000-0000-0000-0000-000000000003",
+    });
+    mocks.createServer.mockResolvedValue({});
+    mocks.createAdmin.mockReturnValue({
+      rpc: vi.fn(async () => ({
+        data: [
+          {
+            id,
+            state: "CREATED",
+            staging_key: "private/key.png",
+            owner_id: "10000000-0000-0000-0000-000000000003",
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            max_file_bytes: 100,
+          },
+        ],
+        error: null,
+      })),
+    });
+    const oversized = new Request(`http://localhost/api/uploads/${id}/object`, {
+      method: "POST",
+      headers: { "content-length": "999999999999999999999" },
+    });
+    const formData = vi.spyOn(oversized, "formData");
+
+    const response = await POST(oversized, { params: Promise.resolve({ id }) });
+
+    expect(response.status).toBe(413);
+    expect((await response.json()).error.code).toBe("WF-UPLOAD-SIZE");
+    expect(formData).not.toHaveBeenCalled();
+  });
+
   it("uploads through the server boundary without returning a key", async () => {
     mocks.readProfileAccess.mockResolvedValue({
       status: "active",
