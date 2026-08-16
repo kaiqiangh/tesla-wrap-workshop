@@ -1,3 +1,9 @@
+import {
+  isValidProfileDisplayName,
+  normalizeProfileIdentity,
+  validateProfileUsername,
+} from "./identity";
+
 export type OnboardingInput = {
   username: string;
   displayName: string;
@@ -14,31 +20,31 @@ type OnboardingResult =
 export function validateOnboardingInput(
   input: OnboardingInput,
 ): OnboardingResult {
-  const username = input.username.trim().toLowerCase();
-  const displayName = input.displayName.trim();
+  const { username, displayName } = normalizeProfileIdentity(input);
+  const usernameError = validateProfileUsername(username);
 
-  if (username.length < 3 || username.length > 30) {
+  if (usernameError === "length") {
     return {
       ok: false,
       code: "invalid_username",
       message: "Username must be 3–30 characters.",
     };
   }
-  if (!/^[a-z0-9]/.test(username)) {
+  if (usernameError === "start") {
     return {
       ok: false,
       code: "invalid_username",
       message: "Username must start with a letter or number.",
     };
   }
-  if (!/^[a-z0-9_-]+$/.test(username)) {
+  if (usernameError === "characters") {
     return {
       ok: false,
       code: "invalid_username",
       message: "Use only letters, numbers, underscores, or dashes.",
     };
   }
-  if (displayName.length < 1 || [...displayName].length > 60) {
+  if (!isValidProfileDisplayName(displayName)) {
     return {
       ok: false,
       code: "invalid_display_name",
