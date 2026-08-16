@@ -12,14 +12,41 @@ type Props = {
 export function ProfileForm({ username, displayName, bio }: Props) {
   const [values, setValues] = useState({ username, displayName, bio });
   const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarRetry, setAvatarRetry] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+
+  async function uploadAvatar(file: File) {
+    try {
+      const form = new FormData();
+      form.set("avatar", file);
+      const response = await fetch("/api/profile/avatar", {
+        method: "POST",
+        body: form,
+      });
+      if (response.ok) return true;
+      const body = (await response.json().catch(() => null)) as {
+        error?: { message?: string };
+      } | null;
+      setMessage(
+        body?.error?.message
+          ? `Profile details were saved, but your avatar could not be saved. ${body.error.message}`
+          : "Profile details were saved, but your avatar could not be saved. Try again.",
+      );
+    } catch {
+      setMessage(
+        "Profile details were saved, but your avatar could not be saved. Try again.",
+      );
+    }
+    return false;
+  }
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setMessage("");
+    setAvatarRetry(false);
     try {
       const response = await fetch("/api/profile/settings", {
         method: "PUT",
@@ -34,31 +61,33 @@ export function ProfileForm({ username, displayName, bio }: Props) {
         setMessage(body?.error?.message ?? "Your Profile could not be saved.");
         return;
       }
+      const savedUsername = body?.username ?? values.username;
+      setValues((current) => ({ ...current, username: savedUsername }));
       if (avatar) {
-        const form = new FormData();
-        form.set("avatar", avatar);
-        const avatarResponse = await fetch("/api/profile/avatar", {
-          method: "POST",
-          body: form,
-        });
-        if (!avatarResponse.ok) {
-          const avatarBody = (await avatarResponse
-            .json()
-            .catch(() => null)) as {
-            error?: { message?: string };
-          } | null;
-          setMessage(
-            avatarBody?.error?.message ?? "Your avatar could not be saved.",
-          );
+        if (!(await uploadAvatar(avatar))) {
+          setAvatarRetry(true);
           return;
         }
       }
-      router.push(`/u/${body?.username ?? values.username}`);
+      router.push(`/u/${savedUsername}`);
     } catch {
       setMessage("Your Profile could not be saved. Try again.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryAvatar() {
+    if (!avatar) return;
+    setBusy(true);
+    setMessage("");
+    if (await uploadAvatar(avatar)) {
+      setAvatarRetry(false);
+      router.push(`/u/${values.username}`);
+    } else {
+      setAvatarRetry(true);
+    }
+    setBusy(false);
   }
 
   async function deactivate() {
@@ -129,7 +158,10 @@ export function ProfileForm({ username, displayName, bio }: Props) {
         <input
           type="file"
           accept="image/png,image/jpeg,image/webp"
-          onChange={(event) => setAvatar(event.target.files?.[0] ?? null)}
+          onChange={(event) => {
+            setAvatar(event.target.files?.[0] ?? null);
+            setMessage("");
+          }}
         />
         <span className="form-hint">PNG, JPEG, or WebP up to 2 MiB.</span>
       </label>
@@ -138,6 +170,16 @@ export function ProfileForm({ username, displayName, bio }: Props) {
         <button className="button" disabled={busy} type="submit">
           {busy ? "Saving…" : "Save Profile"}
         </button>
+        {avatarRetry && avatar ? (
+          <button
+            className="text-link"
+            disabled={busy}
+            onClick={retryAvatar}
+            type="button"
+          >
+            Retry avatar upload
+          </button>
+        ) : null}
         <button
           className="text-link danger-link"
           disabled={busy}
