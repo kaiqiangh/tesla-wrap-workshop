@@ -35,7 +35,7 @@ const browserVariants = [
   ["Cybertruck", "1024×768"],
 ] as const;
 
-test("Guest can begin Google sign-in", async ({ page }) => {
+test("Guest can begin Google sign-in", async ({ page, context }) => {
   await page.goto("/sign-in?next=/upload");
 
   await expect(
@@ -45,18 +45,19 @@ test("Guest can begin Google sign-in", async ({ page }) => {
     page.getByRole("button", { name: "Continue with Google" }),
   ).toBeEnabled();
   await expect(page.locator("input")).toHaveCount(0);
-  let authorizeUrl = "";
-  await page.route("**/auth/v1/authorize**", async (route) => {
-    authorizeUrl = route.request().url();
-    await route.abort();
-  });
-  await page.getByRole("button", { name: "Continue with Google" }).click();
+  await context.setOffline(true);
+  const authorizeRequest = page.waitForRequest("**/auth/v1/authorize**");
+  await page
+    .getByRole("button", { name: "Continue with Google" })
+    .click({ noWaitAfter: true });
+  const authorizeUrl = (await authorizeRequest).url();
   expect(authorizeUrl).toContain("provider=google");
   expect(
     decodeURIComponent(
       new URL(authorizeUrl).searchParams.get("redirect_to") ?? "",
     ),
   ).toContain("/auth/callback?next=/upload");
+  await context.setOffline(false);
   await page.goto("/sign-in?next=/upload");
   expect(
     await page.evaluate(
