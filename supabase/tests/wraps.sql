@@ -275,6 +275,19 @@ select is_empty(
 );
 rollback to savepoint public_preview_unpublished;
 release savepoint public_preview_unpublished;
+savepoint public_preview_deactivated;
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = (
+  select creator_id from public.wraps
+  where slug = current_setting('test.model3_slug')
+);
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'a deactivated Creator is excluded from the media projection'
+);
+rollback to savepoint public_preview_deactivated;
+release savepoint public_preview_deactivated;
 reset role;
 set local role anon;
 select throws_ok(
