@@ -1,11 +1,7 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
-import {
-  exceedsAvatarRequestLimit,
-  MAX_AVATAR_REQUEST_BYTES,
-  normalizeAvatar,
-} from "./avatar";
+import { normalizeAvatar } from "./avatar";
 
 async function image(format: "png" | "jpeg" | "webp") {
   return sharp({
@@ -16,15 +12,6 @@ async function image(format: "png" | "jpeg" | "webp") {
 }
 
 describe("normalizeAvatar", () => {
-  it.each([
-    [null, false],
-    [String(MAX_AVATAR_REQUEST_BYTES), false],
-    [String(MAX_AVATAR_REQUEST_BYTES + 1), true],
-    ["not-a-length", false],
-  ])("guards declared request size %s", (contentLength, expected) => {
-    expect(exceedsAvatarRequestLimit(contentLength)).toBe(expected);
-  });
-
   it("accepts supported media and emits a PNG derivative", async () => {
     const result = await normalizeAvatar(await image("jpeg"), "image/jpeg");
     expect(result.width).toBe(4);

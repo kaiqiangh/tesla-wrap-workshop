@@ -3,11 +3,8 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
-import {
-  exceedsAvatarRequestLimit,
-  normalizeAvatar,
-  MAX_AVATAR_BYTES,
-} from "@/lib/profile/avatar";
+import { normalizeAvatar, MAX_AVATAR_BYTES } from "@/lib/profile/avatar";
+import { requestContentLengthExceedsLimit } from "@/lib/request-size";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -33,7 +30,12 @@ export async function POST(request: Request) {
       "profile_unavailable",
       "Your Profile cannot be edited right now.",
     );
-  if (exceedsAvatarRequestLimit(request.headers.get("content-length")))
+  if (
+    requestContentLengthExceedsLimit(
+      request.headers.get("content-length"),
+      MAX_AVATAR_BYTES,
+    )
+  )
     return problem(
       400,
       "avatar_size",

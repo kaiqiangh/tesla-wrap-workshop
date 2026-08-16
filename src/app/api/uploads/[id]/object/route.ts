@@ -4,6 +4,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requestContentLengthExceedsLimit } from "@/lib/request-size";
 import { uploadProblem } from "@/lib/upload/problem";
 
 export const runtime = "nodejs";
@@ -117,8 +118,12 @@ async function post(
       "Retry this transfer after the upload service recovers.",
     );
   }
-  const contentLength = Number(request.headers.get("content-length"));
-  if (Number.isFinite(contentLength) && contentLength > maxFileBytes + 65_536) {
+  if (
+    requestContentLengthExceedsLimit(
+      request.headers.get("content-length"),
+      maxFileBytes,
+    )
+  ) {
     return uploadProblem(
       413,
       "WF-UPLOAD-SIZE",
