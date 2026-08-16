@@ -22,7 +22,7 @@ export async function GET(
   if (stored.error || !stored.data) return unavailable();
   return new NextResponse(await stored.data.arrayBuffer(), {
     headers: {
-      "cache-control": "private, max-age=300",
+      "cache-control": "public, max-age=300, must-revalidate",
       "content-type": "image/png",
       etag: `"${media.sha256}"`,
       "x-robots-tag": "noindex, nofollow, noarchive",
