@@ -1,5 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 
+const telemetryMocks = vi.hoisted(() => ({
+  cookies: vi.fn(),
+  createAdmin: vi.fn(),
+  hmacPrincipal: vi.fn(() => "v1:search:test"),
+  recordEvent: vi.fn(),
+}));
+
+vi.mock("next/headers", () => ({ cookies: telemetryMocks.cookies }));
+vi.mock("./limits", () => ({
+  hmacPrincipal: telemetryMocks.hmacPrincipal,
+}));
+vi.mock("./observability", () => ({
+  recordCoreLoopEvent: telemetryMocks.recordEvent,
+}));
+vi.mock("./supabase/admin", () => ({
+  createAdminSupabaseClient: telemetryMocks.createAdmin,
+}));
+
 import {
   getDiscoveryWraps,
   getPublicVehicleModel,
@@ -155,6 +173,123 @@ describe("discovery read boundary", () => {
       p_sort: "NEWEST",
       p_limit: 24,
     });
+  });
+
+  it("keeps successful results when optional search telemetry fails", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+      "search-telemetry-test-secret-0123456789012345",
+    );
+    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
+    telemetryMocks.cookies.mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: "search-session" }),
+    });
+    const principalRpc = vi.fn().mockResolvedValue({
+      data: emptySearch,
+      error: null,
+    });
+    telemetryMocks.createAdmin.mockReturnValue({ rpc: principalRpc });
+    telemetryMocks.recordEvent.mockResolvedValue(false);
+
+    try {
+      const result = await searchDiscoveryWraps(
+        {
+          auth: {
+            getUser: vi.fn().mockResolvedValue({
+              data: { user: { id: "20000000-0000-0000-0000-000000000001" } },
+            }),
+          },
+          rpc: vi.fn(),
+        } as never,
+        { modelSlug: "model-3", variantKey: "standard" },
+      );
+      expect(result).toMatchObject({
+        status: "empty",
+        calculatedAt: "2026-08-11T00:00:00Z",
+      });
+      expect(principalRpc).toHaveBeenCalledWith(
+        "search_discovery_wraps_for_principal",
+        {
+          p_model_slug: "model-3",
+          p_variant_key: "standard",
+          p_sort: "NEWEST",
+          p_limit: 24,
+          p_principal_key: "v1:search:test",
+          p_viewer_id: "20000000-0000-0000-0000-000000000001",
+        },
+      );
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(1, {
+        eventKind: "SEARCH",
+        actorId: "20000000-0000-0000-0000-000000000001",
+        targetType: "DISCOVERY",
+        targetId: "00000000-0000-4000-8000-000000000000",
+        outcome: "SUCCESS",
+        code: "DISCOVERY_SEARCH",
+        correlationId: null,
+      });
+      expect(telemetryMocks.recordEvent).toHaveBeenNthCalledWith(2, {
+        eventKind: "FILTER_APPLIED",
+        actorId: "20000000-0000-0000-0000-000000000001",
+        targetType: "DISCOVERY",
+        targetId: "00000000-0000-4000-8000-000000000000",
+        outcome: "SUCCESS",
+        code: "DISCOVERY_FILTER",
+        correlationId: null,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
+    }
+  });
+
+  it("maps search principal acquisition failures to an error state", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    telemetryMocks.cookies.mockRejectedValue(new Error("cookies unavailable"));
+
+    try {
+      await expect(searchDiscoveryWraps(client(emptySearch))).resolves.toEqual({
+        status: "error",
+        wraps: [],
+        nextCursor: null,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
+    }
+  });
+
+  it("maps principal search RPC failures to an error state", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+      "search-rpc-test-secret-0123456789012345",
+    );
+    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
+    telemetryMocks.cookies.mockResolvedValue({
+      get: vi.fn().mockReturnValue({ value: "search-session" }),
+    });
+    telemetryMocks.createAdmin.mockReturnValue({
+      rpc: vi.fn().mockRejectedValue(new Error("search unavailable")),
+    });
+
+    try {
+      await expect(
+        searchDiscoveryWraps({
+          auth: {
+            getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+          },
+          rpc: vi.fn(),
+        } as never),
+      ).resolves.toEqual({
+        status: "error",
+        wraps: [],
+        nextCursor: null,
+      });
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
+    }
   });
 
   it("does not turn a malformed search payload into an empty catalog", async () => {
