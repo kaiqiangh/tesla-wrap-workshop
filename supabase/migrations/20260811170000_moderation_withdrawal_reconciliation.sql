@@ -473,6 +473,44 @@ as $$
     select r.*, r.participation_state = 'ACTIVE'
       and r.onboarding_completed_at is not null as is_public
     from resolved r
+  ), eligible_wraps as (
+    select w.id, w.creator_id
+    from public.wraps w
+    join public_profile r
+      on r.user_id = w.creator_id and r.is_public
+    join public.asset_revisions ar on ar.id = w.asset_revision_id
+    join public.vehicle_models vm on vm.id = w.vehicle_model_id
+    join public.template_variants tv on tv.id = w.template_variant_id
+    join public.wrap_assets wa on wa.asset_revision_id = ar.id
+      and wa.kind = 'PREVIEW' and wa.bucket_id = 'wrap-derived'
+    join storage.objects so on so.bucket_id = wa.bucket_id and so.name = wa.object_key
+    where w.status = 'PUBLISHED' and w.deleted_at is null
+      and vm.active and ar.template_verified
+      and ar.template_variant_id = w.template_variant_id
+      and ar.width_px = tv.width_px and ar.height_px = tv.height_px
+      and wa.width_px > 0 and wa.height_px > 0
+  ), follower_stats as (
+    select f.creator_id, count(*)::bigint as follower_count
+    from public.creator_follows f
+    join public_profile r on r.user_id = f.creator_id and r.is_public
+    join public.profiles fp on fp.user_id = f.follower_id
+    where fp.participation_state = 'ACTIVE'
+      and fp.onboarding_completed_at is not null
+    group by f.creator_id
+  ), wrap_stats as (
+    select creator_id, count(*)::bigint as published_wrap_count
+    from eligible_wraps
+    group by creator_id
+  ), download_stats as (
+    select ew.creator_id, count(*)::bigint as download_count
+    from eligible_wraps ew
+    join public.download_events de on de.wrap_id = ew.id and de.counted
+    left join public.profiles actor on actor.user_id = de.user_id
+    where de.user_id is null or (
+      actor.participation_state = 'ACTIVE'
+      and actor.onboarding_completed_at is not null
+    )
+    group by ew.creator_id
   )
   select lower(btrim(p_username)),
     case when r.is_public then r.username end,
@@ -480,46 +518,13 @@ as $$
     case when r.is_public then r.bio end,
     case when r.is_public and aa.id is not null
       then '/api/profiles/' || r.username || '/avatar' end,
-    case when r.is_public then coalesce((select count(*) from public.creator_follows f
-      join public.profiles fp on fp.user_id = f.follower_id
-      where f.creator_id = r.user_id and fp.participation_state = 'ACTIVE'
-        and fp.onboarding_completed_at is not null), 0)::bigint
-      else 0::bigint end,
-    case when r.is_public then coalesce((select count(*) from public.wraps w
-      join public.asset_revisions ar on ar.id = w.asset_revision_id
-      join public.vehicle_models vm on vm.id = w.vehicle_model_id
-      join public.template_variants tv on tv.id = w.template_variant_id
-      join public.wrap_assets wa on wa.asset_revision_id = ar.id
-        and wa.kind = 'PREVIEW' and wa.bucket_id = 'wrap-derived'
-      join storage.objects so on so.bucket_id = wa.bucket_id and so.name = wa.object_key
-      where w.creator_id = r.user_id and w.status = 'PUBLISHED' and w.deleted_at is null
-        and vm.active and ar.template_verified
-        and ar.template_variant_id = w.template_variant_id
-        and ar.width_px = tv.width_px and ar.height_px = tv.height_px
-        and wa.width_px > 0 and wa.height_px > 0), 0)::bigint
-      else 0::bigint end,
+    coalesce(fs.follower_count, 0)::bigint,
+    coalesce(ws.published_wrap_count, 0)::bigint,
     case when r.is_public then exists (
       select 1 from public.wraps w
       where w.creator_id = r.user_id and w.first_published_at is not null
     ) else false end,
-    case when r.is_public then coalesce((select count(*) from public.download_events de
-      join public.wraps w on w.id = de.wrap_id
-      join public.asset_revisions ar on ar.id = w.asset_revision_id
-      join public.vehicle_models vm on vm.id = w.vehicle_model_id
-      join public.template_variants tv on tv.id = w.template_variant_id
-      join public.wrap_assets wa on wa.asset_revision_id = ar.id
-        and wa.kind = 'PREVIEW' and wa.bucket_id = 'wrap-derived'
-      join storage.objects so on so.bucket_id = wa.bucket_id and so.name = wa.object_key
-      left join public.profiles actor on actor.user_id = de.user_id
-      where de.counted and (de.user_id is null or (
-          actor.participation_state = 'ACTIVE'
-          and actor.onboarding_completed_at is not null))
-        and w.creator_id = r.user_id and w.status = 'PUBLISHED' and w.deleted_at is null
-        and vm.active and ar.template_verified
-        and ar.template_variant_id = w.template_variant_id
-        and ar.width_px = tv.width_px and ar.height_px = tv.height_px
-        and wa.width_px > 0 and wa.height_px > 0), 0)::bigint
-      else 0::bigint end,
+    coalesce(ds.download_count, 0)::bigint,
     case when r.user_id is null then 'UNAVAILABLE'
       when r.participation_state = 'SUSPENDED' then 'TEMPORARILY_UNAVAILABLE'
       when r.participation_state = 'DEACTIVATED' then 'UNAVAILABLE'
@@ -528,7 +533,10 @@ as $$
     case when r.is_public then coalesce(r.alias_hit, false) else false end
   from public_profile r
   left join public.profile_avatar_assets aa
-    on aa.id = r.avatar_asset_id and aa.state = 'ACTIVE';
+    on aa.id = r.avatar_asset_id and aa.state = 'ACTIVE'
+  left join follower_stats fs on fs.creator_id = r.user_id
+  left join wrap_stats ws on ws.creator_id = r.user_id
+  left join download_stats ds on ds.creator_id = r.user_id;
 $$;
 
 revoke all on function public.get_public_profile_details(text) from public;
