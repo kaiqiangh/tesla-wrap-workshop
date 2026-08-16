@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 
 const [command, ...args] = process.argv.slice(2);
 if (!command) throw new Error("A command is required");
@@ -16,7 +16,7 @@ const local = JSON.parse(result.stdout);
 const executable =
   command === "pnpm" ? (process.env.npm_execpath ?? "pnpm") : command;
 const executableArgs = args;
-const child = spawnSync(executable, executableArgs, {
+const child = spawn(executable, executableArgs, {
   env: {
     ...process.env,
     NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3000",
@@ -32,4 +32,26 @@ const child = spawnSync(executable, executableArgs, {
   stdio: "inherit",
 });
 
-process.exit(child.status ?? 1);
+const signalHandlers = new Map(
+  ["SIGINT", "SIGTERM", "SIGHUP"].map((signal) => [
+    signal,
+    () => child.kill(signal),
+  ]),
+);
+for (const [signal, handler] of signalHandlers) {
+  process.once(signal, handler);
+}
+
+const childResult = await new Promise((resolve, reject) => {
+  child.once("error", reject);
+  child.once("exit", (code, signal) => resolve({ code, signal }));
+});
+
+for (const [signal, handler] of signalHandlers) {
+  process.removeListener(signal, handler);
+}
+
+if (childResult.signal) {
+  process.kill(process.pid, childResult.signal);
+}
+process.exit(childResult.code ?? 1);
