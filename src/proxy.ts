@@ -43,7 +43,12 @@ export async function proxy(request: NextRequest) {
     }
     return response;
   }
+  if (isPublicPreview(request)) return NextResponse.next();
   return refreshSupabaseSession(request);
+}
+
+function isPublicPreview(request: NextRequest) {
+  return /^\/api\/wraps\/[^/]+\/preview$/.test(request.nextUrl.pathname);
 }
 
 function isCrossSiteMutation(request: NextRequest) {

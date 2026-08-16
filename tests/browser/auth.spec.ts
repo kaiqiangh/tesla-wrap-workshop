@@ -510,6 +510,10 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   await expect(
     page.getByRole("link", { name: "Download Wrap" }),
   ).toHaveAttribute("href", `/wrap/${publishedSlug}/download`);
+  await expect(page.locator(".wrap-detail-preview img")).toHaveAttribute(
+    "src",
+    `/api/wraps/${publishedSlug}/preview`,
+  );
   const publishedRow = await admin
     .from("wraps")
     .select("id")
@@ -974,6 +978,57 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
     page.waitForURL(`/wrap/${publishedSlug}/edit`, { timeout: 15000 }),
     page.getByRole("link", { name: "Manage Wrap" }).click(),
   ]);
+  const guestPreviewContext = await browser.newContext({
+    baseURL: "http://127.0.0.1:3000",
+    extraHTTPHeaders: testInfo.project.use.extraHTTPHeaders,
+  });
+  const guestPreview = await guestPreviewContext.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+  );
+  expect(guestPreview.status()).toBe(200);
+  expect(guestPreview.headers()["set-cookie"]).toBeUndefined();
+  await guestPreviewContext.close();
+  const previewResponse = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+  );
+  expect(previewResponse.status()).toBe(200);
+  const previewEtag = previewResponse.headers().etag;
+  expect(previewEtag).toMatch(/^"[a-f0-9]{64}"$/);
+  const notModifiedPreview = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+    { headers: { "If-None-Match": previewEtag } },
+  );
+  expect(notModifiedPreview.status()).toBe(304);
+  expect(notModifiedPreview.headers()["cache-control"]).toBe(
+    "public, max-age=0, must-revalidate",
+  );
+  try {
+    const deactivateCreator = await admin
+      .from("profiles")
+      .update({ participation_state: "DEACTIVATED" })
+      .eq("user_id", userId);
+    expect(deactivateCreator.error).toBeNull();
+    const deactivatedPreview = await page.request.get(
+      `/api/wraps/${publishedSlug}/preview`,
+      { headers: { "If-None-Match": previewEtag } },
+    );
+    expect(deactivatedPreview.status()).toBe(404);
+    expect(deactivatedPreview.headers()["cache-control"]).toBe("no-store");
+  } finally {
+    const reactivateCreator = await admin
+      .from("profiles")
+      .update({ participation_state: "ACTIVE" })
+      .eq("user_id", userId);
+    expect(reactivateCreator.error).toBeNull();
+  }
+  const restoredPreview = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+    { headers: { "If-None-Match": previewEtag } },
+  );
+  expect(restoredPreview.status()).toBe(304);
+  expect(restoredPreview.headers()["cache-control"]).toBe(
+    "public, max-age=0, must-revalidate",
+  );
   await page.getByLabel("Title").fill("Cybertruck Night Drive Updated");
   await page.getByRole("button", { name: "Save metadata" }).click();
   await expect(page.getByLabel("Title")).toHaveValue(
@@ -981,6 +1036,12 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   );
   await page.getByRole("button", { name: "Unpublish" }).click();
   await expect(page.getByText("UNPUBLISHED", { exact: true })).toBeVisible();
+  const withdrawnPreview = await page.request.get(
+    `/api/wraps/${publishedSlug}/preview`,
+    { headers: { "If-None-Match": previewEtag } },
+  );
+  expect(withdrawnPreview.status()).toBe(404);
+  expect(withdrawnPreview.headers()["cache-control"]).toBe("no-store");
   await expect(page.getByRole("button", { name: "Republish" })).toBeVisible();
   await expectRouteStatus(
     () => page.request.get(`/wrap/${publishedSlug}`),

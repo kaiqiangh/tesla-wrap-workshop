@@ -235,6 +235,74 @@ select set_config(
   (select slug from public.wraps where title = 'Model3 Wrap' limit 1),
   true
 );
+select set_config(
+  'test.model3_preview_key',
+  (select wa.object_key
+   from public.wrap_assets wa
+   join public.wraps w on w.asset_revision_id = wa.asset_revision_id
+   where w.slug = current_setting('test.model3_slug') and wa.kind = 'PREVIEW'),
+  true
+);
+set local role service_role;
+select is(
+  (select count(*) from public.get_public_wrap_media(current_setting('test.model3_slug'))),
+  1::bigint,
+  'eligible public Wrap media exposes one preview'
+);
+select is(
+  (select sha256 from public.get_public_wrap_media(current_setting('test.model3_slug'))),
+  repeat('b', 64),
+  'public Wrap media exposes the immutable preview digest'
+);
+savepoint public_preview_missing_object;
+update storage.objects
+set name = name || '-public-media-missing'
+where bucket_id = 'wrap-derived'
+  and name = current_setting('test.model3_preview_key');
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'a missing public preview object is excluded from the media projection'
+);
+rollback to savepoint public_preview_missing_object;
+release savepoint public_preview_missing_object;
+savepoint public_preview_unpublished;
+update public.wraps
+set status = 'UNPUBLISHED'
+where slug = current_setting('test.model3_slug');
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'an unpublished Wrap is excluded from the media projection'
+);
+rollback to savepoint public_preview_unpublished;
+release savepoint public_preview_unpublished;
+savepoint public_preview_deactivated;
+update public.profiles
+set participation_state = 'DEACTIVATED'
+where user_id = (
+  select creator_id from public.wraps
+  where slug = current_setting('test.model3_slug')
+);
+select is_empty(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  'a deactivated Creator is excluded from the media projection'
+);
+rollback to savepoint public_preview_deactivated;
+release savepoint public_preview_deactivated;
+reset role;
+set local role anon;
+select throws_ok(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  '42501', 'permission denied for function get_public_wrap_media',
+  'anonymous callers cannot execute the service-owned public Wrap media RPC'
+);
+reset role;
+set local role authenticated;
+select throws_ok(
+  $$ select * from public.get_public_wrap_media(current_setting('test.model3_slug')) $$,
+  '42501', 'permission denied for function get_public_wrap_media',
+  'authenticated callers cannot execute the service-owned public Wrap media RPC'
+);
+reset role;
 
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
