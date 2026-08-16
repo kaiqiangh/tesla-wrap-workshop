@@ -5,7 +5,13 @@ import type { DiscoveryWrap } from "@/lib/discovery";
 
 import { InteractionControls } from "./wrap/[slug]/interaction-controls";
 
-export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
+export function DiscoveryCard({
+  wrap,
+  loading,
+}: {
+  wrap: DiscoveryWrap;
+  loading: "eager" | "lazy";
+}) {
   return (
     <article className="discovery-card">
       <Link className="discovery-card-media" href={`/wrap/${wrap.slug}`}>
@@ -15,7 +21,7 @@ export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
             alt={`${wrap.title} Derived Wrap Asset`}
             width={wrap.preview_width_px}
             height={wrap.preview_height_px}
-            loading="lazy"
+            loading={loading}
             unoptimized
           />
         ) : (
@@ -59,10 +65,16 @@ export function DiscoveryCard({ wrap }: { wrap: DiscoveryWrap }) {
 }
 
 export function DiscoveryGrid({ wraps }: { wraps: DiscoveryWrap[] }) {
+  const firstPreviewIndex = wraps.findIndex((wrap) => wrap.preview_available);
+
   return (
     <div className="discovery-grid">
-      {wraps.map((wrap) => (
-        <DiscoveryCard key={wrap.slug} wrap={wrap} />
+      {wraps.map((wrap, index) => (
+        <DiscoveryCard
+          key={wrap.slug}
+          wrap={wrap}
+          loading={index === firstPreviewIndex ? "eager" : "lazy"}
+        />
       ))}
     </div>
   );
