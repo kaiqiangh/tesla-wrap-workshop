@@ -92,13 +92,19 @@ test("Google sign-in recovers from a client dependency failure", async ({
     Object.defineProperty(subtle, "digest", {
       configurable: true,
       value: async () => {
+        throw new Error("forced PKCE dependency failure");
+      },
+    });
+    // The test restores digest explicitly after asserting the failure path,
+    // so the patched digest keeps throwing regardless of how many times it
+    // was called before (e.g. Next.js cache-busting in production builds).
+    (window as unknown as { restoreTestDigest(): void }).restoreTestDigest =
+      () => {
         Object.defineProperty(subtle, "digest", {
           configurable: true,
           value: originalDigest,
         });
-        throw new Error("forced PKCE dependency failure");
-      },
-    });
+      };
   });
 
   const button = page.getByRole("button", { name: "Continue with Google" });
@@ -110,6 +116,9 @@ test("Google sign-in recovers from a client dependency failure", async ({
   ).toBeVisible();
   await expect(button).toBeEnabled();
 
+  await page.evaluate(() => {
+    (window as unknown as { restoreTestDigest(): void }).restoreTestDigest();
+  });
   const authorizeRequest = page.waitForRequest("**/auth/v1/authorize**");
   await button.click({ noWaitAfter: true });
   expect((await authorizeRequest).url()).toContain("provider=google");

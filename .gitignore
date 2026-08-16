@@ -28,3 +28,5 @@
 # operating systems and editors
 .DS_Store
 *.swp
+
+.workbuddy/

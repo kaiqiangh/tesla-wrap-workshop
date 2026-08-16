@@ -36,8 +36,8 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm test:browser:local
       - run: pnpm build:local
+      - run: WRAPFORGE_BROWSER_SERVER=production pnpm test:browser:local
       - run: pnpm scan:security
       - if: always()
         run: pnpm exec supabase stop
