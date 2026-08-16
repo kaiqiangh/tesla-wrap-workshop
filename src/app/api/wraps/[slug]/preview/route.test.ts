@@ -18,7 +18,7 @@ describe("GET /api/wraps/[slug]/preview", () => {
     vi.clearAllMocks();
   });
 
-  it("allows shared caching for an eligible public preview", async () => {
+  it("allows shared revalidation for an eligible public preview", async () => {
     const download = vi.fn(async () => ({
       data: new Blob(["png"], { type: "image/png" }),
       error: null,
@@ -40,7 +40,7 @@ describe("GET /api/wraps/[slug]/preview", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe(
-      "public, max-age=300, must-revalidate",
+      "public, max-age=0, must-revalidate",
     );
     expect(response.headers.get("etag")).toBe(`"${sha256}"`);
     expect(response.headers.get("x-robots-tag")).toBe(
