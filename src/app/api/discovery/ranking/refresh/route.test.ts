@@ -85,9 +85,16 @@ describe("GET /api/discovery/ranking/refresh", () => {
   it("returns a stable outage when the ranking refresh fails", async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: new Error("offline") });
     const response = await GET(
-      new Request("http://localhost/api/discovery/ranking/refresh"),
+      new Request("http://localhost/api/discovery/ranking/refresh", {
+        headers: {
+          "x-correlation-id": "66666666-6666-4666-8666-666666666666",
+        },
+      }),
     );
     expect(response.status).toBe(503);
+    expect(response.headers.get("x-correlation-id")).toBe(
+      "66666666-6666-4666-8666-666666666666",
+    );
     expect((await response.json()).error.code).toBe("ranking_refresh_failed");
   });
 
@@ -112,9 +119,16 @@ describe("GET /api/discovery/ranking/refresh", () => {
       throw new Error("admin client unavailable");
     });
     const response = await GET(
-      new Request("http://localhost/api/discovery/ranking/refresh"),
+      new Request("http://localhost/api/discovery/ranking/refresh", {
+        headers: {
+          "x-correlation-id": "77777777-7777-4777-8777-777777777777",
+        },
+      }),
     );
     expect(response.status).toBe(503);
+    expect(response.headers.get("x-correlation-id")).toBe(
+      "77777777-7777-4777-8777-777777777777",
+    );
     expect((await response.json()).error.code).toBe("ranking_refresh_failed");
   });
 
