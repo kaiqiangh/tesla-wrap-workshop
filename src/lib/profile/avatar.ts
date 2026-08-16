@@ -3,7 +3,13 @@ import { createHash } from "node:crypto";
 import sharp, { type Metadata } from "sharp";
 
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const MAX_AVATAR_REQUEST_BYTES = MAX_AVATAR_BYTES + 64 * 1024;
 const MAX_AVATAR_PIXELS = 16_777_216;
+
+export function exceedsAvatarRequestLimit(contentLength: string | null) {
+  const length = Number(contentLength);
+  return Number.isFinite(length) && length > MAX_AVATAR_REQUEST_BYTES;
+}
 
 export async function normalizeAvatar(input: Buffer, mimeType: string) {
   if (input.byteLength === 0 || input.byteLength > MAX_AVATAR_BYTES) {

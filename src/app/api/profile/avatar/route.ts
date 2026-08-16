@@ -3,7 +3,11 @@ import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
-import { normalizeAvatar, MAX_AVATAR_BYTES } from "@/lib/profile/avatar";
+import {
+  exceedsAvatarRequestLimit,
+  normalizeAvatar,
+  MAX_AVATAR_BYTES,
+} from "@/lib/profile/avatar";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -28,6 +32,12 @@ export async function POST(request: Request) {
       403,
       "profile_unavailable",
       "Your Profile cannot be edited right now.",
+    );
+  if (exceedsAvatarRequestLimit(request.headers.get("content-length")))
+    return problem(
+      400,
+      "avatar_size",
+      "Avatar files must be no larger than 2 MiB.",
     );
 
   let file: File | null;
