@@ -29,13 +29,28 @@ const child = spawn(executable, executableArgs, {
     DOWNLOAD_PRINCIPAL_HMAC_SECRET: local.JWT_SECRET,
     SUPABASE_JWT_SECRET: local.JWT_SECRET,
   },
+  detached: process.platform !== "win32",
   stdio: "inherit",
 });
 
+let forwardedSignal;
+const forwardSignal = (signal) => {
+  if (forwardedSignal) return;
+  forwardedSignal = signal;
+  if (process.platform === "win32" || !child.pid) {
+    child.kill(signal);
+    return;
+  }
+  try {
+    process.kill(-child.pid, signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+};
 const signalHandlers = new Map(
   ["SIGINT", "SIGTERM", "SIGHUP"].map((signal) => [
     signal,
-    () => child.kill(signal),
+    () => forwardSignal(signal),
   ]),
 );
 for (const [signal, handler] of signalHandlers) {
