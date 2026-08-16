@@ -24,8 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm exec supabase start > /dev/null
-      - run: pnpm exec supabase db reset
-      - run: pnpm exec supabase test db
+      - run: pnpm test:db
       - name: Verify generated database types
         run: |
           generated_types=$(mktemp)

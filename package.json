@@ -18,9 +18,9 @@
     "scan:security": "node scripts/security-scan.mjs",
     "start": "next start",
     "test": "vitest run",
-    "test:browser": "node scripts/with-local-supabase.mjs pnpm exec playwright test",
+    "test:browser": "supabase db reset && node scripts/with-local-supabase.mjs pnpm exec playwright test",
     "test:browser:local": "pnpm test:browser",
-    "test:db": "supabase test db",
+    "test:db": "supabase db reset && supabase test db",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
