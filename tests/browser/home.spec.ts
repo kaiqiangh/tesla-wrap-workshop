@@ -31,17 +31,12 @@ test("guest sees the official catalog and honest discovery sections", async ({
     await expect(
       section.locator(".discovery-grid, .discovery-state"),
     ).toHaveCount(1);
-    const firstCardImage = section
-      .locator(".discovery-grid article")
-      .first()
-      .locator("img");
+    const previewCards = section.locator(".discovery-grid article:has(img)");
+    const firstCardImage = previewCards.first().locator("img");
     if (await firstCardImage.count()) {
       await expect(firstCardImage).toHaveAttribute("loading", "eager");
     }
-    const secondCardImage = section
-      .locator(".discovery-grid article")
-      .nth(1)
-      .locator("img");
+    const secondCardImage = previewCards.nth(1).locator("img");
     if (await secondCardImage.count()) {
       await expect(secondCardImage).toHaveAttribute("loading", "lazy");
     }

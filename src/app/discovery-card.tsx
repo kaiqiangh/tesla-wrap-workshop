@@ -65,13 +65,15 @@ export function DiscoveryCard({
 }
 
 export function DiscoveryGrid({ wraps }: { wraps: DiscoveryWrap[] }) {
+  const firstPreviewIndex = wraps.findIndex((wrap) => wrap.preview_available);
+
   return (
     <div className="discovery-grid">
       {wraps.map((wrap, index) => (
         <DiscoveryCard
           key={wrap.slug}
           wrap={wrap}
-          loading={index === 0 ? "eager" : "lazy"}
+          loading={index === firstPreviewIndex ? "eager" : "lazy"}
         />
       ))}
     </div>
