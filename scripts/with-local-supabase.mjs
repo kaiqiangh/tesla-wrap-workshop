@@ -32,21 +32,29 @@ const child = spawn(executable, executableArgs, {
   detached: process.platform !== "win32",
   stdio: "inherit",
 });
+const childProcessGroupId = child.pid;
 
 let forwardedSignal;
 let forceKillTimer;
 const killChildGroup = (signal) => {
-  if (!child.pid) return;
-  if (process.platform === "win32") {
-    spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
-      stdio: "ignore",
-    });
-    return;
-  }
+  if (!childProcessGroupId || process.platform === "win32") return;
   try {
-    process.kill(-child.pid, signal);
+    process.kill(-childProcessGroupId, signal);
   } catch (error) {
     if (error?.code !== "ESRCH") throw error;
+  }
+};
+const waitForChildGroup = async () => {
+  if (!childProcessGroupId || process.platform === "win32") return;
+  const deadline = Date.now() + 500;
+  while (Date.now() < deadline) {
+    try {
+      process.kill(-childProcessGroupId, 0);
+    } catch (error) {
+      if (error?.code === "ESRCH" || error?.code === "EPERM") return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
 };
 const forwardSignal = (signal) => {
@@ -58,11 +66,10 @@ const forwardSignal = (signal) => {
     forceKillTimer.unref();
   }
 };
+const forwardedSignals =
+  process.platform === "win32" ? [] : ["SIGINT", "SIGTERM", "SIGHUP"];
 const signalHandlers = new Map(
-  ["SIGINT", "SIGTERM", "SIGHUP"].map((signal) => [
-    signal,
-    () => forwardSignal(signal),
-  ]),
+  forwardedSignals.map((signal) => [signal, () => forwardSignal(signal)]),
 );
 for (const [signal, handler] of signalHandlers) {
   process.once(signal, handler);
@@ -72,7 +79,10 @@ const childResult = await new Promise((resolve, reject) => {
   child.once("error", reject);
   child.once("exit", (code, signal) => resolve({ code, signal }));
 });
-if (forwardedSignal) killChildGroup("SIGKILL");
+if (forwardedSignal) {
+  killChildGroup("SIGKILL");
+  await waitForChildGroup();
+}
 clearTimeout(forceKillTimer);
 
 for (const [signal, handler] of signalHandlers) {
