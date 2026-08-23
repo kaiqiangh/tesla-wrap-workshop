@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { beginOperation, logOperation } from "@/lib/observability";
 import { readPublicEnvironment } from "@/lib/env";
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { refreshSupabaseSession } from "@/lib/supabase/proxy";
 import { baseSecurityHeaders, securityHeaders } from "@/lib/security-headers";
 
@@ -55,14 +56,7 @@ function isCrossSiteMutation(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith("/api/")) return false;
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(request.method))
     return false;
-  if (request.headers.get("sec-fetch-site") === "cross-site") return true;
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  try {
-    return new URL(origin).host !== request.headers.get("host");
-  } catch {
-    return true;
-  }
+  return !isSameOriginRequest(request);
 }
 
 export const config = {

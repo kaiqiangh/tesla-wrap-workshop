@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
 
@@ -325,17 +326,5 @@ function adminProblem(
 }
 
 function sameOriginRequest(request: Request) {
-  const fetchSite = request.headers.get("sec-fetch-site");
-  if (fetchSite === "cross-site") return false;
-  const origin = request.headers.get("origin");
-  if (!origin) return true;
-  try {
-    const requestHost = request.headers.get("host");
-    const originUrl = new URL(origin);
-    return requestHost
-      ? originUrl.host === requestHost
-      : originUrl.origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
+  return isSameOriginRequest(request);
 }
