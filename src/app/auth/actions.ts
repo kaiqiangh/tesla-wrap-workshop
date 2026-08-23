@@ -7,6 +7,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export async function signOut() {
   const supabase = await createServerSupabaseClient();
   await supabase.auth.getClaims();
-  await supabase.auth.signOut({ scope: "local" });
+  // Global scope revokes the refresh token server-side (PR-05): a stolen
+  // session must not survive sign-out, not merely leave this browser.
+  await supabase.auth.signOut({ scope: "global" });
   redirect("/");
 }
