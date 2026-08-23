@@ -22,4 +22,12 @@ test("unknown profiles render the branded not-found surface", async ({
     page.getByRole("heading", { name: "Page not found." }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "Explore Wraps" })).toBeVisible();
+
+  // Navigating away must unmount the not-found boundary entirely: the next
+  // surface renders normally instead of keeping any 404 chrome around.
+  await page.getByRole("link", { name: "Explore Wraps" }).click();
+  await expect(page).toHaveURL(/:\d+\/explore$/);
+  await expect(
+    page.getByRole("heading", { name: "Page not found." }),
+  ).toHaveCount(0);
 });

@@ -14,6 +14,9 @@ export function BoundaryPanel({
 }) {
   return (
     <main className="boundary-shell">
+      {/* Intentionally shares .discovery-state's panel shape with browse
+          empty/error states so every surface speaks with one visual voice;
+          the boundary scope below only constrains width. */}
       <section className="discovery-state" aria-labelledby="boundary-title">
         <p className="eyebrow">{eyebrow}</p>
         <h2 id="boundary-title">{title}</h2>
