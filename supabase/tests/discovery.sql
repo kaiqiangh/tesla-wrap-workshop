@@ -27,6 +27,18 @@ select is(
 );
 select has_column('public', 'wraps', 'trending_score',
   'wraps carry the persisted Trending Score');
+select ok(
+  has_function_privilege(
+    'service_role', 'public.cleanup_discovery_cursor_snapshots()', 'execute'
+  )
+  and not has_function_privilege(
+    'authenticated', 'public.cleanup_discovery_cursor_snapshots()', 'execute'
+  )
+  and not has_function_privilege(
+    'anon', 'public.cleanup_discovery_cursor_snapshots()', 'execute'
+  ),
+  'cursor cleanup is service-role-only'
+);
 
 set local role postgres;
 insert into public.discovery_cursor_snapshots (

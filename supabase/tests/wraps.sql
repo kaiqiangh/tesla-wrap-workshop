@@ -1146,6 +1146,18 @@ select is(
   1::bigint,
   'twenty repeated grants produce exactly one counted event'
 );
+select ok(
+  has_function_privilege(
+    'service_role', 'public.reconcile_download_counts()', 'execute'
+  )
+  and not has_function_privilege(
+    'authenticated', 'public.reconcile_download_counts()', 'execute'
+  )
+  and not has_function_privilege(
+    'anon', 'public.reconcile_download_counts()', 'execute'
+  ),
+  'download count reconciliation is service-role-only'
+);
 update public.wraps
 set download_count = 999
 where slug = current_setting('test.cyber_slug');

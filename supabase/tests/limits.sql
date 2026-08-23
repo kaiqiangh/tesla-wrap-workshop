@@ -54,6 +54,18 @@ select ok(
   ),
   'the server can call the principal-bound Search wrapper'
 );
+select ok(
+  has_function_privilege(
+    'service_role', 'public.cleanup_launch_rate_buckets()', 'execute'
+  )
+  and not has_function_privilege(
+    'authenticated', 'public.cleanup_launch_rate_buckets()', 'execute'
+  )
+  and not has_function_privilege(
+    'anon', 'public.cleanup_launch_rate_buckets()', 'execute'
+  ),
+  'launch bucket cleanup is service-role-only'
+);
 
 set local role service_role;
 select public.consume_user_launch_limit(
