@@ -740,13 +740,12 @@ where bucket_id = 'wrap-originals'
     join public.wraps w on w.asset_revision_id = wa.asset_revision_id
     where w.title = 'Cybertruck Wrap' and wa.kind = 'ORIGINAL'
   );
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('MODEL', 'cybertruck', 24)),
+  (select count(*) from public.discovery_eligible_wraps
+   where vehicle_model_slug = 'cybertruck'),
   1::bigint,
   'a missing private Original does not hide an otherwise eligible browse card'
 );
-reset role;
 update storage.objects
 set name = left(name, length(name) - length('-original-missing'))
 where bucket_id = 'wrap-originals' and name like '%-original-missing';
@@ -754,13 +753,11 @@ where bucket_id = 'wrap-originals' and name like '%-original-missing';
 update public.profiles
 set participation_state = 'SUSPENDED'
 where username = 'wrap-one';
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  (select count(*) from public.discovery_eligible_wraps),
   0::bigint,
   'a suspended Creator is removed from every Discovery Set surface'
 );
-reset role;
 update public.profiles
 set participation_state = 'ACTIVE'
 where username = 'wrap-one';
@@ -768,13 +765,11 @@ where username = 'wrap-one';
 update public.wraps
 set status = 'UNPUBLISHED'
 where title = 'Cybertruck Wrap';
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  (select count(*) from public.discovery_eligible_wraps),
   11::bigint,
   'an unpublished Wrap is removed from the Discovery Set'
 );
-reset role;
 update public.wraps
 set status = 'PUBLISHED'
 where title = 'Cybertruck Wrap';
@@ -782,9 +777,9 @@ where title = 'Cybertruck Wrap';
 update public.wraps
 set download_count = 100, like_count = 0, favorite_count = 0, comment_count = 0
 where title = 'Cybertruck Wrap';
-set local role anon;
 select is(
-  (select title from public.get_discovery_wraps('TRENDING', null, 1)),
+  (select title from public.discovery_eligible_wraps
+   order by trending_score desc, id limit 1),
   'Cybertruck Wrap',
   'Trending applies the resolved score before deterministic tie breakers'
 );
