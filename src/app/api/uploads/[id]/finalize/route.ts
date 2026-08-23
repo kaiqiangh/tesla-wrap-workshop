@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import type { Database, Json } from "@/lib/database.types";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -35,20 +35,16 @@ async function post(
   if (!/^[0-9a-f-]{36}$/.test(id)) return notFound();
 
   const supabase = await createServerSupabaseClient();
-  const access = await readProfileAccess(supabase);
-  if (access.status !== "active") {
-    return uploadProblem(
-      403,
-      "WF-UPLOAD-PARTICIPATION",
-      "This upload cannot be finalized.",
-      "Finalization requires a completed Active Profile.",
-      "Restore your Profile or sign in again.",
-    );
-  }
-  operation.actorId = access.userId;
+  const gate = await requireActiveProfile(supabase, operation, uploadProblem, {
+    auth: "WF-UPLOAD-AUTH",
+    participation: "WF-UPLOAD-PARTICIPATION",
+    db: "WF-UPLOAD-DATABASE",
+  });
+  if (!gate.ok) return gate.response;
+  operation.actorId = gate.userId;
   const admin = createAdminSupabaseClient();
 
-  let pendingRead = await readPending(admin, access.userId, id);
+  let pendingRead = await readPending(admin, gate.userId, id);
   if (pendingRead.error) return uncertainDatabaseResponse();
   let pending = pendingRead.pending;
   if (!pending) return notFound();
@@ -83,7 +79,7 @@ async function post(
     ) {
       return uncertainDatabaseResponse();
     }
-    pendingRead = await readPending(admin, access.userId, id);
+    pendingRead = await readPending(admin, gate.userId, id);
     if (pendingRead.error) return uncertainDatabaseResponse();
     pending = pendingRead.pending;
     return (pending && settledResponse(pending)) ?? notFound();
@@ -131,8 +127,8 @@ async function post(
   if (!claim.claimed) {
     pendingRead =
       claim.state === "VALIDATING"
-        ? await waitForResult(admin, access.userId, id)
-        : await readPending(admin, access.userId, id);
+        ? await waitForResult(admin, gate.userId, id)
+        : await readPending(admin, gate.userId, id);
     if (pendingRead.error) return uncertainDatabaseResponse();
     pending = pendingRead.pending;
     const response = pending && settledResponse(pending);

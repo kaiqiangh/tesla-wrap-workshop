@@ -4,11 +4,11 @@ const mocks = vi.hoisted(() => ({
   adminRpc: vi.fn(),
   createAdmin: vi.fn(),
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminSupabaseClient: mocks.createAdmin,
@@ -88,7 +88,13 @@ describe("POST /api/wraps", () => {
 
   it("requires a completed active Profile", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-WRAP-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const response = await POST(jsonRequest(input));
     expect(response.status).toBe(401);
     expect((await response.json()).error.code).toBe("WF-WRAP-AUTH");
@@ -103,8 +109,8 @@ describe("POST /api/wraps", () => {
 
   it("publishes through the service-only RPC and returns the stable identity", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -141,8 +147,8 @@ describe("POST /api/wraps", () => {
 
   it("maps an authoritative readiness failure", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -158,8 +164,8 @@ describe("POST /api/wraps", () => {
 
   it("rejects a repeated submission whose metadata is stale", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -175,8 +181,8 @@ describe("POST /api/wraps", () => {
 
   it("rejects a repeated submission for a removed Wrap", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -192,8 +198,8 @@ describe("POST /api/wraps", () => {
 
   it("rejects a repeated submission for a hidden Wrap", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });

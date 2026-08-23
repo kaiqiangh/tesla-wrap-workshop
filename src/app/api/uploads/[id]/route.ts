@@ -1,34 +1,40 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadProblem } from "@/lib/upload/problem";
 
 export const runtime = "nodejs";
 
-export async function DELETE(
-  _request: Request,
+export function DELETE(
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
+) {
+  return observeRoute(request, "UPLOAD_RELEASE", "UPLOAD", (operation) =>
+    remove({ params }, operation),
+  );
+}
+
+async function remove(
+  { params }: { params: Promise<{ id: string }> },
+  operation: OperationContext,
 ) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) return notFound();
 
   const supabase = await createServerSupabaseClient();
-  const access = await readProfileAccess(supabase);
-  if (access.status !== "active") {
-    return uploadProblem(
-      403,
-      "WF-UPLOAD-PARTICIPATION",
-      "This Pending Upload cannot be released.",
-      "Only its completed Active owner may release a failed transfer.",
-      "Restore your Profile or sign in again.",
-    );
-  }
+  const gate = await requireActiveProfile(supabase, operation, uploadProblem, {
+    auth: "WF-UPLOAD-AUTH",
+    participation: "WF-UPLOAD-PARTICIPATION",
+    db: "WF-UPLOAD-DATABASE",
+  });
+  if (!gate.ok) return gate.response;
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin.rpc("get_pending_upload_for_owner", {
     p_id: id,
-    p_owner: access.userId,
+    p_owner: gate.userId,
   });
   const pending = data?.[0];
   if (error || !pending) return notFound();

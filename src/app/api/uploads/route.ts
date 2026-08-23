@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -24,30 +24,16 @@ async function post(request: Request, operation: OperationContext) {
   if (!isInput(input)) return invalidRequest();
 
   const supabase = await createServerSupabaseClient();
-  const access = await readProfileAccess(supabase);
-  if (access.status === "guest") {
-    return uploadProblem(
-      401,
-      "WF-UPLOAD-AUTH",
-      "You are signed out.",
-      "Starting an upload requires a completed Active Profile.",
-      "Sign in and try again.",
-    );
-  }
-  if (access.status !== "active") {
-    return uploadProblem(
-      403,
-      "WF-UPLOAD-PARTICIPATION",
-      "Your Profile cannot upload right now.",
-      "Starting an upload requires a completed Active Profile.",
-      "Complete or restore your Profile before trying again.",
-    );
-  }
-  operation.actorId = access.userId;
+  const gate = await requireActiveProfile(supabase, operation, uploadProblem, {
+    auth: "WF-UPLOAD-AUTH",
+    participation: "WF-UPLOAD-PARTICIPATION",
+    db: "WF-UPLOAD-DATABASE",
+  });
+  if (!gate.ok) return gate.response;
 
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin.rpc("start_pending_upload_for_owner", {
-    p_owner: access.userId,
+    p_owner: gate.userId,
     p_template_variant_id: input.templateVariantId,
     p_original_filename: input.filename,
     p_declared_mime_type: input.mimeType,
