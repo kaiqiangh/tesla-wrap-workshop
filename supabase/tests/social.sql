@@ -462,6 +462,57 @@ select results_eq(
   $$ values ('LIKE'::text, true, 1::bigint, 0::bigint) $$,
   'a Like can be restored before an actor state transition'
 );
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'FAVORITE', true) $$,
+  $$ values ('FAVORITE'::text, true, 1::bigint, 1::bigint) $$,
+  'a Favorite can be restored before a Vehicle Model state transition'
+);
+reset role;
+update public.vehicle_models
+set active = false
+where id = (
+  select vehicle_model_id from public.wraps
+  where id = '92000000-0000-0000-0000-000000000001'
+);
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'retiring a Vehicle Model removes cached Like influence'
+);
+select is(
+  (select favorite_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'retiring a Vehicle Model removes cached Favorite influence'
+);
+update public.vehicle_models
+set active = true
+where id = (
+  select vehicle_model_id from public.wraps
+  where id = '92000000-0000-0000-0000-000000000001'
+);
+select is(
+  (select like_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'reactivating a Vehicle Model restores cached Like influence'
+);
+select is(
+  (select favorite_count from public.wraps where id = '92000000-0000-0000-0000-000000000001'),
+  1::bigint,
+  'reactivating a Vehicle Model restores cached Favorite influence'
+);
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select kind, enabled, like_count, favorite_count
+     from public.toggle_wrap_engagement('social-fixture-wrap', 'FAVORITE', false) $$,
+  $$ values ('FAVORITE'::text, false, 1::bigint, 0::bigint) $$,
+  'the Vehicle Model transition fixture can be cleared'
+);
 reset role;
 update public.profiles
 set participation_state = 'SUSPENDED'

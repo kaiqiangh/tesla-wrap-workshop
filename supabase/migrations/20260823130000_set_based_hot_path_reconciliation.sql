@@ -109,22 +109,36 @@ revoke all on function public.cleanup_discovery_cursor_snapshots()
   from public, anon, authenticated;
 grant execute on function public.cleanup_discovery_cursor_snapshots() to service_role;
 
-create or replace function private.reconcile_wrap_counts_after_profile(p_user_id uuid)
+create or replace function private.reconcile_wrap_counts_for_scope(
+  p_user_id uuid,
+  p_model_id uuid
+)
 returns void
 language sql
 security definer
 set search_path = ''
 as $$
   with affected as (
-    select wrap_id as id from public.wrap_likes where user_id = p_user_id
+    select wrap_id as id
+    from public.wrap_likes
+    where p_user_id is not null and user_id = p_user_id
     union
-    select wrap_id as id from public.wrap_favorites where user_id = p_user_id
+    select wrap_id as id
+    from public.wrap_favorites
+    where p_user_id is not null and user_id = p_user_id
     union
-    select wrap_id as id from public.wrap_comments where author_id = p_user_id
+    select wrap_id as id
+    from public.wrap_comments
+    where p_user_id is not null and author_id = p_user_id
     union
-    select wrap_id as id from public.download_events where user_id = p_user_id
+    select wrap_id as id
+    from public.download_events
+    where p_user_id is not null and user_id = p_user_id
     union
-    select id from public.wraps where creator_id = p_user_id
+    select id
+    from public.wraps
+    where (p_user_id is not null and creator_id = p_user_id)
+       or (p_model_id is not null and vehicle_model_id = p_model_id)
   ),
   like_counts as (
     select l.wrap_id, count(*)::bigint as value
@@ -193,6 +207,18 @@ as $$
   where w.id = recalculated.id;
 $$;
 
+revoke all on function private.reconcile_wrap_counts_for_scope(uuid, uuid)
+  from public;
+
+create or replace function private.reconcile_wrap_counts_after_profile(p_user_id uuid)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  select private.reconcile_wrap_counts_for_scope(p_user_id, null);
+$$;
+
 revoke all on function private.reconcile_wrap_counts_after_profile(uuid) from public;
 
 create or replace function private.reconcile_social_counts_after_profile_v2()
@@ -217,31 +243,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  with affected as (
-    select w.id,
-      exists (select 1 from public.discovery_eligible_wraps e where e.id = w.id)
-        as eligible
-    from public.wraps w
-    where w.vehicle_model_id = new.id
-  ),
-  comment_counts as (
-    select c.wrap_id, count(*)::bigint as value
-    from public.wrap_comments c
-    join public.profiles author on author.user_id = c.author_id
-    where c.status = 'PUBLISHED'
-      and author.participation_state = 'ACTIVE'
-      and author.onboarding_completed_at is not null
-      and c.wrap_id in (select id from affected)
-    group by c.wrap_id
-  )
-  update public.wraps w
-  set comment_count = case
-    when affected.eligible then coalesce(comment_counts.value, 0)::bigint
-    else 0::bigint
-  end
-  from affected
-  left join comment_counts on comment_counts.wrap_id = affected.id
-  where w.id = affected.id;
+  perform private.reconcile_wrap_counts_for_scope(null, new.id);
   return new;
 end;
 $$;
