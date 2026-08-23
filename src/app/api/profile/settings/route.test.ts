@@ -46,6 +46,7 @@ describe("PUT /api/profile/settings", () => {
     const response = await PUT(
       new Request("http://localhost/api/profile/settings", {
         method: "PUT",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({ username: "-bad", displayName: "", bio: "" }),
       }),
     );
@@ -64,6 +65,7 @@ describe("PUT /api/profile/settings", () => {
     const response = await PUT(
       new Request("http://localhost/api/profile/settings", {
         method: "PUT",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           username: "road-one",
           displayName: "Road One",
@@ -82,6 +84,7 @@ describe("PUT /api/profile/settings", () => {
     const conflict = await PUT(
       new Request("http://localhost/api/profile/settings", {
         method: "PUT",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           username: "road-two",
           displayName: "Road Two",
@@ -94,6 +97,7 @@ describe("PUT /api/profile/settings", () => {
     const success = await PUT(
       new Request("http://localhost/api/profile/settings", {
         method: "PUT",
+        headers: { "content-type": "application/json" },
         body: JSON.stringify({
           username: "road-one",
           displayName: "Road One",

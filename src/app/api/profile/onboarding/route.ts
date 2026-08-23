@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
+import { readJsonBody } from "@/lib/request-body";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { validateOnboardingInput } from "@/lib/profile/onboarding";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -12,16 +13,10 @@ export function POST(request: Request) {
 }
 
 async function post(request: Request, operation: OperationContext) {
-  let input: unknown;
-  try {
-    input = await request.json();
-  } catch {
-    return problem(
-      400,
-      "invalid_request",
-      "Enter a Username and display name.",
-    );
-  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok)
+    return problem(400, "invalid_request", "Enter a Username and display name.");
+  const input = parsed.body;
   if (!isInput(input)) {
     return problem(
       400,

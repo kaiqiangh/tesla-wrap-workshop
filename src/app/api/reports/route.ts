@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { requireActiveProfile } from "@/lib/auth/profile-access";
+import { readJsonBody } from "@/lib/request-body";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -35,10 +36,8 @@ export async function POST(request: Request) {
 }
 
 async function post(request: Request, operation: OperationContext) {
-  let input: unknown;
-  try {
-    input = await request.json();
-  } catch {
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok)
     return reportProblem(
       400,
       "WF-REPORT-REQUEST",
@@ -46,7 +45,7 @@ async function post(request: Request, operation: OperationContext) {
       "Send one target, canonical reason, and idempotency key.",
       "Retry the Report from the public target page.",
     );
-  }
+  const input = parsed.body;
   if (!isInput(input)) {
     return reportProblem(
       400,
