@@ -198,6 +198,43 @@ select throws_ok(
   'a non-Creator target cannot receive a Follow'
 );
 reset role;
+insert into private.launch_rate_buckets (
+  policy_key, principal_key, window_started_at, operation_count
+) values (
+  'follow_user_minute',
+  'v1:user:81000000-0000-0000-0000-000000000001',
+  clock_timestamp(), 30
+)
+on conflict (policy_key, principal_key) do update
+set window_started_at = excluded.window_started_at,
+    operation_count = excluded.operation_count;
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select throws_ok(
+  $$ select * from public.toggle_creator_follow('social-old', false) $$,
+  'P0001', 'follow_rate_limited',
+  'a Follow past the per-minute allowance is rate limited'
+);
+reset role;
+delete from private.launch_rate_buckets
+where policy_key = 'follow_user_minute'
+  and principal_key = 'v1:user:81000000-0000-0000-0000-000000000001';
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"81000000-0000-0000-0000-000000000001","role":"authenticated"}',
+  true
+);
+select results_eq(
+  $$ select following from public.get_creator_follow_state('social-creator') $$,
+  $$ values (true) $$,
+  'the rate-limited attempt did not change the relationship'
+);
+reset role;
 set local role anon;
 select set_config('request.jwt.claims', '{"role":"anon"}', true);
 select results_eq(
