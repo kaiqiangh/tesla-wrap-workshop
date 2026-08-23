@@ -377,24 +377,16 @@ select is(
 );
 reset role;
 
-select has_function(
-  'public', 'get_discovery_wraps', array['text', 'text', 'integer'],
-  'the database-owned Discovery Set RPC is migrated'
+-- The lifetime-formula Discovery RPC was retired by the trending unification
+-- (#57): membership now flows through discovery_eligible_wraps into the
+-- app-owned search RPC.
+select ok(
+  to_regprocedure('public.get_discovery_wraps(text,text,integer)') is null,
+  'the retired Discovery Set RPC is fully dropped'
 );
-set local role anon;
-select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
-  12::bigint,
-  'the Discovery Set returns every eligible official-variant Wrap'
-);
-select is(
-  (select vehicle_model_slug from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
-  'cybertruck',
-  'Vehicle Model discovery is scoped by the database model slug'
-);
-select is_empty(
-  $$ select * from public.get_discovery_wraps('MODEL', 'not-a-model', 24) $$,
-  'an unknown Vehicle Model has no Discovery Set rows'
+select has_table(
+  'public', 'discovery_eligible_wraps',
+  'the unified Discovery membership view exists'
 );
 select is_empty(
   $$ select * from public.get_public_vehicle_model('not-a-model') $$,

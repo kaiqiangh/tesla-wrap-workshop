@@ -383,11 +383,17 @@ select results_eq(
   'the public Wrap projection exposes only this session state'
 );
 select results_eq(
-  $$ select liked, favorited
-     from public.get_discovery_wraps('NEWEST', null, 24)
-     where slug = 'social-fixture-wrap' $$,
-  $$ values (true, true) $$,
-  'the Discovery projection shares the Favorite viewer state'
+  $$ select item->>'liked', item->>'favorited'
+     from jsonb_array_elements(
+       public.search_discovery_wraps_for_principal(
+         null, null, null, 'NEWEST', null, 24,
+         'v1:user:81000000-0000-0000-0000-000000000001',
+         '81000000-0000-0000-0000-000000000001'
+       ) -> 'items'
+     ) item
+     where item->>'slug' = 'social-fixture-wrap' $$,
+  $$ values ('true'::text, 'true'::text) $$,
+  'the unified search shares the Favorite viewer state'
 );
 reset role;
 set local role service_role;

@@ -7,7 +7,7 @@ select has_table('private', 'launch_rate_policies', 'launch limits have one priv
 select has_table('private', 'launch_rate_buckets', 'launch limit buckets are private');
 select is(
   (select count(*) from private.launch_rate_policies),
-  15::bigint,
+  16::bigint,
   'all launch policies are seeded'
 );
 select is(
@@ -20,6 +20,7 @@ select is(
     'download_guest_minute',
     'download_user_hour',
     'download_user_minute',
+    'follow_user_minute',
     'page_view_network_minute',
     'page_view_session_minute',
     'publish_user',

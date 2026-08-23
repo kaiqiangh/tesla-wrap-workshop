@@ -79,7 +79,7 @@ insert into public.asset_revisions (
    1024, 1024, 100, repeat('f', 64), true);
 
 update public.pending_uploads pu
-set asset_revision_id = ar.id, state = 'READY'
+set asset_revision_id = map.revision_id, state = 'READY'
 from (values
   ('99000000-0000-0000-0000-000000000001', '99000000-0000-0000-0000-000000000002'),
   ('99000000-0000-0000-0000-000000000003', '99000000-0000-0000-0000-000000000004')

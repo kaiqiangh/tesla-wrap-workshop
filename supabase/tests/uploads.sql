@@ -576,15 +576,22 @@ update public.pending_uploads
 set state = 'UPLOADED',
     staging_key = '30000000-0000-0000-0000-000000000001/expiring/staged.png',
     expires_at = clock_timestamp() - interval '1 minute'
-where owner_id = '30000000-0000-0000-0000-000000000001'
-  and original_filename = 'expiring.png';
+where id = (
+  select id from public.pending_uploads
+  where owner_id = '30000000-0000-0000-0000-000000000001'
+    and original_filename = 'expiring.png'
+  order by created_at desc
+  limit 1
+);
 select results_eq(
   $$
     select claimed, state
     from public.claim_pending_upload(
       (select id from public.pending_uploads
        where owner_id = '30000000-0000-0000-0000-000000000001'
-         and original_filename = 'expiring.png'),
+         and original_filename = 'expiring.png'
+       order by created_at desc
+       limit 1),
       '30000000-0000-0000-0000-000000000001'
     )
   $$,
