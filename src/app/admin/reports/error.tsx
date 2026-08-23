@@ -1,30 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import {
+  RouteErrorBoundary,
+  type RouteErrorProps,
+} from "../../route-error-boundary";
 
-import { BoundaryPanel } from "../../boundary-panel";
-
-export default function AdminReportsRouteError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
+export default function AdminReportsRouteError(props: RouteErrorProps) {
   return (
-    <BoundaryPanel
-      eyebrow="Unexpected problem"
+    <RouteErrorBoundary
+      {...props}
       title="The moderation queue is temporarily unavailable."
       body="Reports could not be loaded safely this time. Retry now; nothing was lost, and the queue resumes where it left off."
-      actions={
-        <button className="button" type="button" onClick={reset}>
-          Retry
-        </button>
-      }
     />
   );
 }

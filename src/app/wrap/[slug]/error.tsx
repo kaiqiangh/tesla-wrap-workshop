@@ -1,33 +1,18 @@
 "use client";
 
-import { useEffect } from "react";
+import { BoundaryExploreLink } from "../../boundary-panel";
+import {
+  RouteErrorBoundary,
+  type RouteErrorProps,
+} from "../../route-error-boundary";
 
-import { BoundaryExploreLink, BoundaryPanel } from "../../boundary-panel";
-
-export default function WrapRouteError({
-  error,
-  reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
-  useEffect(() => {
-    console.error(error);
-  }, [error]);
-
+export default function WrapRouteError(props: RouteErrorProps) {
   return (
-    <BoundaryPanel
-      eyebrow="Unexpected problem"
+    <RouteErrorBoundary
+      {...props}
       title="This Wrap is temporarily unavailable."
-      body="The Wrap catalog could not be loaded safely this time. Retry now; an outage is never presented as an empty catalog."
-      actions={
-        <>
-          <button className="button" type="button" onClick={reset}>
-            Retry
-          </button>
-          <BoundaryExploreLink />
-        </>
-      }
+      body="We could not load this Wrap safely just now. Retry in a moment, or pick another Wrap while you wait."
+      actions={<BoundaryExploreLink />}
     />
   );
 }

@@ -1685,6 +1685,8 @@ summary:focus-visible {
   place-items: center;
   padding: 48px 20px;
 }
+/* Width-only override: boundaries borrow .discovery-state's panel shape
+   on purpose (one visual voice); they are not Discovery Set surfaces. */
 .boundary-shell .discovery-state {
   width: min(640px, 100%);
 }
