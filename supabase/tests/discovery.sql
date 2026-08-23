@@ -442,6 +442,8 @@ select pg_temp.capture_explain(
 -- EXPLAIN on a PL/pgSQL or SQL RPC only reports its outer Result node. Keep
 -- read-only copies of the hot-path query shapes beside the RPC plans so the
 -- artifact also proves the underlying joins, aggregates, and ranking scan.
+-- Reconciliation UPDATE shapes intentionally use EXPLAIN ANALYZE inside this
+-- transaction; the final rollback keeps those diagnostics non-persistent.
 select pg_temp.capture_explain(
   'refresh_discovery_ranking:score-shape',
   $$
