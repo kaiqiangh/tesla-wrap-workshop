@@ -1327,7 +1327,12 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
       },
     },
   );
-  expect(overwrite.status()).toBe(200);
+  // #59 staging-retry byte identity: only a byte-identical re-upload is
+  // accepted as idempotent; a different PNG must conflict.
+  expect(overwrite.status()).toBe(409);
+  expect(await overwrite.json()).toMatchObject({
+    error: { problem: "WF-UPLOAD-STATE" },
+  });
   const corruptFinal = await page.request.post(
     `/api/uploads/${corrupt.id}/finalize`,
   );
