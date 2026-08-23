@@ -561,5 +561,43 @@ select is(
   'Storage staging access is server-only'
 );
 
+-- #61: expiry must queue durable staging cleanup instead of orphaning it.
+set local role authenticated;
+select set_config('request.jwt.claims',
+  '{"sub":"30000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
+select lives_ok($$
+  select public.start_pending_upload(
+    (select id from public.template_variants where catalog_key = 'model3'),
+    'expiring.png', 'image/png', true
+  )
+$$, 'a replacement Pending Upload may start after earlier ones settled');
+reset role;
+update public.pending_uploads
+set state = 'UPLOADED',
+    staging_key = '30000000-0000-0000-0000-000000000001/expiring/staged.png',
+    expires_at = clock_timestamp() - interval '1 minute'
+where owner_id = '30000000-0000-0000-0000-000000000001'
+  and original_filename = 'expiring.png';
+select results_eq(
+  $$
+    select claimed, state
+    from public.claim_pending_upload(
+      (select id from public.pending_uploads
+       where owner_id = '30000000-0000-0000-0000-000000000001'
+         and original_filename = 'expiring.png'),
+      '30000000-0000-0000-0000-000000000001'
+    )
+  $$,
+  $$ values (false, 'EXPIRED') $$,
+  'expired transfers report EXPIRED instead of granting the finalization lease'
+);
+select is(
+  (select count(*) from public.asset_cleanup_jobs
+   where object_key = '30000000-0000-0000-0000-000000000001/expiring/staged.png'
+     and reason = 'EXPIRED_PENDING_UPLOAD'),
+  1::integer,
+  'expiry queues durable staging cleanup for the staged object'
+);
+
 select * from finish();
 rollback;

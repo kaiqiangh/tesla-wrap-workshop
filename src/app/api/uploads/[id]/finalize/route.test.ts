@@ -121,6 +121,7 @@ function arrange(
     existingAssetMismatch?: boolean;
     successful?: boolean;
     dimensionFailure?: string;
+    claimBusy?: boolean;
   } = {},
 ) {
   const serverRpc = vi.fn(async () => ({
@@ -135,11 +136,21 @@ function arrange(
   }));
   const adminRpc = vi.fn(async (name: string) => {
     if (name === "get_pending_upload_for_owner") {
-      return { data: [{ ...pending }], error: null };
+      return {
+        data: [
+          options.claimBusy
+            ? { ...pending, state: "VALIDATING", asset_revision_id: null }
+            : { ...pending },
+        ],
+        error: null,
+      };
     }
     if (name === "claim_pending_upload") {
       if (options.claimRateLimited) {
         return { data: null, error: new Error("upload_rate_limited") };
+      }
+      if (options.claimBusy) {
+        return { data: [{ claimed: false, state: "VALIDATING" }], error: null };
       }
       return { data: [{ claimed: true, state: "VALIDATING" }], error: null };
     }
@@ -365,5 +376,18 @@ describe("POST /api/uploads/[id]/finalize", () => {
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("3600");
     expect((await response.json()).error.code).toBe("WF-UPLOAD-RATE");
+  });
+
+  it("returns a retryable busy contract without a long spin", async () => {
+    const startedAt = Date.now();
+    arrange({ claimBusy: true });
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ id }),
+    });
+    expect(response.status).toBe(503);
+    expect(response.headers.get("retry-after")).toBe("2");
+    expect((await response.json()).error.code).toBe("WF-UPLOAD-BUSY");
+    // The bounded wait must stay far below the retired ~10s spin.
+    expect(Date.now() - startedAt).toBeLessThan(2000);
   });
 });

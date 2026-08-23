@@ -140,6 +140,7 @@ async function post(
         "Authoritative validation is still running.",
         "Only one finalization may create the immutable Asset Revision.",
         "Retry this same finalization request.",
+        { "retry-after": "2" },
       );
     }
     return notFound();
@@ -378,8 +379,10 @@ async function waitForResult(
   ownerId: string,
   id: string,
 ): Promise<PendingRead> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  // Bounded short wait: serverless handlers must not hold execution for
+  // seconds; clients retry via the WF-UPLOAD-BUSY contract below.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 150));
     const pending = await readPending(admin, ownerId, id);
     if (
       pending.error ||
