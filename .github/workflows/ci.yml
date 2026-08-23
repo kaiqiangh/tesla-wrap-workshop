@@ -50,7 +50,18 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build:local
-      - run: WRAPFORGE_BROWSER_SERVER=production pnpm test:browser:local
+      - name: Run browser E2E and collect render profile
+        run: |
+          mkdir -p "${RUNNER_TEMP}/wrapforge-browser-performance"
+          PERFORMANCE_OUTPUT_DIR="${RUNNER_TEMP}/wrapforge-browser-performance" \
+            WRAPFORGE_BROWSER_SERVER=production pnpm test:browser:local
+      - name: Upload browser render profile
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: discovery-render-profile-${{ github.sha }}
+          path: ${{ runner.temp }}/wrapforge-browser-performance
+          if-no-files-found: ignore
       - run: pnpm scan:security
       - if: always()
         run: pnpm exec supabase stop
