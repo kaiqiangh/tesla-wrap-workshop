@@ -61,7 +61,7 @@ jobs:
         with:
           name: discovery-render-profile-${{ github.sha }}
           path: ${{ runner.temp }}/wrapforge-browser-performance
-          if-no-files-found: ignore
+          if-no-files-found: error
       - run: pnpm scan:security
       - if: always()
         run: pnpm exec supabase stop
