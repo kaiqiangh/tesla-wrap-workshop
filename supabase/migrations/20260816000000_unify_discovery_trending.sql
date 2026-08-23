@@ -21,6 +21,64 @@ create index wraps_trending_score_idx
   on public.wraps (trending_score desc, id desc)
   where status = 'PUBLISHED' and deleted_at is null;
 
+-- Single source of truth for Discovery Set membership (CONTEXT.md): both
+-- refresh_discovery_ranking and search_discovery_wraps_base read this view,
+-- so persisted scores and displayed results can never disagree about which
+-- Wraps are eligible. Owner-executed inside security definer functions;
+-- clients get no direct access.
+create view public.discovery_eligible_wraps as
+select
+  w.id,
+  w.slug,
+  w.title,
+  w.description,
+  w.first_published_at,
+  w.trending_score,
+  w.download_count,
+  w.like_count,
+  w.favorite_count,
+  w.comment_count,
+  w.license_type,
+  p.username as creator_username,
+  p.display_name as creator_display_name,
+  vm.slug as vehicle_model_slug,
+  vm.display_name as vehicle_model_name,
+  tv.display_name as template_variant_name,
+  tv.catalog_key as template_variant_key,
+  tv.verified_at,
+  not tv.active as legacy,
+  ar.width_px,
+  ar.height_px,
+  preview.width_px as preview_width_px,
+  preview.height_px as preview_height_px
+from public.wraps w
+join public.profiles p on p.user_id = w.creator_id
+join public.vehicle_models vm on vm.id = w.vehicle_model_id and vm.active
+join public.template_variants tv on tv.id = w.template_variant_id
+join public.asset_revisions ar on ar.id = w.asset_revision_id
+join public.wrap_assets preview
+  on preview.asset_revision_id = w.asset_revision_id
+  and preview.kind = 'PREVIEW'
+  and preview.bucket_id = 'wrap-derived'
+where w.status = 'PUBLISHED'
+  and w.deleted_at is null
+  and p.participation_state = 'ACTIVE'
+  and p.onboarding_completed_at is not null
+  and ar.template_verified
+  and ar.template_variant_id = w.template_variant_id
+  and ar.width_px = tv.width_px
+  and ar.height_px = tv.height_px
+  and preview.width_px > 0
+  and preview.height_px > 0
+  and exists (
+    select 1 from storage.objects preview_object
+    where preview_object.bucket_id = preview.bucket_id
+      and preview_object.name = preview.object_key
+  );
+
+revoke all on public.discovery_eligible_wraps
+  from public, anon, authenticated;
+
 -- The cron now owns score computation. The expression is byte-for-byte the
 -- one that lived inside search's candidates CTE (weights 3/2/2/1 over the
 -- 7-day eligible-engagement aggregates, age clamped to 30 days), so ranking
@@ -39,31 +97,8 @@ begin
   v_calculated_at := clock_timestamp();
 
   with eligible as (
-    select w.id, w.first_published_at
-    from public.wraps w
-    join public.profiles p on p.user_id = w.creator_id
-    join public.vehicle_models vm on vm.id = w.vehicle_model_id and vm.active
-    join public.template_variants tv on tv.id = w.template_variant_id
-    join public.asset_revisions ar on ar.id = w.asset_revision_id
-    join public.wrap_assets preview
-      on preview.asset_revision_id = w.asset_revision_id
-      and preview.kind = 'PREVIEW'
-      and preview.bucket_id = 'wrap-derived'
-    where w.status = 'PUBLISHED'
-      and w.deleted_at is null
-      and p.participation_state = 'ACTIVE'
-      and p.onboarding_completed_at is not null
-      and ar.template_verified
-      and ar.template_variant_id = w.template_variant_id
-      and ar.width_px = tv.width_px
-      and ar.height_px = tv.height_px
-      and preview.width_px > 0
-      and preview.height_px > 0
-      and exists (
-        select 1 from storage.objects preview_object
-        where preview_object.bucket_id = preview.bucket_id
-          and preview_object.name = preview.object_key
-      )
+    select e.id, e.first_published_at
+    from public.discovery_eligible_wraps e
   ),
   recent_downloads as (
     select event.wrap_id, count(*)::bigint as counted_downloads
@@ -107,9 +142,9 @@ begin
       e.id,
       (
         (coalesce(rd.counted_downloads, 0) * 3
-          + coalesce(re_.unique_likes, 0) * 2
-          + coalesce(re_.unique_favorites, 0) * 2
-          + coalesce(re_.visible_comments, 0))::numeric
+          + coalesce(engagement.unique_likes, 0) * 2
+          + coalesce(engagement.unique_favorites, 0) * 2
+          + coalesce(engagement.visible_comments, 0))::numeric
         / power(
           2 + least(
             greatest(
@@ -123,7 +158,7 @@ begin
       ) as score
     from eligible e
     left join recent_downloads rd on rd.wrap_id = e.id
-    left join recent_engagement re_ on re_.wrap_id = e.id
+    left join recent_engagement engagement on engagement.wrap_id = e.id
   ),
   apply_scores as (
     update public.wraps w
@@ -200,6 +235,14 @@ begin
   if v_sort not in ('TRENDING', 'NEWEST', 'MOST_DOWNLOADED') then
     raise exception using errcode = '22023', message = 'invalid_discovery_sort';
   end if;
+  v_like_query := replace(
+    replace(replace(v_query, E'\\', E'\\\\'), '%', E'\\%'),
+    '_', E'\\_'
+  );
+  v_fts_query := nullif(
+    btrim(regexp_replace(coalesce(v_query, ''), '[^[:alnum:]]+', ' ', 'g')),
+    ''
+  );
   if p_cursor is not null then
     begin
       if btrim(p_cursor) = '' then
@@ -216,19 +259,19 @@ begin
       if v_cursor is null then
         raise exception using errcode = '22023', message = 'invalid_discovery_cursor';
       end if;
-      if v_cursor->>'q' is distinct from v_query
-        or v_cursor->>'model' is distinct from v_model
-        or v_cursor->>'variant' is distinct from v_variant
-        or v_cursor->>'sort' is distinct from v_sort
-        or (v_cursor->>'limit')::integer is distinct from v_limit
-      then
-          raise exception using errcode = '22023', message = 'invalid_discovery_cursor';
-      end if;
-      v_effective_sort := coalesce(v_cursor->>'effective_sort', v_sort);
-      v_ranking_status := coalesce(v_cursor->>'ranking_status', 'LIVE');
     exception when others then
       raise exception using errcode = '22023', message = 'invalid_discovery_cursor';
     end;
+    if v_cursor->>'q' is distinct from v_query
+      or v_cursor->>'model' is distinct from v_model
+      or v_cursor->>'variant' is distinct from v_variant
+      or v_cursor->>'sort' is distinct from v_sort
+      or (v_cursor->>'limit')::integer is distinct from v_limit
+    then
+        raise exception using errcode = '22023', message = 'invalid_discovery_cursor';
+    end if;
+    v_effective_sort := coalesce(v_cursor->>'effective_sort', v_sort);
+    v_ranking_status := coalesce(v_cursor->>'ranking_status', 'LIVE');
   else
     v_cursor := null;
     select state.calculated_at, state.status
@@ -253,104 +296,80 @@ begin
 
   with candidates as (
       select
-        w.id,
-        w.slug,
-        w.title,
-        w.description,
-        p.username as creator_username,
-        p.display_name as creator_display_name,
-        vm.slug as vehicle_model_slug,
-        vm.display_name as vehicle_model_name,
-        tv.display_name as template_variant_name,
-        tv.catalog_key as template_variant_key,
-        ar.width_px,
-        ar.height_px,
-        tv.verified_at,
-        not tv.active as legacy,
-        w.license_type,
+        dsw.id,
+        dsw.slug,
+        dsw.title,
+        dsw.description,
+        dsw.creator_username,
+        dsw.creator_display_name,
+        dsw.vehicle_model_slug,
+        dsw.vehicle_model_name,
+        dsw.template_variant_name,
+        dsw.template_variant_key,
+        dsw.width_px,
+        dsw.height_px,
+        dsw.verified_at,
+        dsw.legacy,
+        dsw.license_type,
         coalesce(
           array_agg(t.display_name order by t.slug)
             filter (where t.id is not null),
           '{}'::text[]
         ) as tags,
-        w.first_published_at,
-        w.download_count,
-        w.like_count,
-        w.favorite_count,
-        w.comment_count,
-        w.trending_score as trending_score,
-        preview.width_px as preview_width_px,
-        preview.height_px as preview_height_px,
+        dsw.first_published_at,
+        dsw.download_count,
+        dsw.like_count,
+        dsw.favorite_count,
+        dsw.comment_count,
+        dsw.trending_score,
+        dsw.preview_width_px,
+        dsw.preview_height_px,
         true as preview_available,
         'Vehicle, configuration, account, software, and region can affect Paint Shop availability.'::text
           as availability_caveat,
         case when v_fts_query is null then 0::real else
           ts_rank_cd(
-            setweight(to_tsvector('simple', extensions.unaccent(w.title)), 'A') ||
-            setweight(to_tsvector('simple', extensions.unaccent(w.description)), 'B') ||
+            setweight(to_tsvector('simple', extensions.unaccent(dsw.title)), 'A') ||
+            setweight(to_tsvector('simple', extensions.unaccent(dsw.description)), 'B') ||
             setweight(to_tsvector('simple', extensions.unaccent(coalesce(string_agg(t.display_name, ' ' order by t.slug), ''))), 'C') ||
-            setweight(to_tsvector('simple', extensions.unaccent(coalesce(p.username, ''))), 'A') ||
-            setweight(to_tsvector('simple', extensions.unaccent(coalesce(p.display_name, ''))), 'B'),
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_username, ''))), 'A') ||
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, ''))), 'B'),
             websearch_to_tsquery('simple', v_fts_query)
           )
           + greatest(
-            extensions.similarity(extensions.unaccent(w.title), v_query),
-            extensions.similarity(extensions.unaccent(coalesce(p.username, '')), v_query),
-            extensions.similarity(extensions.unaccent(coalesce(p.display_name, '')), v_query)
+            extensions.similarity(extensions.unaccent(dsw.title), v_query),
+            extensions.similarity(extensions.unaccent(coalesce(dsw.creator_username, '')), v_query),
+            extensions.similarity(extensions.unaccent(coalesce(dsw.creator_display_name, '')), v_query)
           )::real
         end as search_relevance
-      from public.wraps w
-      join public.profiles p on p.user_id = w.creator_id
-      join public.vehicle_models vm on vm.id = w.vehicle_model_id
-      join public.template_variants tv on tv.id = w.template_variant_id
-      join public.asset_revisions ar on ar.id = w.asset_revision_id
-      join public.wrap_assets preview
-        on preview.asset_revision_id = w.asset_revision_id
-        and preview.kind = 'PREVIEW'
-        and preview.bucket_id = 'wrap-derived'
-      left join public.wrap_tags wt on wt.wrap_id = w.id
+      from public.discovery_eligible_wraps dsw
+      left join public.wrap_tags wt on wt.wrap_id = dsw.id
       left join public.tags t on t.id = wt.tag_id
-      where w.status = 'PUBLISHED'
-        and w.deleted_at is null
-        and p.participation_state = 'ACTIVE'
-        and p.onboarding_completed_at is not null
-        and vm.active
-        and ar.template_verified
-        and ar.template_variant_id = w.template_variant_id
-        and ar.width_px = tv.width_px
-        and ar.height_px = tv.height_px
-        and preview.width_px > 0
-        and preview.height_px > 0
-        and exists (
-          select 1 from storage.objects preview_object
-          where preview_object.bucket_id = preview.bucket_id
-            and preview_object.name = preview.object_key
-        )
-        and (v_model is null or vm.slug = v_model)
-        and (v_variant is null or tv.catalog_key = v_variant)
+      where (v_model is null or dsw.vehicle_model_slug = v_model)
+        and (v_variant is null or dsw.template_variant_key = v_variant)
         and (
           v_query is null
           or (v_fts_query is not null and (
-            to_tsvector('simple', extensions.unaccent(w.title)) ||
-            to_tsvector('simple', extensions.unaccent(w.description)) ||
-            to_tsvector('simple', extensions.unaccent(coalesce(p.username, ''))) ||
-            to_tsvector('simple', extensions.unaccent(coalesce(p.display_name, '')))
+            to_tsvector('simple', extensions.unaccent(dsw.title)) ||
+            to_tsvector('simple', extensions.unaccent(dsw.description)) ||
+            to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_username, ''))) ||
+            to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, '')))
           ) @@ websearch_to_tsquery('simple', v_fts_query))
-          or extensions.unaccent(w.title) ilike v_like_query || '%' escape E'\'
-          or extensions.unaccent(w.description) ilike v_like_query || '%' escape E'\'
-          or extensions.unaccent(coalesce(p.username, '')) ilike v_like_query || '%' escape E'\'
-          or extensions.unaccent(coalesce(p.display_name, '')) ilike v_like_query || '%' escape E'\'
-          or extensions.similarity(extensions.unaccent(w.title), v_query) >= 0.25
-          or extensions.similarity(extensions.unaccent(w.description), v_query) >= 0.25
-          or extensions.similarity(extensions.unaccent(coalesce(p.username, '')), v_query) >= 0.25
-          or extensions.similarity(extensions.unaccent(coalesce(p.display_name, '')), v_query) >= 0.25
+          or extensions.unaccent(dsw.title) ilike v_like_query || '%' escape E'\\'
+          or extensions.unaccent(dsw.description) ilike v_like_query || '%' escape E'\\'
+          or extensions.unaccent(coalesce(dsw.creator_username, '')) ilike v_like_query || '%' escape E'\\'
+          or extensions.unaccent(coalesce(dsw.creator_display_name, '')) ilike v_like_query || '%' escape E'\\'
+          or extensions.similarity(extensions.unaccent(dsw.title), v_query) >= 0.25
+          or extensions.similarity(extensions.unaccent(dsw.description), v_query) >= 0.25
+          or extensions.similarity(extensions.unaccent(coalesce(dsw.creator_username, '')), v_query) >= 0.25
+          or extensions.similarity(extensions.unaccent(coalesce(dsw.creator_display_name, '')), v_query) >= 0.25
           or exists (
             select 1
             from public.wrap_tags query_wt
             join public.tags query_t on query_t.id = query_wt.tag_id
-            where query_wt.wrap_id = w.id
+            where query_wt.wrap_id = dsw.id
               and (
-                extensions.unaccent(query_t.display_name) ilike v_like_query || '%' escape E'\'
+                extensions.unaccent(query_t.display_name) ilike v_like_query || '%' escape E'\\'
                 or (v_fts_query is not null and
                   to_tsvector('simple', extensions.unaccent(query_t.display_name))
                     @@ websearch_to_tsquery('simple', v_fts_query))
@@ -358,9 +377,14 @@ begin
               )
           )
         )
-      group by w.id, p.username, p.display_name, vm.slug, vm.display_name,
-        tv.display_name, tv.catalog_key, tv.verified_at, tv.active,
-        ar.width_px, ar.height_px, preview.width_px, preview.height_px
+      group by dsw.id, dsw.slug, dsw.title, dsw.description,
+        dsw.creator_username, dsw.creator_display_name,
+        dsw.vehicle_model_slug, dsw.vehicle_model_name,
+        dsw.template_variant_name, dsw.template_variant_key,
+        dsw.width_px, dsw.height_px, dsw.verified_at, dsw.legacy,
+        dsw.license_type, dsw.first_published_at, dsw.download_count,
+        dsw.like_count, dsw.favorite_count, dsw.comment_count,
+        dsw.trending_score, dsw.preview_width_px, dsw.preview_height_px
     ),
     ordered as (
       select candidates.*,
@@ -489,6 +513,6 @@ end;
 $$;
 
 revoke all on function public.search_discovery_wraps_base(text, text, text, text, text, integer)
-  from public, anon, authenticated, service_role;
+  from public, anon, authenticated;
 
 commit;

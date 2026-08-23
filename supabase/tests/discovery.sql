@@ -5,7 +5,7 @@ select no_plan();
 
 -- The unified trending surface: one persisted score, refreshed by the cron.
 select has_function(
-  'public', 'refresh_discovery_ranking', array[''],
+  'public', 'refresh_discovery_ranking', '{}'::text[],
   'ranking refresh stays a single service-role RPC'
 );
 select has_function(
@@ -147,6 +147,70 @@ insert into public.discovery_engagement_events (
   '89000000-0000-0000-0000-000000000002', 'LIKE', true, now() - interval '5 minutes'
 );
 
+-- A middle wrap with one recent Like: sits between hot and cold when ranked.
+insert into public.pending_uploads (
+  id, owner_id, template_variant_id, staging_key, original_filename,
+  declared_mime_type, template_asserted, state
+) values (
+  '99000000-0000-0000-0000-000000000005',
+  '89000000-0000-0000-0000-000000000001',
+   (select id from public.template_variants where catalog_key = 'model3'),
+   '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/source.png',
+   'mid.png', 'image/png', true, 'CREATED');
+insert into public.asset_revisions (
+  id, owner_id, template_variant_id, source_pending_upload_id,
+  width_px, height_px, byte_size, sha256, template_verified
+) values (
+  '99000000-0000-0000-0000-000000000006',
+  '89000000-0000-0000-0000-000000000001',
+   (select id from public.template_variants where catalog_key = 'model3'),
+   '99000000-0000-0000-0000-000000000005',
+   1024, 1024, 100, repeat('h', 64), true);
+update public.pending_uploads
+set asset_revision_id = '99000000-0000-0000-0000-000000000006', state = 'READY'
+where id = '99000000-0000-0000-0000-000000000005';
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values
+  ('wrap-derived', '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/preview.png', '89000000-0000-0000-0000-000000000001', '{"size":80}'::jsonb),
+  ('wrap-originals', '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/original.png', '89000000-0000-0000-0000-000000000001', '{"size":100}'::jsonb);
+insert into public.wrap_assets (
+  asset_revision_id, kind, bucket_id, object_key,
+  width_px, height_px, byte_size, sha256
+) values
+  ('99000000-0000-0000-0000-000000000006', 'PREVIEW', 'wrap-derived',
+   '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/preview.png',
+   1024, 1024, 80, repeat('i', 64)),
+  ('99000000-0000-0000-0000-000000000006', 'ORIGINAL', 'wrap-originals',
+   '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/original.png',
+   1024, 1024, 100, repeat('h', 64));
+insert into public.wraps (
+  id, creator_id, slug, title, description, vehicle_model_id,
+  template_variant_id, asset_revision_id, license_type,
+  template_asserted, distribution_asserted, status, first_published_at
+) values (
+  '9a000000-0000-0000-0000-000000000003',
+  '89000000-0000-0000-0000-000000000001',
+  'trending-mid-wrap', 'Trending Mid Wrap', 'One recent Like.',
+  (select vehicle_model_id from public.template_variants where catalog_key = 'model3'),
+  (select id from public.template_variants where catalog_key = 'model3'),
+  '99000000-0000-0000-0000-000000000006', 'PERSONAL_USE_ALLOWED', true, true,
+  'PUBLISHED', date_trunc('hour', now()));
+insert into public.discovery_engagement_events (
+  wrap_id, actor_id, kind, active, occurred_at
+) values (
+  '9a000000-0000-0000-0000-000000000003',
+  '89000000-0000-0000-0000-000000000002', 'LIKE', true, now() - interval '4 minutes'
+);
+
+-- The cold wrap's only download left the 7-day window: its score decays to
+-- zero even though the event was counted when it happened.
+insert into public.download_events (
+  wrap_id, principal_kind, principal_hash, user_id, counted, granted_at
+) values (
+  '9a000000-0000-0000-0000-000000000002', 'GUEST', 'v1:' || repeat('b', 64),
+  null, true, now() - interval '8 days'
+);
+
 -- Refresh computes the shared formula once.
 select ok(
   public.refresh_discovery_ranking() >= clock_timestamp() - interval '1 minute',
@@ -158,21 +222,67 @@ select ok(
     where id = '9a000000-0000-0000-0000-000000000001'),
   'recently downloaded Wrap earns a positive Trending Score'
 );
+select ok(
+  (select trending_score > 0::numeric from public.wraps
+    where id = '9a000000-0000-0000-0000-000000000003'),
+  'recently liked Wrap earns a smaller positive Trending Score'
+);
 select is(
   (select trending_score from public.wraps
     where id = '9a000000-0000-0000-0000-000000000002'),
   0::numeric,
-  'engagement-less Wrap keeps a zero Trending Score but stays listed'
+  'aged-out engagement decays a Wrap Trending Score to zero'
 );
 
--- TRENDING reads the persisted score: hot wrap leads, status LIVE.
+-- TRENDING reads the persisted score: hot > mid > cold, cold still listed.
 select is(
   (select result->'items'->0->>'id'
    from public.search_discovery_wraps_base(
      null, null, null, 'TRENDING', null, 24
    ) result),
   '9a000000-0000-0000-0000-000000000001',
-  'TRENDING orders by the persisted Trending Score'
+  'TRENDING ranks the hottest Wrap first'
+);
+select is(
+  (select result->'items'->1->>'id'
+   from public.search_discovery_wraps_base(
+     null, null, null, 'TRENDING', null, 24
+   ) result),
+  '9a000000-0000-0000-0000-000000000003',
+  'TRENDING orders by Trending Score descending'
+);
+select is(
+  (select result->'items'->2->>'id'
+   from public.search_discovery_wraps_base(
+     null, null, null, 'TRENDING', null, 24
+   ) result),
+  '9a000000-0000-0000-0000-000000000002',
+  'zero-score Wraps still return behind scored ones'
+);
+
+-- Keyset continuation: page one of one carries a cursor into the next rank.
+select ok(
+  (select result->>'next_cursor' is not null
+   from public.search_discovery_wraps_base(
+     null, null, null, 'TRENDING', null, 1
+   ) result),
+  'truncated TRENDING page yields a continuation cursor'
+);
+select is(
+  (
+    with page_one as (
+      select result->>'next_cursor' as token
+      from public.search_discovery_wraps_base(
+        null, null, null, 'TRENDING', null, 1
+      ) result
+    )
+    select result->'items'->0->>'id'
+    from public.search_discovery_wraps_base(
+      null, null, null, 'TRENDING', (select token from page_one), 1
+    ) result
+  ),
+  '9a000000-0000-0000-0000-000000000003',
+  'cursor continuation advances to the next-ranked Wrap'
 );
 select is(
   (select result->>'ranking_status'

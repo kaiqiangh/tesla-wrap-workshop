@@ -1245,6 +1245,7 @@ export type Database = {
           status: string;
           template_asserted: boolean;
           template_variant_id: string;
+          trending_score: number;
           title: string;
           updated_at: string;
           vehicle_model_id: string;
@@ -1267,6 +1268,7 @@ export type Database = {
           status?: string;
           template_asserted: boolean;
           template_variant_id: string;
+          trending_score?: number;
           title: string;
           updated_at?: string;
           vehicle_model_id: string;
@@ -1289,6 +1291,7 @@ export type Database = {
           status?: string;
           template_asserted?: boolean;
           template_variant_id?: string;
+          trending_score?: number;
           title?: string;
           updated_at?: string;
           vehicle_model_id?: string;
