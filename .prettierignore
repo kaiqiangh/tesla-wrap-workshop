@@ -3,3 +3,6 @@ docs/research/
 
 # Generated binary assets.
 public/assets/
+
+# Local package store.
+.pnpm-store/

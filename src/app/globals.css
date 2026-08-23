@@ -1678,3 +1678,20 @@ summary:focus-visible {
     width: 100%;
   }
 }
+
+/* Branded route boundaries (error.tsx / not-found.tsx) */
+.boundary-shell {
+  display: grid;
+  place-items: center;
+  padding: 48px 20px;
+}
+.boundary-shell .discovery-state {
+  width: min(640px, 100%);
+}
+.boundary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+}
