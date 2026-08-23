@@ -238,6 +238,22 @@ insert into public.discovery_engagement_events (
   '89000000-0000-0000-0000-000000000002', 'LIKE', true, now() - interval '4 minutes'
 );
 
+insert into public.tags (slug, display_name)
+values ('trending', 'Trending');
+insert into public.wrap_tags (wrap_id, tag_id)
+select '9a000000-0000-0000-0000-000000000001', id
+from public.tags
+where slug = 'trending';
+
+-- A counted User download exercises the per-user reconciliation scope.
+insert into public.download_events (
+  wrap_id, principal_kind, principal_hash, user_id, counted, granted_at
+) values (
+  '9a000000-0000-0000-0000-000000000001', 'USER',
+  'v1:user:89000000-0000-0000-0000-000000000002',
+  '89000000-0000-0000-0000-000000000002', true, now() - interval '2 minutes'
+);
+
 -- The cold wrap's only download left the 7-day window: its score decays to
 -- zero even though the event was counted when it happened.
 insert into public.download_events (
@@ -592,18 +608,16 @@ select pg_temp.capture_explain(
   $$
 );
 select pg_temp.capture_explain(
-  'reconcile_wrap_counts_for_scope:profile-and-model-shapes',
+  'reconcile_wrap_counts_for_scope:profile-and-model-update-shape',
   $$
     explain (analyze, buffers, format text)
-    with scopes(scope_name, p_user_id, p_model_id) as (
+    with scopes(p_user_id, p_model_id) as (
       values
         (
-          'profile'::text,
           '89000000-0000-0000-0000-000000000001'::uuid,
           null::uuid
         ),
         (
-          'model'::text,
           null::uuid,
           (
             select vehicle_model_id
@@ -613,33 +627,95 @@ select pg_temp.capture_explain(
           )
         )
     ), affected as (
-      select s.scope_name, l.wrap_id as id
+      select l.wrap_id as id
       from scopes s
       join public.wrap_likes l
         on s.p_user_id is not null and l.user_id = s.p_user_id
       union
-      select s.scope_name, f.wrap_id as id
+      select f.wrap_id as id
       from scopes s
       join public.wrap_favorites f
         on s.p_user_id is not null and f.user_id = s.p_user_id
       union
-      select s.scope_name, c.wrap_id as id
+      select c.wrap_id as id
       from scopes s
       join public.wrap_comments c
         on s.p_user_id is not null and c.author_id = s.p_user_id
       union
-      select s.scope_name, event.wrap_id as id
+      select event.wrap_id as id
       from scopes s
       join public.download_events event
         on s.p_user_id is not null and event.user_id = s.p_user_id
       union
-      select s.scope_name, w.id
+      select w.id
       from scopes s
       join public.wraps w
         on (s.p_user_id is not null and w.creator_id = s.p_user_id)
         or (s.p_model_id is not null and w.vehicle_model_id = s.p_model_id)
+    ), like_counts as (
+      select l.wrap_id, count(*)::bigint as value
+      from public.wrap_likes l
+      join public.profiles actor on actor.user_id = l.user_id
+      where actor.participation_state = 'ACTIVE'
+        and actor.onboarding_completed_at is not null
+        and l.wrap_id in (select id from affected)
+      group by l.wrap_id
+    ), favorite_counts as (
+      select f.wrap_id, count(*)::bigint as value
+      from public.wrap_favorites f
+      join public.profiles actor on actor.user_id = f.user_id
+      where actor.participation_state = 'ACTIVE'
+        and actor.onboarding_completed_at is not null
+        and f.wrap_id in (select id from affected)
+      group by f.wrap_id
+    ), comment_counts as (
+      select c.wrap_id, count(*)::bigint as value
+      from public.wrap_comments c
+      join public.profiles author on author.user_id = c.author_id
+      where c.status = 'PUBLISHED'
+        and author.participation_state = 'ACTIVE'
+        and author.onboarding_completed_at is not null
+        and c.wrap_id in (select id from affected)
+      group by c.wrap_id
+    ), download_counts as (
+      select event.wrap_id, count(*)::bigint as value
+      from public.download_events event
+      left join public.profiles actor on actor.user_id = event.user_id
+      where event.counted
+        and event.wrap_id in (select id from affected)
+        and (
+          event.user_id is null
+          or (
+            actor.participation_state = 'ACTIVE'
+            and actor.onboarding_completed_at is not null
+          )
+        )
+      group by event.wrap_id
+    ), recalculated as (
+      select
+        a.id,
+        exists (
+          select 1
+          from public.discovery_eligible_wraps e
+          where e.id = a.id
+        ) as eligible,
+        coalesce(like_counts.value, 0)::bigint as like_count,
+        coalesce(favorite_counts.value, 0)::bigint as favorite_count,
+        coalesce(comment_counts.value, 0)::bigint as comment_count,
+        coalesce(download_counts.value, 0)::bigint as download_count
+      from affected a
+      left join like_counts on like_counts.wrap_id = a.id
+      left join favorite_counts on favorite_counts.wrap_id = a.id
+      left join comment_counts on comment_counts.wrap_id = a.id
+      left join download_counts on download_counts.wrap_id = a.id
     )
-    select * from affected
+    update public.wraps w
+    set like_count = case when recalculated.eligible then recalculated.like_count else 0 end,
+        favorite_count = case when recalculated.eligible then recalculated.favorite_count else 0 end,
+        comment_count = case when recalculated.eligible then recalculated.comment_count else 0 end,
+        download_count = recalculated.download_count
+    from recalculated
+    where w.id = recalculated.id
   $$
 );
 select pg_temp.capture_explain(
@@ -694,7 +770,10 @@ select pg_temp.capture_explain(
       from affected
       left join counts on counts.wrap_id = affected.id
     )
-    select * from recalculated
+    update public.wraps w
+    set download_count = recalculated.download_count
+    from recalculated
+    where w.id = recalculated.id
   $$
 );
 select pg_temp.capture_explain(
@@ -739,7 +818,8 @@ select pg_temp.capture_explain(
             setweight(to_tsvector('simple', extensions.unaccent(dsw.title)), 'A') ||
             setweight(to_tsvector('simple', extensions.unaccent(dsw.description)), 'B') ||
             setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_username, ''))), 'A') ||
-            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, ''))), 'B'),
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, ''))), 'B') ||
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(string_agg(t.display_name, ' ' order by t.slug), ''))), 'C'),
             websearch_to_tsquery('simple', params.fts_query)
           )
           + greatest(
@@ -788,7 +868,8 @@ select pg_temp.capture_explain(
         params.fts_query
     )
     select * from candidates
-    order by trending_score desc nulls last, first_published_at desc, id desc
+    order by trending_score desc nulls last, first_published_at desc,
+      search_relevance desc, id desc
     limit 24
   $$
 );
