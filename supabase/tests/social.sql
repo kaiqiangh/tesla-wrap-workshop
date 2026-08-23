@@ -382,6 +382,8 @@ select results_eq(
   $$ values (true, true) $$,
   'the public Wrap projection exposes only this session state'
 );
+reset role;
+set local role service_role;
 select results_eq(
   $$ select item->>'liked', item->>'favorited'
      from jsonb_array_elements(

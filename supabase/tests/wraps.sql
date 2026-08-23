@@ -384,8 +384,8 @@ select ok(
   to_regprocedure('public.get_discovery_wraps(text,text,integer)') is null,
   'the retired Discovery Set RPC is fully dropped'
 );
-select has_table(
-  'public', 'discovery_eligible_wraps',
+select ok(
+  to_regclass('public.discovery_eligible_wraps') is not null,
   'the unified Discovery membership view exists'
 );
 select is_empty(
