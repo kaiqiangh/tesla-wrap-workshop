@@ -84,14 +84,6 @@ type DiscoveryClient = {
   };
   rpc: {
     (
-      name: "get_discovery_wraps",
-      args: {
-        p_kind: DiscoveryKind;
-        p_limit: number;
-        p_model_slug?: string;
-      },
-    ): PromiseLike<{ data: unknown; error: unknown }>;
-    (
       name: "get_public_vehicle_model",
       args: { p_slug: string },
     ): PromiseLike<{ data: unknown; error: unknown }>;
