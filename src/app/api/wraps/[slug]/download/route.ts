@@ -11,6 +11,7 @@ import {
 } from "@/lib/download/principal";
 import { safeDownloadFilename } from "@/lib/download/filename";
 import { readServerEnvironment } from "@/lib/env";
+import { isSameOriginRequest } from "@/lib/request-origin";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -44,7 +45,11 @@ async function post(
   let access: Awaited<ReturnType<typeof readProfileAccess>>;
   try {
     environment = readServerEnvironment(process.env);
-    if (!sameOriginRequest(request, environment.NEXT_PUBLIC_SITE_URL)) {
+    if (
+      !isSameOriginRequest(request, {
+        siteUrl: environment.NEXT_PUBLIC_SITE_URL,
+      })
+    ) {
       return downloadProblem(
         403,
         "WF-DOWNLOAD-CSRF",
@@ -130,17 +135,7 @@ async function post(
   return response;
 }
 
-function sameOriginRequest(request: Request, siteUrl: string) {
-  const origin = request.headers.get("origin");
-  const fetchSite = request.headers.get("sec-fetch-site");
-  return (
-    (!origin || origin === siteUrl) &&
-    (!fetchSite ||
-      fetchSite === "same-origin" ||
-      fetchSite === "same-site" ||
-      fetchSite === "none")
-  );
-}
+
 
 function mapDatabaseError(message: string) {
   if (message === "download_minute_rate_limited") {
