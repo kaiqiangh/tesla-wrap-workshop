@@ -309,4 +309,5 @@ update public.discovery_ranking_state
 set calculated_at = clock_timestamp(), status = 'LIVE'
 where id;
 
+select * from finish();
 rollback;
