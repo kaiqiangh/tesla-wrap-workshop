@@ -15,7 +15,11 @@ export function POST(request: Request) {
 async function post(request: Request, operation: OperationContext) {
   const parsed = await readJsonBody(request);
   if (!parsed.ok)
-    return problem(400, "invalid_request", "Enter a Username and display name.");
+    return problem(
+      400,
+      "invalid_request",
+      "Enter a Username and display name.",
+    );
   const input = parsed.body;
   if (!isInput(input)) {
     return problem(

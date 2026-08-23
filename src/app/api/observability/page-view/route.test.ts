@@ -60,9 +60,7 @@ describe("page view rate-limit principals", () => {
   });
 
   it("keys cookieless page views by network, never the retired shared bucket", async () => {
-    const response = await POST(
-      pageViewRequest({ "x-real-ip": "192.0.2.10" }),
-    );
+    const response = await POST(pageViewRequest({ "x-real-ip": "192.0.2.10" }));
     expect(response.status).toBe(200);
     expect(consumePageViewLimit.mock.calls[0][0]).toBe(
       "consume_page_view_limit",

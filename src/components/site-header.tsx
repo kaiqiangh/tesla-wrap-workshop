@@ -32,11 +32,7 @@ export function SiteHeader({
         <nav className="desktop-nav" aria-label={label}>
           {links.map((link) =>
             link.className || link.external ? (
-              <a
-                key={link.href}
-                className={link.className}
-                href={link.href}
-              >
+              <a key={link.href} className={link.className} href={link.href}>
                 {link.label}
               </a>
             ) : (

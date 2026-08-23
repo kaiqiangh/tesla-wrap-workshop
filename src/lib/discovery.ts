@@ -304,8 +304,7 @@ async function readSearchPrincipal() {
     // Cookieless clients key on their network address so the per-minute
     // search limit still binds; a per-request random principal would let
     // them rotate past it indefinitely.
-    const session =
-      (await cookies()).get(SEARCH_SESSION_COOKIE)?.value ?? null;
+    const session = (await cookies()).get(SEARCH_SESSION_COOKIE)?.value ?? null;
     const network = headerNetworkPrincipal(await headers());
     const secret = process.env.DOWNLOAD_PRINCIPAL_HMAC_SECRET;
     if (!secret) throw new Error("search_principal_unavailable");

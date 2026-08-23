@@ -13,7 +13,10 @@ describe("isSameOriginRequest", () => {
   it("rejects explicit cross-site fetch metadata", () => {
     expect(
       isSameOriginRequest(
-        requestWith({ "sec-fetch-site": "cross-site", origin: "https://evil.test" }),
+        requestWith({
+          "sec-fetch-site": "cross-site",
+          origin: "https://evil.test",
+        }),
       ),
     ).toBe(false);
   });
@@ -23,12 +26,19 @@ describe("isSameOriginRequest", () => {
   });
 
   it("rejects malformed Origin headers", () => {
-    expect(isSameOriginRequest(requestWith({ origin: "not-a-url" }))).toBe(false);
+    expect(isSameOriginRequest(requestWith({ origin: "not-a-url" }))).toBe(
+      false,
+    );
   });
 
   it("accepts an Origin matching the request Host", () => {
     expect(
-      isSameOriginRequest(requestWith({ host: "wrapforge.test", origin: "https://wrapforge.test" })),
+      isSameOriginRequest(
+        requestWith({
+          host: "wrapforge.test",
+          origin: "https://wrapforge.test",
+        }),
+      ),
     ).toBe(true);
   });
 

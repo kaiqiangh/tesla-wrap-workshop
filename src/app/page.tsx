@@ -38,7 +38,11 @@ export default async function Home() {
           { href: "#catalog", label: "Models" },
           { href: "/explore", label: "Explore" },
           { href: "/sign-in", label: "Sign in" },
-          { href: "/upload", label: "Upload a Wrap", className: "button button-small" },
+          {
+            href: "/upload",
+            label: "Upload a Wrap",
+            className: "button button-small",
+          },
         ]}
         mobile
       />

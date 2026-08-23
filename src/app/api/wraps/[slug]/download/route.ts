@@ -135,8 +135,6 @@ async function post(
   return response;
 }
 
-
-
 function mapDatabaseError(message: string) {
   if (message === "download_minute_rate_limited") {
     return downloadProblem(

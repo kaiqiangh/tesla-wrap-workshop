@@ -75,9 +75,7 @@ describe("POST /api/profiles/[username]/follow", () => {
     });
     const response = await POST(jsonRequest({ enabled: true }), { params });
     expect(response.status).toBe(403);
-    expect((await response.json()).error.code).toBe(
-      "WF-FOLLOW-PARTICIPATION",
-    );
+    expect((await response.json()).error.code).toBe("WF-FOLLOW-PARTICIPATION");
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

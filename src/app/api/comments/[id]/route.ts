@@ -33,11 +33,16 @@ async function removeComment({ params }: Params, operation: OperationContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const gate = await requireActiveProfile(supabase, operation, commentProblem, {
-      auth: "WF-COMMENT-AUTH",
-      participation: "WF-COMMENT-PARTICIPATION",
-      db: "WF-COMMENT-DATABASE",
-    });
+    const gate = await requireActiveProfile(
+      supabase,
+      operation,
+      commentProblem,
+      {
+        auth: "WF-COMMENT-AUTH",
+        participation: "WF-COMMENT-PARTICIPATION",
+        db: "WF-COMMENT-DATABASE",
+      },
+    );
     if (!gate.ok) return gate.response;
     const { data, error } = await supabase.rpc("remove_wrap_comment", {
       p_comment_id: id,
