@@ -176,7 +176,7 @@ async function post(
   }
   if (uploaded.error) {
     // A duplicate failure means bytes already occupy this staging key.
-    // Presence alone is not success (WU-01): only a byte-identical object
+    // Presence alone is not success: only a byte-identical object
     // may count as the idempotent completion of this same transfer, the
     // same contract finalize applies to derived assets. A different file
     // must conflict so a stale transfer can never publish the wrong PNG.
@@ -192,10 +192,7 @@ async function post(
           createHash("sha256").update(staged).digest("hex") ===
             createHash("sha256").update(received).digest("hex")
         ) {
-          return NextResponse.json(
-            { state: "UPLOADED" },
-            { headers: { "cache-control": "no-store" } },
-          );
+          return uploadedResponse();
         }
         return uploadProblem(
           409,
@@ -220,6 +217,10 @@ async function post(
     return transferFailure();
   }
 
+  return uploadedResponse();
+}
+
+function uploadedResponse() {
   return NextResponse.json(
     { state: "UPLOADED" },
     { headers: { "cache-control": "no-store" } },

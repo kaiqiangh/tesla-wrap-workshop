@@ -134,6 +134,7 @@ describe("POST /api/uploads/[id]/object", () => {
       userId: "10000000-0000-0000-0000-000000000003",
     });
     mocks.createServer.mockResolvedValue({});
+    const upsert = vi.fn(async () => ({ error: null }));
     mocks.createAdmin.mockReturnValue({
       rpc: vi.fn(async () => ({
         data: [
@@ -159,12 +160,62 @@ describe("POST /api/uploads/[id]/object", () => {
           })),
         })),
       },
-      from: vi.fn(() => ({ upsert: vi.fn(async () => ({ error: null })) })),
+      from: vi.fn(() => ({ upsert })),
     });
 
     const response = await POST(request(), { params: Promise.resolve({ id }) });
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("storage secret details");
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pending_upload_id: id,
+        bucket_id: "wrap-staging",
+        object_key: "private/key.png",
+        reason: "FAILED_FINALIZATION",
+      }),
+      { onConflict: "bucket_id,object_key", ignoreDuplicates: true },
+    );
+  });
+
+  it("queues cleanup when reading the staged object throws", async () => {
+    mocks.readProfileAccess.mockResolvedValue({
+      status: "active",
+      userId: "10000000-0000-0000-0000-000000000003",
+    });
+    mocks.createServer.mockResolvedValue({});
+    const upsert = vi.fn(async () => ({ error: null }));
+    mocks.createAdmin.mockReturnValue({
+      rpc: vi.fn(async () => ({
+        data: [
+          {
+            id,
+            state: "CREATED",
+            staging_key: "private/key.png",
+            owner_id: "10000000-0000-0000-0000-000000000003",
+            expires_at: new Date(Date.now() + 60_000).toISOString(),
+            max_file_bytes: 100,
+          },
+        ],
+        error: null,
+      })),
+      storage: {
+        from: vi.fn(() => ({
+          upload: vi.fn(async () => ({ error: { message: "Duplicate" } })),
+          download: vi.fn(async () => {
+            throw new Error("storage exploded");
+          }),
+        })),
+      },
+      from: vi.fn(() => ({ upsert })),
+    });
+
+    const response = await POST(request(), { params: Promise.resolve({ id }) });
+    expect(response.status).toBe(503);
+    expect((await response.json()).error.code).toBe("WF-UPLOAD-TRANSFER");
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "FAILED_FINALIZATION" }),
+      expect.anything(),
+    );
   });
 
   it("maps a Pending Upload database failure to a retryable response", async () => {
