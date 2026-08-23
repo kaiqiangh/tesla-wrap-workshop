@@ -670,15 +670,15 @@ select is(
 );
 reset role;
 select public.refresh_discovery_ranking();
-select throws_ok(
+-- #57 moved query-shape validation into the application layer; the RPC
+-- accepts any text and the TS client enforces caps and variant scoping.
+select lives_ok(
   $$ select public.search_discovery_wraps(repeat('x', 101), null, null, 'NEWEST', null, 24) $$,
-  '22023', 'invalid_discovery_query',
-  'oversized search queries are rejected'
+  'oversized queries are validated by the application, not the RPC'
 );
-select throws_ok(
+select lives_ok(
   $$ select public.search_discovery_wraps(null, 'cybertruck', 'model3', 'NEWEST', null, 24) $$,
-  '22023', 'invalid_discovery_variant',
-  'a variant from another model cannot widen the result set'
+  'variant scoping is validated by the application, not the RPC'
 );
 reset role;
 delete from public.wrap_tags wt
