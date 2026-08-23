@@ -422,6 +422,220 @@ select pg_temp.capture_explain(
     select public.reconcile_download_counts()
   $$
 );
+
+-- EXPLAIN on a PL/pgSQL or SQL RPC only reports its outer Result node. Keep
+-- read-only copies of the hot-path query shapes beside the RPC plans so the
+-- artifact also proves the underlying joins, aggregates, and ranking scan.
+select pg_temp.capture_explain(
+  'refresh_discovery_ranking:score-shape',
+  $$
+    explain (analyze, buffers, format text)
+    with params as (
+      select clock_timestamp() as calculated_at
+    ), eligible as (
+      select e.id, e.first_published_at
+      from public.discovery_eligible_wraps e
+    ), recent_downloads as (
+      select event.wrap_id, count(*)::bigint as counted_downloads
+      from public.download_events event
+      join public.wraps target on target.id = event.wrap_id
+      left join public.profiles downloader on downloader.user_id = event.user_id
+      cross join params
+      where event.counted
+        and event.granted_at >= params.calculated_at - interval '7 days'
+        and event.granted_at <= params.calculated_at
+        and (
+          event.user_id is null
+          or (
+            downloader.participation_state = 'ACTIVE'
+            and downloader.onboarding_completed_at is not null
+            and event.user_id <> target.creator_id
+          )
+        )
+      group by event.wrap_id
+    ), recent_engagement as (
+      select
+        event.wrap_id,
+        count(distinct event.actor_id) filter (where event.kind = 'LIKE')::bigint
+          as unique_likes,
+        count(distinct event.actor_id) filter (where event.kind = 'FAVORITE')::bigint
+          as unique_favorites,
+        count(*) filter (where event.kind = 'COMMENT')::bigint
+          as visible_comments
+      from public.discovery_engagement_events event
+      join public.profiles actor on actor.user_id = event.actor_id
+        and actor.participation_state = 'ACTIVE'
+        and actor.onboarding_completed_at is not null
+      join public.wraps target on target.id = event.wrap_id
+      cross join params
+      where event.active
+        and event.occurred_at >= params.calculated_at - interval '7 days'
+        and event.occurred_at <= params.calculated_at
+        and event.actor_id <> target.creator_id
+      group by event.wrap_id
+    ), scores as (
+      select
+        e.id,
+        (
+          (coalesce(rd.counted_downloads, 0) * 3
+            + coalesce(engagement.unique_likes, 0) * 2
+            + coalesce(engagement.unique_favorites, 0) * 2
+            + coalesce(engagement.visible_comments, 0))::numeric
+          / power(
+            2 + least(
+              greatest(
+                extract(epoch from (params.calculated_at - e.first_published_at))
+                  / 86400,
+                0
+              ),
+              30
+            ),
+            1.5
+          )
+        ) as score
+      from eligible e
+      cross join params
+      left join recent_downloads rd on rd.wrap_id = e.id
+      left join recent_engagement engagement on engagement.wrap_id = e.id
+    )
+    select * from scores
+  $$
+);
+select pg_temp.capture_explain(
+  'reconcile_wrap_counts_for_scope:recalculated-shape',
+  $$
+    explain (analyze, buffers, format text)
+    with affected as (
+      select wrap_id as id
+      from public.wrap_likes
+      where user_id = '89000000-0000-0000-0000-000000000001'
+      union
+      select wrap_id as id
+      from public.wrap_favorites
+      where user_id = '89000000-0000-0000-0000-000000000001'
+      union
+      select wrap_id as id
+      from public.wrap_comments
+      where author_id = '89000000-0000-0000-0000-000000000001'
+      union
+      select wrap_id as id
+      from public.download_events
+      where user_id = '89000000-0000-0000-0000-000000000001'
+      union
+      select id
+      from public.wraps
+      where creator_id = '89000000-0000-0000-0000-000000000001'
+         or vehicle_model_id = (
+           select vehicle_model_id
+           from public.template_variants
+           where catalog_key = 'model3'
+           limit 1
+         )
+    ), like_counts as (
+      select l.wrap_id, count(*)::bigint as value
+      from public.wrap_likes l
+      join public.profiles actor on actor.user_id = l.user_id
+      where actor.participation_state = 'ACTIVE'
+        and actor.onboarding_completed_at is not null
+        and l.wrap_id in (select id from affected)
+      group by l.wrap_id
+    ), favorite_counts as (
+      select f.wrap_id, count(*)::bigint as value
+      from public.wrap_favorites f
+      join public.profiles actor on actor.user_id = f.user_id
+      where actor.participation_state = 'ACTIVE'
+        and actor.onboarding_completed_at is not null
+        and f.wrap_id in (select id from affected)
+      group by f.wrap_id
+    ), comment_counts as (
+      select c.wrap_id, count(*)::bigint as value
+      from public.wrap_comments c
+      join public.profiles author on author.user_id = c.author_id
+      where c.status = 'PUBLISHED'
+        and author.participation_state = 'ACTIVE'
+        and author.onboarding_completed_at is not null
+        and c.wrap_id in (select id from affected)
+      group by c.wrap_id
+    ), download_counts as (
+      select event.wrap_id, count(*)::bigint as value
+      from public.download_events event
+      left join public.profiles actor on actor.user_id = event.user_id
+      where event.counted
+        and event.wrap_id in (select id from affected)
+        and (
+          event.user_id is null
+          or (
+            actor.participation_state = 'ACTIVE'
+            and actor.onboarding_completed_at is not null
+          )
+        )
+      group by event.wrap_id
+    ), recalculated as (
+      select
+        a.id,
+        exists (
+          select 1
+          from public.discovery_eligible_wraps e
+          where e.id = a.id
+        ) as eligible,
+        coalesce(like_counts.value, 0)::bigint as like_count,
+        coalesce(favorite_counts.value, 0)::bigint as favorite_count,
+        coalesce(comment_counts.value, 0)::bigint as comment_count,
+        coalesce(download_counts.value, 0)::bigint as download_count
+      from affected a
+      left join like_counts on like_counts.wrap_id = a.id
+      left join favorite_counts on favorite_counts.wrap_id = a.id
+      left join comment_counts on comment_counts.wrap_id = a.id
+      left join download_counts on download_counts.wrap_id = a.id
+    )
+    select * from recalculated
+  $$
+);
+select pg_temp.capture_explain(
+  'reconcile_download_counts:recalculated-shape',
+  $$
+    explain (analyze, buffers, format text)
+    with counts as (
+      select event.wrap_id, count(*)::bigint as value
+      from public.download_events event
+      left join public.profiles actor on actor.user_id = event.user_id
+      where event.counted
+        and (
+          event.user_id is null
+          or (
+            actor.participation_state = 'ACTIVE'
+            and actor.onboarding_completed_at is not null
+          )
+        )
+      group by event.wrap_id
+    ), recalculated as (
+      select w.id, coalesce(counts.value, 0)::bigint as download_count
+      from public.wraps w
+      left join counts on counts.wrap_id = w.id
+    )
+    select * from recalculated
+  $$
+);
+select pg_temp.capture_explain(
+  'search_discovery_wraps_base:candidate-shape',
+  $$
+    explain (analyze, buffers, format text)
+    select
+      dsw.id,
+      dsw.first_published_at,
+      dsw.download_count,
+      dsw.trending_score,
+      count(t.id) as tag_count
+    from public.discovery_eligible_wraps dsw
+    left join public.wrap_tags wt on wt.wrap_id = dsw.id
+    left join public.tags t on t.id = wt.tag_id
+    group by dsw.id, dsw.first_published_at,
+      dsw.download_count, dsw.trending_score
+    order by dsw.trending_score desc nulls last,
+      dsw.first_published_at desc, dsw.id desc
+    limit 24
+  $$
+);
 select diag(
   E'\n' || coalesce(
     (
