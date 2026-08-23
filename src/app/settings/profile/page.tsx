@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { Brand } from "../../brand";
+import { SiteHeader } from "../../../components/site-header";
 import { ProfileForm } from "./profile-form";
 
 export const metadata: Metadata = {
@@ -26,17 +26,13 @@ export default async function ProfileSettingsPage() {
   if (error || !profile) redirect("/sign-in?error=profile_unavailable");
   return (
     <main className="profile-settings-shell">
-      <header className="site-header">
-        <Brand />
-        <nav className="desktop-nav" aria-label="Profile settings navigation">
-          <Link className="text-link" href={`/u/${access.username}`}>
-            View public Profile
-          </Link>
-          <Link className="text-link" href="/favorites">
-            My Favorites
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader
+        label="Profile settings navigation"
+        links={[
+          { href: `/u/${access.username}`, label: "View public Profile", className: "text-link" },
+          { href: "/favorites", label: "My Favorites", className: "text-link" },
+        ]}
+      />
       <section
         className="profile-settings"
         aria-labelledby="profile-settings-title"

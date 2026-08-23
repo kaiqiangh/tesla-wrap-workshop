@@ -11,7 +11,7 @@ import {
 } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { Brand } from "../../brand";
+import { SiteHeader } from "../../../components/site-header";
 import { ReportDialog } from "../../report-dialog";
 import { CommentSection, type PublicComment } from "./comment-section";
 import { InteractionControls } from "./interaction-controls";
@@ -85,13 +85,13 @@ export default async function WrapDetailPage({ params }: Props) {
 
   return (
     <main className="wrap-detail-shell">
-      <header className="site-header">
-        <Brand href="/" />
-        <nav className="desktop-nav" aria-label="Wrap navigation">
-          <Link href="/">Explore</Link>
-          <Link href="/upload">Upload a Wrap</Link>
-        </nav>
-      </header>
+      <SiteHeader
+        label="Wrap navigation"
+        links={[
+          { href: "/", label: "Explore" },
+          { href: "/upload", label: "Upload a Wrap" },
+        ]}
+      />
       <article className="wrap-detail" aria-labelledby="wrap-title">
         <div className="wrap-detail-preview">
           {wrap.preview_available ? (

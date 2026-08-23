@@ -5,7 +5,7 @@ import { getCatalog, type CatalogModel } from "@/lib/catalog";
 import { getDiscoveryWraps, type DiscoveryResult } from "@/lib/discovery";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { Brand } from "./brand";
+import { SiteHeader } from "../components/site-header";
 import { DiscoveryGrid, DiscoveryState } from "./discovery-card";
 
 export const dynamic = "force-dynamic";
@@ -31,26 +31,17 @@ export default async function Home() {
 
   return (
     <main id="top">
-      <header className="site-header">
-        <Brand href="#top" />
-        <nav className="desktop-nav" aria-label="Primary navigation">
-          <a href="#catalog">Models</a>
-          <a href="/explore">Explore</a>
-          <a href="/sign-in">Sign in</a>
-          <a className="button button-small" href="/upload">
-            Upload a Wrap
-          </a>
-        </nav>
-        <details className="mobile-nav">
-          <summary aria-label="Open navigation">Menu</summary>
-          <div>
-            <a href="#catalog">Models</a>
-            <a href="/explore">Explore</a>
-            <a href="/sign-in">Sign in</a>
-            <a href="/upload">Upload a Wrap</a>
-          </div>
-        </details>
-      </header>
+      <SiteHeader
+        brandHref="#top"
+        label="Primary navigation"
+        links={[
+          { href: "#catalog", label: "Models" },
+          { href: "/explore", label: "Explore" },
+          { href: "/sign-in", label: "Sign in" },
+          { href: "/upload", label: "Upload a Wrap", className: "button button-small" },
+        ]}
+        mobile
+      />
 
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">

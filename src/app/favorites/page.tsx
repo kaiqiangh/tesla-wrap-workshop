@@ -6,7 +6,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import type { DiscoveryWrap } from "@/lib/discovery";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { Brand } from "../brand";
+import { SiteHeader } from "../../components/site-header";
 import { DiscoveryGrid, DiscoveryState } from "../discovery-card";
 
 export const metadata: Metadata = {
@@ -44,14 +44,14 @@ export default async function FavoritesPage({ searchParams }: Props) {
 
   return (
     <main className="discovery-shell">
-      <header className="site-header">
-        <Brand href="/" />
-        <nav className="desktop-nav" aria-label="Favorites navigation">
-          <Link href={`/u/${access.username}`}>Profile</Link>
-          <Link href="/settings/profile">Settings</Link>
-          <Link href="/upload">Upload a Wrap</Link>
-        </nav>
-      </header>
+      <SiteHeader
+        label="Favorites navigation"
+        links={[
+          { href: `/u/${access.username}`, label: "Profile" },
+          { href: "/settings/profile", label: "Settings" },
+          { href: "/upload", label: "Upload a Wrap" },
+        ]}
+      />
       <section className="discovery-heading" aria-labelledby="favorites-title">
         <p className="eyebrow">PRIVATE ACCOUNT</p>
         <h1 id="favorites-title">Your Favorites.</h1>
