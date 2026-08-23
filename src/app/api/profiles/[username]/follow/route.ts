@@ -113,6 +113,16 @@ function mapDatabaseError(message: string) {
       "Refresh the Profile and choose another Creator if needed.",
     );
   }
+  if (message === "follow_rate_limited") {
+    return followProblem(
+      429,
+      "WF-FOLLOW-RATE",
+      "Follow actions are temporarily limited.",
+      "At most thirty Follow operations are allowed per User per rolling minute.",
+      "Wait before trying another Follow action.",
+      { "retry-after": "60" },
+    );
+  }
   return databaseProblem();
 }
 
@@ -132,6 +142,7 @@ function followProblem(
   problem: string,
   rule: string,
   nextAction: string,
+  headers: HeadersInit = {},
 ) {
-  return wrapProblem(status, code, problem, rule, nextAction);
+  return wrapProblem(status, code, problem, rule, nextAction, headers);
 }

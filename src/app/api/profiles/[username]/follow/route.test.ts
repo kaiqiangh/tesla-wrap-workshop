@@ -19,6 +19,7 @@ vi.mock("@/lib/wraps/problem", () => ({
     problem: string,
     rule: string,
     nextAction: string,
+    headers: HeadersInit = {},
   ) =>
     new Response(
       JSON.stringify({ error: { code, problem, rule, nextAction } }),
@@ -27,6 +28,7 @@ vi.mock("@/lib/wraps/problem", () => ({
         headers: {
           "cache-control": "no-store",
           "content-type": "application/json",
+          ...headers,
         },
       },
     ),
@@ -130,6 +132,17 @@ describe("POST /api/profiles/[username]/follow", () => {
     expect((await actorResponse.json()).error.code).toBe(
       "WF-FOLLOW-PARTICIPATION",
     );
+
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: "follow_rate_limited" },
+    });
+    const rateResponse = await POST(jsonRequest({ enabled: true }), {
+      params,
+    });
+    expect(rateResponse.status).toBe(429);
+    expect(rateResponse.headers.get("retry-after")).toBe("60");
+    expect((await rateResponse.json()).error.code).toBe("WF-FOLLOW-RATE");
 
     mocks.rpc.mockResolvedValue({
       data: null,
