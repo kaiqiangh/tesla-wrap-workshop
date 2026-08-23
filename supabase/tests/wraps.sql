@@ -1168,10 +1168,10 @@ insert into auth.users (
   'wrap-three@example.test', now(),
   '{"provider":"google","providers":["google"]}', '{}', now(), now()
 );
-set local role service_role;
 update public.profiles
 set username = 'wrap-three', display_name = 'Wrap Three'
 where user_id = '80000000-0000-0000-0000-000000000003';
+set local role service_role;
 insert into public.download_events (
   wrap_id, principal_kind, principal_hash, user_id, counted
 ) values (
@@ -1182,9 +1182,11 @@ insert into public.download_events (
 update public.wraps
 set download_count = 999
 where slug = current_setting('test.cyber_slug');
+set local role postgres;
 update public.profiles
 set participation_state = 'SUSPENDED'
 where user_id = '80000000-0000-0000-0000-000000000003';
+set local role service_role;
 select is(
   (select download_count from public.wraps where slug = current_setting('test.cyber_slug')),
   (select count(*) from public.download_events event
