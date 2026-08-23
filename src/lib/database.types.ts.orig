@@ -462,13 +462,6 @@ export type Database = {
             foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -521,13 +514,6 @@ export type Database = {
           wrap_id?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "download_events_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "download_events_wrap_id_fkey";
             columns: ["wrap_id"];
@@ -1171,13 +1157,6 @@ export type Database = {
             foreignKeyName: "wrap_comments_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_comments_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -1211,13 +1190,6 @@ export type Database = {
             foreignKeyName: "wrap_favorites_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_favorites_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -1240,13 +1212,6 @@ export type Database = {
           wrap_id?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "wrap_likes_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "wrap_likes_wrap_id_fkey";
             columns: ["wrap_id"];
@@ -1298,13 +1263,6 @@ export type Database = {
             foreignKeyName: "wrap_tags_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_tags_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -1329,8 +1287,8 @@ export type Database = {
           status: string;
           template_asserted: boolean;
           template_variant_id: string;
-          title: string;
           trending_score: number;
+          title: string;
           updated_at: string;
           vehicle_model_id: string;
         };
@@ -1352,8 +1310,8 @@ export type Database = {
           status?: string;
           template_asserted: boolean;
           template_variant_id: string;
-          title: string;
           trending_score?: number;
+          title: string;
           updated_at?: string;
           vehicle_model_id: string;
         };
@@ -1375,8 +1333,8 @@ export type Database = {
           status?: string;
           template_asserted?: boolean;
           template_variant_id?: string;
-          title?: string;
           trending_score?: number;
+          title?: string;
           updated_at?: string;
           vehicle_model_id?: string;
         };
@@ -1413,34 +1371,7 @@ export type Database = {
       };
     };
     Views: {
-      discovery_eligible_wraps: {
-        Row: {
-          comment_count: number | null;
-          creator_display_name: string | null;
-          creator_username: string | null;
-          description: string | null;
-          download_count: number | null;
-          favorite_count: number | null;
-          first_published_at: string | null;
-          height_px: number | null;
-          id: string | null;
-          legacy: boolean | null;
-          license_type: string | null;
-          like_count: number | null;
-          preview_height_px: number | null;
-          preview_width_px: number | null;
-          slug: string | null;
-          template_variant_key: string | null;
-          template_variant_name: string | null;
-          title: string | null;
-          trending_score: number | null;
-          vehicle_model_name: string | null;
-          vehicle_model_slug: string | null;
-          verified_at: string | null;
-          width_px: number | null;
-        };
-        Relationships: [];
-      };
+      [_ in never]: never;
     };
     Functions: {
       add_wrap_comment: {
