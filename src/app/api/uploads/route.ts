@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
+import { readJsonBody } from "@/lib/request-body";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { uploadProblem } from "@/lib/upload/problem";
@@ -15,12 +16,9 @@ export function POST(request: Request) {
 }
 
 async function post(request: Request, operation: OperationContext) {
-  let input: unknown;
-  try {
-    input = await request.json();
-  } catch {
-    return invalidRequest();
-  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return invalidRequest();
+  const input = parsed.body;
   if (!isInput(input)) return invalidRequest();
 
   const supabase = await createServerSupabaseClient();

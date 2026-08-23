@@ -4,6 +4,7 @@ import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { observeRoute, type OperationContext } from "@/lib/observability";
+import { readJsonBody } from "@/lib/request-body";
 import {
   validateWrapMetadata,
   type WrapMetadataInput,
@@ -19,12 +20,9 @@ export function POST(request: Request) {
 }
 
 async function post(request: Request, operation: OperationContext) {
-  let input: unknown;
-  try {
-    input = await request.json();
-  } catch {
-    return requestProblem();
-  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return requestProblem();
+  const input = parsed.body;
   if (!isInput(input)) return requestProblem();
 
   const metadata = validateWrapMetadata(input);

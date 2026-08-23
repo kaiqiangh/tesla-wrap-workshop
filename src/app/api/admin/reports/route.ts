@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
+import { readJsonBody } from "@/lib/request-body";
 import { isSameOriginRequest } from "@/lib/request-origin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -100,12 +101,9 @@ async function post(request: Request, operation: OperationContext) {
       "Retry the action from the private moderation queue.",
     );
   }
-  let input: unknown;
-  try {
-    input = await request.json();
-  } catch {
-    return requestProblem();
-  }
+  const parsed = await readJsonBody(request);
+  if (!parsed.ok) return requestProblem();
+  const input = parsed.body;
   if (!isInput(input)) return requestProblem();
 
   try {
