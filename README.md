@@ -87,12 +87,14 @@ Replace angle-bracket values with the real Environment Pair URLs in Google
 Cloud and the matching Supabase Auth URL settings. Never reuse a Production
 client or secret in Preview.
 
-For Vercel Preview deployments, add
+For this repository, the canonical hosted development origin is
+`https://tesla-wrap-workshop-git-dev-stockping.vercel.app`; keep its callback
+as an exact allow-list entry. For other Vercel Preview deployments, add
 `https://*-<team-or-account-slug>.vercel.app/**` to the hosted development
-project's Supabase Auth redirect allow-list as well as the exact canonical
-branch callback. The app intentionally sends each sign-in back to the origin
-that owns the browser's PKCE cookie; replacing that callback with the Site URL
-can make the code exchange fail.
+project's Supabase Auth redirect allow-list. The app intentionally sends each
+sign-in back to the origin that owns the browser's PKCE cookie; replacing that
+callback with the Site URL can make the code exchange fail. After changing the
+hosted setting, verify both the canonical alias and a unique Preview URL.
 
 In each hosted Supabase project, disable the Email provider in Auth →
 Providers. The repository migration retires the OTP RPCs and policies, but
