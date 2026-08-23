@@ -11,13 +11,33 @@ export function hmacPrincipal(
   return `v2:${kind}:${digest}`;
 }
 
-export function requestNetworkPrincipal(request: Request) {
-  const realIp = request.headers.get("x-real-ip")?.trim();
+// Trust model: exactly one trusted edge (Vercel) sets x-real-ip and prepends
+// the original client address to x-forwarded-for, so the FIRST forwarded
+// entry is the client; later entries are proxy hops an attacker can seed.
+export function headerNetworkPrincipal(headers: Headers) {
+  const realIp = headers.get("x-real-ip")?.trim();
   if (realIp) return realIp;
-  const forwarded = request.headers.get("x-forwarded-for");
+  const forwarded = headers.get("x-forwarded-for");
   const addresses = forwarded
     ?.split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  return addresses?.at(-1) ?? "unknown";
+  return addresses?.at(0) ?? "unknown";
+}
+
+export function requestNetworkPrincipal(request: Request) {
+  return headerNetworkPrincipal(request.headers);
+}
+
+// Anonymous rate-limit principal: the session cookie when present, otherwise
+// the network address — never a per-request random value (which would let
+// cookieless clients rotate past every limit) and never one shared bucket.
+export function searchPrincipal(
+  secret: string,
+  session: string | null | undefined,
+  network: string,
+) {
+  return session
+    ? hmacPrincipal(secret, "search", session)
+    : hmacPrincipal(secret, "network", network);
 }

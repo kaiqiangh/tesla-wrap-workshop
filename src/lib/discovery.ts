@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-
 export type DiscoveryKind = "TRENDING" | "NEWEST" | "MODEL";
 export type DiscoverySort = "TRENDING" | "NEWEST" | "MOST_DOWNLOADED";
 export type DiscoveryRankingStatus = "LIVE" | "STALE" | "FALLBACK_NEWEST";
@@ -299,15 +297,19 @@ export async function searchDiscoveryWraps(
 
 async function readSearchPrincipal() {
   try {
-    const [{ cookies }, { hmacPrincipal }] = await Promise.all([
-      import("next/headers"),
-      import("./limits"),
-    ]);
+    const [
+      { cookies, headers },
+      { SEARCH_SESSION_COOKIE, headerNetworkPrincipal, searchPrincipal },
+    ] = await Promise.all([import("next/headers"), import("./limits")]);
+    // Cookieless clients key on their network address so the per-minute
+    // search limit still binds; a per-request random principal would let
+    // them rotate past it indefinitely.
     const session =
-      (await cookies()).get("wf_search_session")?.value ?? randomUUID();
+      (await cookies()).get(SEARCH_SESSION_COOKIE)?.value ?? null;
+    const network = headerNetworkPrincipal(await headers());
     const secret = process.env.DOWNLOAD_PRINCIPAL_HMAC_SECRET;
     if (!secret) throw new Error("search_principal_unavailable");
-    return hmacPrincipal(secret, "search", session);
+    return searchPrincipal(secret, session, network);
   } catch (error) {
     if (process.env.NODE_ENV === "test") return undefined;
     throw error;

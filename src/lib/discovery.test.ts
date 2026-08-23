@@ -3,13 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 const telemetryMocks = vi.hoisted(() => ({
   cookies: vi.fn(),
   createAdmin: vi.fn(),
-  hmacPrincipal: vi.fn(() => "v1:search:test"),
+  headerNetworkPrincipal: vi.fn(() => "192.0.2.10"),
+  headers: vi.fn(),
   recordEvent: vi.fn(),
+  searchPrincipal: vi.fn(() => "v2:network:telemetry-test"),
 }));
 
-vi.mock("next/headers", () => ({ cookies: telemetryMocks.cookies }));
+vi.mock("next/headers", () => ({
+  cookies: telemetryMocks.cookies,
+  headers: telemetryMocks.headers,
+}));
 vi.mock("./limits", () => ({
-  hmacPrincipal: telemetryMocks.hmacPrincipal,
+  SEARCH_SESSION_COOKIE: "wf_search_session",
+  headerNetworkPrincipal: telemetryMocks.headerNetworkPrincipal,
+  searchPrincipal: telemetryMocks.searchPrincipal,
 }));
 vi.mock("./observability", () => ({
   recordCoreLoopEvent: telemetryMocks.recordEvent,
@@ -181,10 +188,11 @@ describe("discovery read boundary", () => {
       "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
       "search-telemetry-test-secret-0123456789012345",
     );
-    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
+    telemetryMocks.searchPrincipal.mockReturnValue("v2:network:telemetry-test");
     telemetryMocks.cookies.mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: "search-session" }),
     });
+    telemetryMocks.headers.mockResolvedValue(new Headers());
     const principalRpc = vi.fn().mockResolvedValue({
       data: emptySearch,
       error: null,
@@ -215,7 +223,7 @@ describe("discovery read boundary", () => {
           p_variant_key: "standard",
           p_sort: "NEWEST",
           p_limit: 24,
-          p_principal_key: "v1:search:test",
+          p_principal_key: "v2:network:telemetry-test",
           p_viewer_id: "20000000-0000-0000-0000-000000000001",
         },
       );
@@ -265,10 +273,11 @@ describe("discovery read boundary", () => {
       "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
       "search-rpc-test-secret-0123456789012345",
     );
-    telemetryMocks.hmacPrincipal.mockReturnValue("v1:search:test");
+    telemetryMocks.searchPrincipal.mockReturnValue("v2:network:telemetry-test");
     telemetryMocks.cookies.mockResolvedValue({
       get: vi.fn().mockReturnValue({ value: "search-session" }),
     });
+    telemetryMocks.headers.mockResolvedValue(new Headers());
     telemetryMocks.createAdmin.mockReturnValue({
       rpc: vi.fn().mockRejectedValue(new Error("search unavailable")),
     });

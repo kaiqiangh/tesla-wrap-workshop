@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { hmacPrincipal, requestNetworkPrincipal } from "@/lib/limits";
+import {
+  hmacPrincipal,
+  requestNetworkPrincipal,
+  searchPrincipal,
+} from "@/lib/limits";
 import { readServerEnvironment } from "@/lib/env";
 import {
   observeRoute,
@@ -20,13 +24,15 @@ export function POST(request: Request) {
 
 async function post(request: Request, operation: OperationContext) {
   const env = readServerEnvironment(process.env);
-  const session = requestCookie(request, "wf_search_session") ?? "missing";
+  const session = requestCookie(request, "wf_search_session");
   const admin = createAdminSupabaseClient();
   const { error: limitError } = await admin.rpc("consume_page_view_limit", {
-    p_session_principal: hmacPrincipal(
+    // Cookieless visitors key on network instead of one shared "missing"
+    // bucket so a single loop cannot rate-limit every other anonymous user.
+    p_session_principal: searchPrincipal(
       env.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
-      "search",
       session,
+      requestNetworkPrincipal(request),
     ),
     p_network_principal: hmacPrincipal(
       env.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
