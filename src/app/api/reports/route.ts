@@ -58,11 +58,16 @@ async function post(request: Request, operation: OperationContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const gate = await requireActiveProfile(supabase, operation, reportProblem, {
-      auth: "WF-REPORT-AUTH",
-      participation: "WF-REPORT-PARTICIPATION",
-      db: "WF-REPORT-DATABASE",
-    });
+    const gate = await requireActiveProfile(
+      supabase,
+      operation,
+      reportProblem,
+      {
+        auth: "WF-REPORT-AUTH",
+        participation: "WF-REPORT-PARTICIPATION",
+        db: "WF-REPORT-DATABASE",
+      },
+    );
     if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("create_report", {

@@ -33,9 +33,9 @@ describe("readJsonBody", () => {
       },
       body: JSON.stringify({ large: "x".repeat(10) }),
     });
-    expect(
-      (await readJsonBody(request, { maxBytes: 64 * 1024 })).ok,
-    ).toBe(false);
+    expect((await readJsonBody(request, { maxBytes: 64 * 1024 })).ok).toBe(
+      false,
+    );
   });
 
   it("rejects malformed JSON payloads", async () => {

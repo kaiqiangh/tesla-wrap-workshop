@@ -12,8 +12,11 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 
 export function POST(request: Request) {
-  return observeRoute(request, "PROFILE_AVATAR_UPDATE", "PROFILE", (operation) =>
-    post(request, operation),
+  return observeRoute(
+    request,
+    "PROFILE_AVATAR_UPDATE",
+    "PROFILE",
+    (operation) => post(request, operation),
   );
 }
 

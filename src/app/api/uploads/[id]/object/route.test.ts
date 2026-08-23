@@ -284,14 +284,11 @@ describe("POST /api/uploads/[id]/object", () => {
 
     function pngRequest(bytes: ArrayBuffer) {
       const body = new FormData();
-      body.append(
-        "file",
-        new File([bytes], "wrap.png", { type: "image/png" }),
-      );
-      return new Request(
-        "http://localhost/api/uploads/" + id + "/object",
-        { method: "POST", body },
-      );
+      body.append("file", new File([bytes], "wrap.png", { type: "image/png" }));
+      return new Request("http://localhost/api/uploads/" + id + "/object", {
+        method: "POST",
+        body,
+      });
     }
 
     function installDuplicateStorage(download: ReturnType<typeof vi.fn>) {

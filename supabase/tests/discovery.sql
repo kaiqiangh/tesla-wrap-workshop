@@ -79,7 +79,7 @@ insert into public.asset_revisions (
    1024, 1024, 100, repeat('f', 64), true);
 
 update public.pending_uploads pu
-set asset_revision_id = ar.id, state = 'READY'
+set asset_revision_id = map.revision_id::uuid, state = 'READY'
 from (values
   ('99000000-0000-0000-0000-000000000001', '99000000-0000-0000-0000-000000000002'),
   ('99000000-0000-0000-0000-000000000003', '99000000-0000-0000-0000-000000000004')
@@ -105,7 +105,7 @@ insert into public.wrap_assets (
    1024, 1024, 100, repeat('d', 64)),
   ('99000000-0000-0000-0000-000000000004', 'PREVIEW', 'wrap-derived',
    '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000004/preview.png',
-   1024, 1024, 80, repeat('g', 64)),
+   1024, 1024, 80, repeat('7', 64)),
   ('99000000-0000-0000-0000-000000000004', 'ORIGINAL', 'wrap-originals',
    '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000004/original.png',
    1024, 1024, 100, repeat('f', 64));
@@ -165,7 +165,7 @@ insert into public.asset_revisions (
   '89000000-0000-0000-0000-000000000001',
    (select id from public.template_variants where catalog_key = 'model3'),
    '99000000-0000-0000-0000-000000000005',
-   1024, 1024, 100, repeat('h', 64), true);
+   1024, 1024, 100, repeat('8', 64), true);
 update public.pending_uploads
 set asset_revision_id = '99000000-0000-0000-0000-000000000006', state = 'READY'
 where id = '99000000-0000-0000-0000-000000000005';
@@ -179,10 +179,10 @@ insert into public.wrap_assets (
 ) values
   ('99000000-0000-0000-0000-000000000006', 'PREVIEW', 'wrap-derived',
    '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/preview.png',
-   1024, 1024, 80, repeat('i', 64)),
+   1024, 1024, 80, repeat('9', 64)),
   ('99000000-0000-0000-0000-000000000006', 'ORIGINAL', 'wrap-originals',
    '89000000-0000-0000-0000-000000000001/99000000-0000-0000-0000-000000000006/original.png',
-   1024, 1024, 100, repeat('h', 64));
+   1024, 1024, 100, repeat('a', 64));
 insert into public.wraps (
   id, creator_id, slug, title, description, vehicle_model_id,
   template_variant_id, asset_revision_id, license_type,
@@ -309,4 +309,5 @@ update public.discovery_ranking_state
 set calculated_at = clock_timestamp(), status = 'LIVE'
 where id;
 
+select * from finish();
 rollback;

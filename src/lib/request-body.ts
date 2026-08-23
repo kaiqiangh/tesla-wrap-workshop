@@ -3,9 +3,7 @@
 // then parses once. Routes keep their own 400 problem helpers.
 const DEFAULT_MAX_BYTES = 64 * 1024;
 
-export type JsonBodyResult =
-  | { ok: true; body: unknown }
-  | { ok: false };
+export type JsonBodyResult = { ok: true; body: unknown } | { ok: false };
 
 export async function readJsonBody(
   request: Request,
@@ -15,7 +13,11 @@ export async function readJsonBody(
   const contentType = request.headers.get("content-type");
   if (
     contentType &&
-    !contentType.toLowerCase().split(";")[0]?.trim().startsWith("application/json")
+    !contentType
+      .toLowerCase()
+      .split(";")[0]
+      ?.trim()
+      .startsWith("application/json")
   ) {
     return { ok: false };
   }

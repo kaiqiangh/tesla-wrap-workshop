@@ -29,11 +29,16 @@ async function post(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const gate = await requireActiveProfile(supabase, operation, followProblem, {
-      auth: "WF-FOLLOW-AUTH",
-      participation: "WF-FOLLOW-PARTICIPATION",
-      db: "WF-FOLLOW-DATABASE",
-    });
+    const gate = await requireActiveProfile(
+      supabase,
+      operation,
+      followProblem,
+      {
+        auth: "WF-FOLLOW-AUTH",
+        participation: "WF-FOLLOW-PARTICIPATION",
+        db: "WF-FOLLOW-DATABASE",
+      },
+    );
     if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("toggle_creator_follow", {

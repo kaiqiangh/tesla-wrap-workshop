@@ -166,7 +166,9 @@ async function activeOwner(operation: OperationContext) {
       db: "WF-WRAP-DATABASE",
     },
   );
-  return gate.ok ? { userId: gate.userId, response: undefined } : { response: gate.response };
+  return gate.ok
+    ? { userId: gate.userId, response: undefined }
+    : { response: gate.response };
 }
 
 async function readSlug(params: Promise<{ slug: string }>) {

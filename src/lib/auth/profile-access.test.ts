@@ -71,7 +71,12 @@ describe("requireActiveProfile", () => {
       error: null,
     });
     mocks.currentProfileAccess.mockRejectedValue(new Error("down"));
-    const gate = await requireActiveProfile(supabase(), operation(), problem, codes);
+    const gate = await requireActiveProfile(
+      supabase(),
+      operation(),
+      problem,
+      codes,
+    );
     expect(gate.ok).toBe(false);
     if (!gate.ok) expect(gate.response.status).toBe(503);
   });
@@ -82,12 +87,15 @@ describe("requireActiveProfile", () => {
       error: null,
     });
     mocks.currentProfileAccess.mockResolvedValue({
-      data: [
-        { may_onboard: true, may_participate: true, username: "maker" },
-      ],
+      data: [{ may_onboard: true, may_participate: true, username: "maker" }],
       error: null,
     });
-    const gate = await requireActiveProfile(supabase(), operation(), problem, codes);
+    const gate = await requireActiveProfile(
+      supabase(),
+      operation(),
+      problem,
+      codes,
+    );
     expect(gate).toEqual({
       ok: true,
       username: "maker",

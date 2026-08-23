@@ -56,7 +56,10 @@ export default async function ExplorePage({
     .catch(() => ({ ok: false as const }));
   const searchPromise =
     query === null
-      ? Promise.resolve({ status: "invalid", wraps: [] } satisfies DiscoveryResult)
+      ? Promise.resolve({
+          status: "invalid",
+          wraps: [],
+        } satisfies DiscoveryResult)
       : searchDiscoveryWrapsForPage(client, {
           q: query.q,
           modelSlug: query.model,

@@ -29,7 +29,11 @@ export default async function ProfileSettingsPage() {
       <SiteHeader
         label="Profile settings navigation"
         links={[
-          { href: `/u/${access.username}`, label: "View public Profile", className: "text-link" },
+          {
+            href: `/u/${access.username}`,
+            label: "View public Profile",
+            className: "text-link",
+          },
           { href: "/favorites", label: "My Favorites", className: "text-link" },
         ]}
       />

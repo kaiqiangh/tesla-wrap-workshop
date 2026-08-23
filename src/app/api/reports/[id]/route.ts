@@ -33,11 +33,16 @@ async function getReport({ params }: Params, operation: OperationContext) {
   }
   try {
     const supabase = await createServerSupabaseClient();
-    const gate = await requireActiveProfile(supabase, operation, reportProblem, {
-      auth: "WF-REPORT-AUTH",
-      participation: "WF-REPORT-PARTICIPATION",
-      db: "WF-REPORT-DATABASE",
-    });
+    const gate = await requireActiveProfile(
+      supabase,
+      operation,
+      reportProblem,
+      {
+        auth: "WF-REPORT-AUTH",
+        participation: "WF-REPORT-PARTICIPATION",
+        db: "WF-REPORT-DATABASE",
+      },
+    );
     if (!gate.ok) return gate.response;
     const { data, error } = await supabase.rpc("get_my_report", {
       p_report_id: id,

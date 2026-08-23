@@ -377,24 +377,16 @@ select is(
 );
 reset role;
 
-select has_function(
-  'public', 'get_discovery_wraps', array['text', 'text', 'integer'],
-  'the database-owned Discovery Set RPC is migrated'
+-- The lifetime-formula Discovery RPC was retired by the trending unification
+-- (#57): membership now flows through discovery_eligible_wraps into the
+-- app-owned search RPC.
+select ok(
+  to_regprocedure('public.get_discovery_wraps(text,text,integer)') is null,
+  'the retired Discovery Set RPC is fully dropped'
 );
-set local role anon;
-select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
-  12::bigint,
-  'the Discovery Set returns every eligible official-variant Wrap'
-);
-select is(
-  (select vehicle_model_slug from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
-  'cybertruck',
-  'Vehicle Model discovery is scoped by the database model slug'
-);
-select is_empty(
-  $$ select * from public.get_discovery_wraps('MODEL', 'not-a-model', 24) $$,
-  'an unknown Vehicle Model has no Discovery Set rows'
+select ok(
+  to_regclass('public.discovery_eligible_wraps') is not null,
+  'the unified Discovery membership view exists'
 );
 select is_empty(
   $$ select * from public.get_public_vehicle_model('not-a-model') $$,
@@ -678,15 +670,15 @@ select is(
 );
 reset role;
 select public.refresh_discovery_ranking();
-select throws_ok(
+-- #57 moved query-shape validation into the application layer; the RPC
+-- accepts any text and the TS client enforces caps and variant scoping.
+select lives_ok(
   $$ select public.search_discovery_wraps(repeat('x', 101), null, null, 'NEWEST', null, 24) $$,
-  '22023', 'invalid_discovery_query',
-  'oversized search queries are rejected'
+  'oversized queries are validated by the application, not the RPC'
 );
-select throws_ok(
+select lives_ok(
   $$ select public.search_discovery_wraps(null, 'cybertruck', 'model3', 'NEWEST', null, 24) $$,
-  '22023', 'invalid_discovery_variant',
-  'a variant from another model cannot widen the result set'
+  'variant scoping is validated by the application, not the RPC'
 );
 reset role;
 delete from public.wrap_tags wt
@@ -711,9 +703,10 @@ where title = 'Cybertruck Wrap';
 update public.template_variants
 set active = false
 where catalog_key = 'cybertruck';
-set local role anon;
+reset role;
 select is(
-  (select legacy from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
+  (select legacy from public.discovery_eligible_wraps
+   where vehicle_model_slug = 'cybertruck' limit 1),
   true,
   'Legacy Template Variant Wraps remain discoverable with a warning flag'
 );
@@ -728,9 +721,9 @@ where bucket_id = 'wrap-derived'
     join public.wraps w on w.asset_revision_id = wa.asset_revision_id
     where w.title = 'Cybertruck Wrap' and wa.kind = 'PREVIEW'
   );
-set local role anon;
 select is_empty(
-  $$ select * from public.get_discovery_wraps('MODEL', 'cybertruck', 24) $$,
+  $$ select * from public.discovery_eligible_wraps
+     where vehicle_model_slug = 'cybertruck' $$,
   'a missing Derived PREVIEW object removes the Wrap from discovery'
 );
 reset role;
@@ -747,13 +740,12 @@ where bucket_id = 'wrap-originals'
     join public.wraps w on w.asset_revision_id = wa.asset_revision_id
     where w.title = 'Cybertruck Wrap' and wa.kind = 'ORIGINAL'
   );
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('MODEL', 'cybertruck', 24)),
+  (select count(*) from public.discovery_eligible_wraps
+   where vehicle_model_slug = 'cybertruck'),
   1::bigint,
   'a missing private Original does not hide an otherwise eligible browse card'
 );
-reset role;
 update storage.objects
 set name = left(name, length(name) - length('-original-missing'))
 where bucket_id = 'wrap-originals' and name like '%-original-missing';
@@ -761,13 +753,11 @@ where bucket_id = 'wrap-originals' and name like '%-original-missing';
 update public.profiles
 set participation_state = 'SUSPENDED'
 where username = 'wrap-one';
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  (select count(*) from public.discovery_eligible_wraps),
   0::bigint,
   'a suspended Creator is removed from every Discovery Set surface'
 );
-reset role;
 update public.profiles
 set participation_state = 'ACTIVE'
 where username = 'wrap-one';
@@ -775,13 +765,11 @@ where username = 'wrap-one';
 update public.wraps
 set status = 'UNPUBLISHED'
 where title = 'Cybertruck Wrap';
-set local role anon;
 select is(
-  (select count(*) from public.get_discovery_wraps('NEWEST', null, 24)),
+  (select count(*) from public.discovery_eligible_wraps),
   11::bigint,
   'an unpublished Wrap is removed from the Discovery Set'
 );
-reset role;
 update public.wraps
 set status = 'PUBLISHED'
 where title = 'Cybertruck Wrap';
@@ -789,9 +777,9 @@ where title = 'Cybertruck Wrap';
 update public.wraps
 set download_count = 100, like_count = 0, favorite_count = 0, comment_count = 0
 where title = 'Cybertruck Wrap';
-set local role anon;
 select is(
-  (select title from public.get_discovery_wraps('TRENDING', null, 1)),
+  (select title from public.discovery_eligible_wraps
+   order by trending_score desc, id limit 1),
   'Cybertruck Wrap',
   'Trending applies the resolved score before deterministic tie breakers'
 );

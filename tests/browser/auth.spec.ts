@@ -1327,7 +1327,12 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
       },
     },
   );
-  expect(overwrite.status()).toBe(200);
+  // #59 staging-retry byte identity: only a byte-identical re-upload is
+  // accepted as idempotent; a different PNG must conflict.
+  expect(overwrite.status()).toBe(409);
+  expect(await overwrite.json()).toMatchObject({
+    error: { problem: "A different file already occupies this transfer." },
+  });
   const corruptFinal = await page.request.post(
     `/api/uploads/${corrupt.id}/finalize`,
   );
@@ -1399,7 +1404,9 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   ).toBeVisible();
   await page.getByLabel("Username").fill("-bad");
   await page.getByRole("button", { name: "Save Profile" }).click();
-  await expect(page.getByText(/Username must be/)).toBeVisible();
+  await expect(
+    page.getByText(/starting with a letter or number/),
+  ).toBeVisible();
   const renamedUsername = `${username}new`;
   await page.getByLabel("Username").fill(renamedUsername);
   await page.getByLabel("Bio").fill("A Dublin creator.");

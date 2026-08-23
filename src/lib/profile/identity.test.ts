@@ -9,7 +9,10 @@ import {
 describe("normalizeProfileIdentity", () => {
   it("trims and lowercases the username, trims the display name", () => {
     expect(
-      normalizeProfileIdentity({ username: " RoadOne ", displayName: " Road One " }),
+      normalizeProfileIdentity({
+        username: " RoadOne ",
+        displayName: " Road One ",
+      }),
     ).toEqual({ username: "roadone", displayName: "Road One" });
   });
 });
