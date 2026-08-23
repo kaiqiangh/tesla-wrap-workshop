@@ -462,13 +462,6 @@ export type Database = {
             foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "discovery_engagement_events_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -521,13 +514,6 @@ export type Database = {
           wrap_id?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "download_events_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "download_events_wrap_id_fkey";
             columns: ["wrap_id"];
@@ -1171,13 +1157,6 @@ export type Database = {
             foreignKeyName: "wrap_comments_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_comments_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -1200,13 +1179,6 @@ export type Database = {
           wrap_id?: string;
         };
         Relationships: [
-          {
-            foreignKeyName: "wrap_favorites_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
           {
             foreignKeyName: "wrap_favorites_wrap_id_fkey";
             columns: ["wrap_id"];
@@ -1251,13 +1223,6 @@ export type Database = {
             foreignKeyName: "wrap_likes_wrap_id_fkey";
             columns: ["wrap_id"];
             isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_likes_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
             referencedRelation: "wraps";
             referencedColumns: ["id"];
           },
@@ -1285,13 +1250,6 @@ export type Database = {
             columns: ["tag_id"];
             isOneToOne: false;
             referencedRelation: "tags";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wrap_tags_wrap_id_fkey";
-            columns: ["wrap_id"];
-            isOneToOne: false;
-            referencedRelation: "discovery_eligible_wraps";
             referencedColumns: ["id"];
           },
           {
