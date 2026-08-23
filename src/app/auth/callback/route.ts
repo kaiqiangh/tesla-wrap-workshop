@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
 
-import { safeNextPath } from "@/lib/auth/redirect";
+import { allowedAuthCallbackOrigin, safeNextPath } from "@/lib/auth/redirect";
 import { readPublicEnvironment } from "@/lib/env";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const next = safeNextPath(requestUrl.searchParams.get("next"));
-  readPublicEnvironment(process.env);
-  const callbackOrigin = requestUrl.origin;
+  const environment = readPublicEnvironment(process.env);
+  const callbackOrigin = allowedAuthCallbackOrigin(requestUrl);
+  if (!callbackOrigin) {
+    return oauthFailure(environment.NEXT_PUBLIC_SITE_URL, next);
+  }
   const code = requestUrl.searchParams.get("code");
 
   if (!code) {

@@ -16,6 +16,9 @@ describe("GET /auth/callback", () => {
     vi.stubEnv("WRAPFORGE_ENVIRONMENT", "local");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "http://127.0.0.1:54321");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable");
+    vi.stubEnv("VERCEL_URL", "");
+    vi.stubEnv("VERCEL_BRANCH_URL", "");
+    vi.stubEnv("VERCEL_PROJECT_PRODUCTION_URL", "");
     mocks.createServer.mockReset();
   });
 
@@ -97,6 +100,7 @@ describe("GET /auth/callback", () => {
   });
 
   it("keeps a Preview callback on the origin that owns the PKCE cookie", async () => {
+    vi.stubEnv("VERCEL_URL", "preview.wrapforge.example");
     const exchangeCodeForSession = vi.fn().mockResolvedValue({ error: null });
     mocks.createServer.mockResolvedValue({
       auth: { exchangeCodeForSession },
@@ -110,5 +114,18 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe(
       "https://preview.wrapforge.example/auth/complete?next=%2Fupload",
     );
+  });
+
+  it("does not redirect an untrusted callback origin", async () => {
+    const response = await GET(
+      new Request(
+        "https://attacker.example/auth/callback?code=valid&next=%2Fupload",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "http://127.0.0.1:3000/sign-in?error=oauth_failed&next=%2Fupload",
+    );
+    expect(mocks.createServer).not.toHaveBeenCalled();
   });
 });
