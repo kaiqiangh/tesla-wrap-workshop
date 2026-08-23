@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  access: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.access,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/profile/settings", () => ({
   validateProfileSettings: (input: {
@@ -31,8 +31,8 @@ import { PUT } from "./route";
 describe("PUT /api/profile/settings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.access.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -54,7 +54,13 @@ describe("PUT /api/profile/settings", () => {
   });
 
   it("requires an eligible signed-in Profile", async () => {
-    mocks.access.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "authentication_required" } }),
+        { status: 401 },
+      ),
+    });
     const response = await PUT(
       new Request("http://localhost/api/profile/settings", {
         method: "PUT",

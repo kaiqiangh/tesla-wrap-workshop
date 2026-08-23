@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -54,12 +54,24 @@ describe("POST /api/reports", () => {
   });
 
   it("requires an eligible signed-in Profile", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-REPORT-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const guest = await POST(jsonRequest(base));
     expect(guest.status).toBe(401);
     expect((await guest.json()).error.code).toBe("WF-REPORT-AUTH");
 
-    mocks.readProfileAccess.mockResolvedValue({ status: "incomplete" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-REPORT-PARTICIPATION" } }),
+        { status: 403 },
+      ),
+    });
     const incomplete = await POST(jsonRequest(base));
     expect(incomplete.status).toBe(403);
     expect((await incomplete.json()).error.code).toBe(
@@ -69,7 +81,11 @@ describe("POST /api/reports", () => {
   });
 
   it("returns the private Report receipt and preserves no-store", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: [
         {
@@ -117,7 +133,11 @@ describe("POST /api/reports", () => {
   });
 
   it("maps stable self, rate, and database failures", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     for (const [message, status, code] of [
       ["report_self_target", 409, "WF-REPORT-SELF"],
       ["report_hour_rate_limited", 429, "WF-REPORT-RATE"],

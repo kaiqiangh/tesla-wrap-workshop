@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -50,11 +50,18 @@ describe("DELETE /api/comments/[id]", () => {
   });
 
   it("maps Guest, owner, unavailable, and database outcomes", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(null, { status: 401 }),
+    });
     const guest = await DELETE(new Request("http://localhost"), { params });
     expect(guest.status).toBe(401);
 
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: null,
       error: { message: "comment_not_owner" },
@@ -84,7 +91,11 @@ describe("DELETE /api/comments/[id]", () => {
   });
 
   it("returns the authoritative removal and count", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: [{ id, removed: true, comment_count: 0 }],
       error: null,

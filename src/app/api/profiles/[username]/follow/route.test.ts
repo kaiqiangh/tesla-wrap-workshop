@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -50,7 +50,13 @@ describe("POST /api/profiles/[username]/follow", () => {
   });
 
   it("requires sign-in", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-FOLLOW-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const response = await POST(jsonRequest({ enabled: true }), { params });
     expect(response.status).toBe(401);
     expect((await response.json()).error.code).toBe("WF-FOLLOW-AUTH");
@@ -59,7 +65,13 @@ describe("POST /api/profiles/[username]/follow", () => {
 
   it("denies incomplete and unavailable Profiles before the RPC", async () => {
     for (const status of ["incomplete", "unavailable"] as const) {
-      mocks.readProfileAccess.mockResolvedValue({ status });
+      mocks.requireActiveProfile.mockResolvedValue({
+        ok: false,
+        response: new Response(
+          JSON.stringify({ error: { code: "WF-FOLLOW-PARTICIPATION" } }),
+          { status: 403 },
+        ),
+      });
       const response = await POST(jsonRequest({ enabled: true }), { params });
       expect(response.status).toBe(403);
       expect((await response.json()).error.code).toBe(
@@ -70,8 +82,8 @@ describe("POST /api/profiles/[username]/follow", () => {
   });
 
   it("returns the authoritative following state and count", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -94,8 +106,8 @@ describe("POST /api/profiles/[username]/follow", () => {
   });
 
   it("maps target, participation, and database failures without leaking details", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });

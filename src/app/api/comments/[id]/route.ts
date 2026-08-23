@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -33,26 +33,12 @@ async function removeComment({ params }: Params, operation: OperationContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return commentProblem(
-        401,
-        "WF-COMMENT-AUTH",
-        "Sign in to delete your Comment.",
-        "Comment deletion requires a completed Profile.",
-        "Sign in and return to this Wrap to continue.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return commentProblem(
-        403,
-        "WF-COMMENT-PARTICIPATION",
-        "Your Profile cannot delete Comments right now.",
-        "Comment deletion requires a completed Active Profile.",
-        "Restore your Profile before trying again.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, commentProblem, {
+      auth: "WF-COMMENT-AUTH",
+      participation: "WF-COMMENT-PARTICIPATION",
+      db: "WF-COMMENT-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
     const { data, error } = await supabase.rpc("remove_wrap_comment", {
       p_comment_id: id,
     });

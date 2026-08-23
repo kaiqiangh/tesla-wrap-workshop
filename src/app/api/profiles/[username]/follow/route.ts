@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -31,26 +31,12 @@ async function post(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return followProblem(
-        401,
-        "WF-FOLLOW-AUTH",
-        "Sign in to Follow a Creator.",
-        "Follow requires a completed Profile.",
-        "Sign in and return to this Profile to continue.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return followProblem(
-        403,
-        "WF-FOLLOW-PARTICIPATION",
-        "Your Profile cannot Follow right now.",
-        "Follow requires a completed Active Profile.",
-        "Complete or restore your Profile before trying again.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, followProblem, {
+      auth: "WF-FOLLOW-AUTH",
+      participation: "WF-FOLLOW-PARTICIPATION",
+      db: "WF-FOLLOW-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("toggle_creator_follow", {
       p_enabled: input.enabled,

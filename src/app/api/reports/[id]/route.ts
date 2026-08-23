@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -33,26 +33,12 @@ async function getReport({ params }: Params, operation: OperationContext) {
   }
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return reportProblem(
-        401,
-        "WF-REPORT-AUTH",
-        "Sign in to view this Report receipt.",
-        "Report receipts are private to their reporter.",
-        "Sign in and return to the Report receipt.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return reportProblem(
-        403,
-        "WF-REPORT-PARTICIPATION",
-        "Your Profile cannot view Report receipts right now.",
-        "Report receipts require a completed Active Profile.",
-        "Restore your Profile before viewing this receipt.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, reportProblem, {
+      auth: "WF-REPORT-AUTH",
+      participation: "WF-REPORT-PARTICIPATION",
+      db: "WF-REPORT-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
     const { data, error } = await supabase.rpc("get_my_report", {
       p_report_id: id,
     });

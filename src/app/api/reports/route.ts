@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -59,26 +59,12 @@ async function post(request: Request, operation: OperationContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return reportProblem(
-        401,
-        "WF-REPORT-AUTH",
-        "Sign in to submit a Report.",
-        "Reports require a completed Profile.",
-        "Sign in and return to this target to continue.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return reportProblem(
-        403,
-        "WF-REPORT-PARTICIPATION",
-        "Your Profile cannot submit Reports right now.",
-        "Reports require a completed Active Profile.",
-        "Complete or restore your Profile before trying again.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, reportProblem, {
+      auth: "WF-REPORT-AUTH",
+      participation: "WF-REPORT-PARTICIPATION",
+      db: "WF-REPORT-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("create_report", {
       p_target_kind: input.targetKind,

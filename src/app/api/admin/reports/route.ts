@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -53,10 +53,12 @@ export function GET(request: Request) {
 async function get(request: Request, operation: OperationContext) {
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    const authProblem = activeProblem(access.status);
-    if (authProblem) return authProblem;
-    if (access.status === "active") operation.actorId = access.userId;
+    const gate = await requireActiveProfile(supabase, operation, adminProblem, {
+      auth: "WF-ADMIN-AUTH",
+      participation: "WF-ADMIN-DENIED",
+      db: "WF-ADMIN-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
     const value = new URL(request.url).searchParams.get("status");
     const status = value ? value.toUpperCase() : null;
     if (status && !STATUSES.has(status)) {
@@ -107,10 +109,12 @@ async function post(request: Request, operation: OperationContext) {
 
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    const authProblem = activeProblem(access.status);
-    if (authProblem) return authProblem;
-    if (access.status === "active") operation.actorId = access.userId;
+    const gate = await requireActiveProfile(supabase, operation, adminProblem, {
+      auth: "WF-ADMIN-AUTH",
+      participation: "WF-ADMIN-DENIED",
+      db: "WF-ADMIN-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
     const { data, error } = await supabase.rpc("moderate_report", {
       p_report_id: input.reportId,
       p_action_kind: input.actionKind,
@@ -140,30 +144,6 @@ async function post(request: Request, operation: OperationContext) {
   } catch {
     return databaseProblem();
   }
-}
-
-function activeProblem(
-  status: "guest" | "unavailable" | "incomplete" | "active",
-) {
-  if (status === "guest") {
-    return adminProblem(
-      401,
-      "WF-ADMIN-AUTH",
-      "Sign in to open the moderation queue.",
-      "Moderation is private to fresh administrators.",
-      "Sign in with an administrator account and retry.",
-    );
-  }
-  if (status !== "active") {
-    return adminProblem(
-      403,
-      "WF-ADMIN-DENIED",
-      "This Profile cannot open the moderation queue.",
-      "Moderation requires a completed Active Profile and current ADMIN membership.",
-      "Restore the Profile or contact the current administrator owner.",
-    );
-  }
-  return null;
 }
 
 function isInput(value: unknown): value is {

@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  access: vi.fn(),
+  requireActiveProfile: vi.fn(),
   createAdmin: vi.fn(),
   createServer: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.access,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminSupabaseClient: mocks.createAdmin,
@@ -21,8 +21,9 @@ import { POST } from "./route";
 describe("POST /api/profile/avatar", () => {
   it("rejects an oversized declared body before parsing multipart data", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.access.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
       userId: "10000000-0000-0000-0000-000000000003",
     });
     const oversized = new Request("http://localhost/api/profile/avatar", {

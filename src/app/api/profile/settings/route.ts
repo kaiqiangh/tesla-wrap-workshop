@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { validateProfileSettings } from "@/lib/profile/settings";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -25,25 +25,17 @@ async function put(request: Request, operation: OperationContext) {
   if (!validated.ok) return problem(400, validated.code, validated.message);
 
   const supabase = await createServerSupabaseClient();
-  let access;
-  try {
-    access = await readProfileAccess(supabase);
-  } catch {
-    return problem(
-      503,
-      "profile_unavailable",
-      "Profile is temporarily unavailable.",
-    );
-  }
-  if (access.status === "guest")
-    return problem(401, "authentication_required", "Sign in to continue.");
-  operation.actorId = access.userId;
-  if (access.status !== "active")
-    return problem(
-      403,
-      "profile_unavailable",
-      "Your Profile cannot be edited right now.",
-    );
+  const gate = await requireActiveProfile(
+    supabase,
+    operation,
+    (status, code, message) => problem(status, code, message),
+    {
+      auth: "authentication_required",
+      participation: "profile_unavailable",
+      db: "profile_unavailable",
+    },
+  );
+  if (!gate.ok) return gate.response;
 
   const { data, error } = await supabase.rpc("update_profile", {
     p_username: validated.value.username,
