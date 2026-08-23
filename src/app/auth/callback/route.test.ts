@@ -95,4 +95,20 @@ describe("GET /auth/callback", () => {
       "http://127.0.0.1:3000/auth/complete?next=%2Fupload",
     );
   });
+
+  it("keeps a Preview callback on the origin that owns the PKCE cookie", async () => {
+    const exchangeCodeForSession = vi.fn().mockResolvedValue({ error: null });
+    mocks.createServer.mockResolvedValue({
+      auth: { exchangeCodeForSession },
+    });
+    const response = await GET(
+      new Request(
+        "https://preview.wrapforge.example/auth/callback?code=valid&next=%2Fupload",
+      ),
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://preview.wrapforge.example/auth/complete?next=%2Fupload",
+    );
+  });
 });

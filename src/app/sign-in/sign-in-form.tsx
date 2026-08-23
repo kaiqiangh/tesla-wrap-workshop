@@ -5,11 +5,11 @@ import { useState } from "react";
 import { authCallbackUrl } from "@/lib/auth/redirect";
 import { createBrowserSupabaseClient } from "@/lib/supabase/browser";
 
-type Props = { next: string; siteUrl: string };
+type Props = { next: string };
 const googleSignInErrorMessage =
   "Google sign-in is temporarily unavailable. Please try again.";
 
-export function SignInForm({ next, siteUrl }: Props) {
+export function SignInForm({ next }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -20,7 +20,9 @@ export function SignInForm({ next, siteUrl }: Props) {
       const { error } =
         await createBrowserSupabaseClient().auth.signInWithOAuth({
           provider: "google",
-          options: { redirectTo: authCallbackUrl(siteUrl, next) },
+          options: {
+            redirectTo: authCallbackUrl(window.location.origin, next),
+          },
         });
       if (!error) return;
     } catch {

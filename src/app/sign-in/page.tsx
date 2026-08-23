@@ -24,7 +24,7 @@ export default async function SignInPage({
 }) {
   const query = await searchParams;
   const next = safeNextPath(query.next);
-  const env = readPublicEnvironment(process.env);
+  readPublicEnvironment(process.env);
   const message =
     query.error && Object.hasOwn(messages, query.error)
       ? messages[query.error]
@@ -45,7 +45,7 @@ export default async function SignInPage({
             {message}
           </p>
         ) : null}
-        <SignInForm next={next} siteUrl={env.NEXT_PUBLIC_SITE_URL} />
+        <SignInForm next={next} />
       </section>
     </main>
   );
