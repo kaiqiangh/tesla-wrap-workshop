@@ -1,7 +1,8 @@
 -- CI surfaced that refresh_discovery_ranking() ended its data-modifying
 -- CTE chain with a bare SELECT, which plpgsql rejects ("query has no
 -- destination for result data") -- the cron could never refresh scores.
--- Recreate the function identically but consume the CTEs with perform.
+-- Recreate the function identically but consume the CTEs with
+-- SELECT ... INTO (plpgsql rejects WITH ... PERFORM).
 create or replace function public.refresh_discovery_ranking()
 returns timestamptz
 language plpgsql
@@ -10,6 +11,7 @@ set search_path = ''
 as $$
 declare
   v_calculated_at timestamptz;
+  v_applied bigint;
 begin
   v_calculated_at := clock_timestamp();
 
@@ -92,7 +94,7 @@ begin
       and not exists (select 1 from eligible e where e.id = w.id)
     returning 1
   )
-  perform count(*)
+  select count(*) into v_applied
   from (
     select 1 from apply_scores
     union all
