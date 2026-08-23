@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -32,26 +32,12 @@ async function post(
   let supabase;
   try {
     supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return wrapProblem(
-        401,
-        "WF-SOCIAL-AUTH",
-        "Sign in to join the community.",
-        "Likes and Favorites require a completed Profile.",
-        "Sign in and return to this Wrap to continue.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return wrapProblem(
-        403,
-        "WF-SOCIAL-PARTICIPATION",
-        "Your Profile cannot use social actions right now.",
-        "Likes and Favorites require a completed Active Profile.",
-        "Complete or restore your Profile before trying again.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, wrapProblem, {
+      auth: "WF-SOCIAL-AUTH",
+      participation: "WF-SOCIAL-PARTICIPATION",
+      db: "WF-SOCIAL-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("toggle_wrap_engagement", {
       p_enabled: input.enabled,

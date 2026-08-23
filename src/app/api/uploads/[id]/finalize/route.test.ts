@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createAdmin: vi.fn(),
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   finalizePng: vi.fn(),
   persistAssetRevision: vi.fn(),
   ValidationError: class ValidationError extends Error {
@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminSupabaseClient: mocks.createAdmin,
@@ -196,8 +196,8 @@ function arrange(
   };
   mocks.createServer.mockResolvedValue({ rpc: serverRpc });
   mocks.createAdmin.mockReturnValue(admin);
-  mocks.readProfileAccess.mockResolvedValue({
-    status: "active",
+  mocks.requireActiveProfile.mockResolvedValue({
+    ok: true,
     username: "upload-one",
     userId: owner,
   });

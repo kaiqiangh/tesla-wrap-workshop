@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -51,16 +51,29 @@ describe("GET /api/reports/[id]", () => {
   });
 
   it("requires authentication and returns only the reporter receipt", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(null, { status: 401 }),
+    });
     const guest = await GET(new Request("http://localhost"), { params });
     expect(guest.status).toBe(401);
 
-    mocks.readProfileAccess.mockResolvedValue({ status: "suspended" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-REPORT-PARTICIPATION" } }),
+        { status: 403 },
+      ),
+    });
     const suspended = await GET(new Request("http://localhost"), { params });
     expect(suspended.status).toBe(403);
     expect((await suspended.json()).error.code).toBe("WF-REPORT-PARTICIPATION");
 
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: [
         {
@@ -93,7 +106,11 @@ describe("GET /api/reports/[id]", () => {
   });
 
   it("distinguishes missing receipts from database failures", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({ data: [], error: null });
     const missing = await GET(new Request("http://localhost"), { params });
     expect(missing.status).toBe(404);

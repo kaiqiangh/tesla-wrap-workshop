@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -48,7 +48,13 @@ describe("POST /api/wraps/[slug]/engagement", () => {
   });
 
   it("requires sign-in", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-SOCIAL-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const response = await POST(jsonRequest({ kind: "LIKE", enabled: true }), {
       params,
     });
@@ -58,8 +64,8 @@ describe("POST /api/wraps/[slug]/engagement", () => {
   });
 
   it("returns the authoritative idempotent state and counts", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -93,8 +99,8 @@ describe("POST /api/wraps/[slug]/engagement", () => {
   });
 
   it("maps self-actions and unavailable targets without leaking database text", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -124,7 +130,7 @@ describe("POST /api/wraps/[slug]/engagement", () => {
   });
 
   it("returns a stable database error when profile access or the RPC fails", async () => {
-    mocks.readProfileAccess.mockRejectedValue(new Error("private detail"));
+    mocks.requireActiveProfile.mockRejectedValue(new Error("private detail"));
     const accessResponse = await POST(
       jsonRequest({ kind: "LIKE", enabled: false }),
       { params },
@@ -132,8 +138,8 @@ describe("POST /api/wraps/[slug]/engagement", () => {
     expect(accessResponse.status).toBe(503);
     expect((await accessResponse.json()).error.code).toBe("WF-SOCIAL-DATABASE");
 
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -150,8 +156,8 @@ describe("POST /api/wraps/[slug]/engagement", () => {
   });
 
   it("maps the social rate limit with Retry-After", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });

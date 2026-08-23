@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { observeRoute, type OperationContext } from "@/lib/observability";
@@ -48,7 +48,7 @@ async function patch(
       metadata.problem.nextAction,
     );
   }
-  const owner = await activeOwner();
+  const owner = await activeOwner(operation);
   if (owner.response) return owner.response;
   operation.actorId = owner.userId;
   const { data, error } = await createAdminSupabaseClient().rpc("edit_wrap", {
@@ -107,7 +107,7 @@ async function post(
   ) {
     return requestProblem();
   }
-  const owner = await activeOwner();
+  const owner = await activeOwner(operation);
   if (owner.response) return owner.response;
   operation.actorId = owner.userId;
   const admin = createAdminSupabaseClient();
@@ -144,7 +144,7 @@ export function DELETE(request: Request, context: Context) {
 async function remove({ params }: Context, operation: OperationContext) {
   const slug = await readSlug(params);
   if (!slug) return notFound();
-  const owner = await activeOwner();
+  const owner = await activeOwner(operation);
   if (owner.response) return owner.response;
   operation.actorId = owner.userId;
   const { data, error } = await createAdminSupabaseClient().rpc("remove_wrap", {
@@ -160,34 +160,18 @@ async function remove({ params }: Context, operation: OperationContext) {
   );
 }
 
-async function activeOwner() {
-  const supabase = await createServerSupabaseClient();
-  const access = await readProfileAccess(supabase);
-  if (access.status === "guest") {
-    return {
-      userId: "",
-      response: wrapProblem(
-        401,
-        "WF-WRAP-AUTH",
-        "You are signed out.",
-        "Wrap management requires a completed Active Profile.",
-        "Sign in and try again.",
-      ),
-    };
-  }
-  if (access.status !== "active") {
-    return {
-      userId: "",
-      response: wrapProblem(
-        403,
-        "WF-WRAP-PARTICIPATION",
-        "Your Profile cannot manage this Wrap right now.",
-        "Every Wrap transition requires a completed Active Profile.",
-        "Complete or restore your Profile before trying again.",
-      ),
-    };
-  }
-  return { userId: access.userId, response: undefined };
+async function activeOwner(operation: OperationContext) {
+  const gate = await requireActiveProfile(
+    await createServerSupabaseClient(),
+    operation,
+    wrapProblem,
+    {
+      auth: "WF-WRAP-AUTH",
+      participation: "WF-WRAP-PARTICIPATION",
+      db: "WF-WRAP-DATABASE",
+    },
+  );
+  return gate.ok ? { userId: gate.userId, response: undefined } : { response: gate.response };
 }
 
 async function readSlug(params: Promise<{ slug: string }>) {

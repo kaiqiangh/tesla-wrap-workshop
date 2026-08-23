@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { observeRoute, type OperationContext } from "@/lib/observability";
@@ -39,31 +39,17 @@ async function post(request: Request, operation: OperationContext) {
   }
 
   const supabase = await createServerSupabaseClient();
-  const access = await readProfileAccess(supabase);
-  if (access.status === "guest") {
-    return wrapProblem(
-      401,
-      "WF-WRAP-AUTH",
-      "You are signed out.",
-      "Publishing requires a completed Active Profile.",
-      "Sign in and try again.",
-    );
-  }
-  if (access.status !== "active") {
-    return wrapProblem(
-      403,
-      "WF-WRAP-PARTICIPATION",
-      "Your Profile cannot publish right now.",
-      "Publishing requires a completed Active Profile.",
-      "Complete or restore your Profile before publishing.",
-    );
-  }
-  operation.actorId = access.userId;
+  const gate = await requireActiveProfile(supabase, operation, wrapProblem, {
+    auth: "WF-WRAP-AUTH",
+    participation: "WF-WRAP-PARTICIPATION",
+    db: "WF-WRAP-DATABASE",
+  });
+  if (!gate.ok) return gate.response;
 
   const admin = createAdminSupabaseClient();
   const { data, error } = await admin.rpc("publish_wrap", {
     p_asset_revision_id: input.assetRevisionId,
-    p_creator_id: access.userId,
+    p_creator_id: gate.userId,
     p_description: metadata.value.description,
     p_distribution_asserted: metadata.value.distributionAsserted,
     p_license_type: metadata.value.licenseType,

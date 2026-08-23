@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
 import { observeRoute, type OperationContext } from "@/lib/observability";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { wrapProblem } from "@/lib/wraps/problem";
@@ -31,26 +31,12 @@ async function post(
 
   try {
     const supabase = await createServerSupabaseClient();
-    const access = await readProfileAccess(supabase);
-    if (access.status === "guest") {
-      return commentProblem(
-        401,
-        "WF-COMMENT-AUTH",
-        "Sign in to add a Comment.",
-        "Comments require a completed Profile.",
-        "Sign in and return to this Wrap to continue.",
-      );
-    }
-    operation.actorId = access.userId;
-    if (access.status !== "active") {
-      return commentProblem(
-        403,
-        "WF-COMMENT-PARTICIPATION",
-        "Your Profile cannot add Comments right now.",
-        "Comments require a completed Active Profile.",
-        "Complete or restore your Profile before trying again.",
-      );
-    }
+    const gate = await requireActiveProfile(supabase, operation, commentProblem, {
+      auth: "WF-COMMENT-AUTH",
+      participation: "WF-COMMENT-PARTICIPATION",
+      db: "WF-COMMENT-DATABASE",
+    });
+    if (!gate.ok) return gate.response;
 
     const { data, error } = await supabase.rpc("add_wrap_comment", {
       p_body: input.body,

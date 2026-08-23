@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
-import { readProfileAccess } from "@/lib/auth/profile-access";
+import { requireActiveProfile } from "@/lib/auth/profile-access";
+import { observeRoute, type OperationContext } from "@/lib/observability";
 import { normalizeAvatar, MAX_AVATAR_BYTES } from "@/lib/profile/avatar";
 import { requestContentLengthExceedsLimit } from "@/lib/request-size";
 import { createAdminSupabaseClient } from "@/lib/supabase/admin";
@@ -10,26 +11,25 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 
-export async function POST(request: Request) {
+export function POST(request: Request) {
+  return observeRoute(request, "PROFILE_AVATAR_UPDATE", "PROFILE", (operation) =>
+    post(request, operation),
+  );
+}
+
+async function post(request: Request, operation: OperationContext) {
   const supabase = await createServerSupabaseClient();
-  let access;
-  try {
-    access = await readProfileAccess(supabase);
-  } catch {
-    return problem(
-      503,
-      "profile_unavailable",
-      "Profile is temporarily unavailable.",
-    );
-  }
-  if (access.status === "guest")
-    return problem(401, "authentication_required", "Sign in to continue.");
-  if (access.status !== "active")
-    return problem(
-      403,
-      "profile_unavailable",
-      "Your Profile cannot be edited right now.",
-    );
+  const gate = await requireActiveProfile(
+    supabase,
+    operation,
+    (status, code, message) => problem(status, code, message),
+    {
+      auth: "authentication_required",
+      participation: "profile_unavailable",
+      db: "profile_unavailable",
+    },
+  );
+  if (!gate.ok) return gate.response;
   if (
     requestContentLengthExceedsLimit(
       request.headers.get("content-length"),
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminSupabaseClient();
-  const base = `${access.userId}/${randomUUID()}`;
+  const base = `${gate.userId}/${randomUUID()}`;
   const sourceKey = `${base}/source`;
   const derivedKey = `${base}/avatar.png`;
   const uploaded: Array<{ bucket: string; key: string }> = [];
@@ -116,7 +116,7 @@ export async function POST(request: Request) {
 
     rpcAttempted = true;
     const { data, error } = await admin.rpc("replace_profile_avatar", {
-      p_profile_id: access.userId,
+      p_profile_id: gate.userId,
       p_source_key: sourceKey,
       p_derived_key: derivedKey,
       p_width_px: normalized.width,
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       if (failed.length) {
         const { error } = await admin.from("profile_cleanup_jobs").upsert(
           failed.map(({ bucket, key }) => ({
-            profile_id: access.userId,
+            profile_id: gate.userId,
             bucket_id: bucket,
             object_key: key,
           })),
@@ -163,7 +163,7 @@ export async function POST(request: Request) {
       } else if (!committed?.length) {
         const { error } = await admin.from("profile_cleanup_jobs").upsert(
           uploaded.map(({ bucket, key }) => ({
-            profile_id: access.userId,
+            profile_id: gate.userId,
             bucket_id: bucket,
             object_key: key,
           })),

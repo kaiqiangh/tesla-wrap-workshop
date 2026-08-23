@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
   createAdmin: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -44,8 +44,8 @@ const body = {
 
 describe("POST /api/uploads", () => {
   it("returns only the safe Pending Upload identity", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "upload-one",
       userId: "10000000-0000-0000-0000-000000000004",
     });
@@ -76,9 +76,10 @@ describe("POST /api/uploads", () => {
   });
 
   it("maps the database rate limit to the public contract", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "upload-one",
+      userId: "10000000-0000-0000-0000-000000000004",
     });
     mocks.createServer.mockResolvedValue({});
     mocks.createAdmin.mockReturnValue({

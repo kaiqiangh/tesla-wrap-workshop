@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -49,7 +49,13 @@ describe("POST /api/wraps/[slug]/comments", () => {
   });
 
   it("requires an eligible signed-in Profile", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-COMMENT-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const guest = await POST(
       jsonRequest({ body: "hello", idempotencyKey: key }),
       {
@@ -59,7 +65,13 @@ describe("POST /api/wraps/[slug]/comments", () => {
     expect(guest.status).toBe(401);
     expect((await guest.json()).error.code).toBe("WF-COMMENT-AUTH");
 
-    mocks.readProfileAccess.mockResolvedValue({ status: "incomplete" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-COMMENT-PARTICIPATION" } }),
+        { status: 403 },
+      ),
+    });
     const incomplete = await POST(
       jsonRequest({ body: "hello", idempotencyKey: key }),
       { params },
@@ -72,8 +84,8 @@ describe("POST /api/wraps/[slug]/comments", () => {
   });
 
   it("returns an authoritative Comment and count", async () => {
-    mocks.readProfileAccess.mockResolvedValue({
-      status: "active",
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
       username: "road-one",
       userId: "20000000-0000-0000-0000-000000000001",
     });
@@ -115,7 +127,11 @@ describe("POST /api/wraps/[slug]/comments", () => {
   });
 
   it("maps target, rate, and database failures without leaking details", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "road-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: null,
       error: { message: "comment_wrap_unavailable" },

@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/server", () => ({
   createServerSupabaseClient: mocks.createServer,
@@ -42,7 +42,13 @@ describe("/api/admin/reports", () => {
   });
 
   it("rejects guests and malformed actions before RPC", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "guest" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-ADMIN-AUTH" } }),
+        { status: 401 },
+      ),
+    });
     const guest = await GET(new Request("http://localhost/api/admin/reports"));
     expect(guest.status).toBe(401);
 
@@ -81,7 +87,11 @@ describe("/api/admin/reports", () => {
   });
 
   it("returns a no-store queue projection for a current administrator", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "admin-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: [
         {
@@ -124,7 +134,11 @@ describe("/api/admin/reports", () => {
   });
 
   it("maps revoked admins, conflicts, and opaque failures", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "admin-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     for (const [message, status, code] of [
       ["admin_required", 403, "WF-ADMIN-DENIED"],
       ["moderation_conflict", 409, "WF-ADMIN-CONFLICT"],
@@ -151,7 +165,11 @@ describe("/api/admin/reports", () => {
   });
 
   it("returns the authoritative moderation result", async () => {
-    mocks.readProfileAccess.mockResolvedValue({ status: "active" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: true,
+      username: "admin-one",
+      userId: "20000000-0000-0000-0000-000000000001",
+    });
     mocks.rpc.mockResolvedValue({
       data: [
         {
