@@ -25,6 +25,19 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm exec supabase start > /dev/null
       - run: pnpm test:db
+      - name: Capture Discovery EXPLAIN evidence
+        run: |
+          set -euo pipefail
+          performance_dir="${RUNNER_TEMP}/wrapforge-performance"
+          mkdir -p "$performance_dir"
+          pnpm exec supabase test db supabase/tests/discovery.sql \
+            | tee "$performance_dir/discovery-explain.txt"
+      - name: Upload Discovery EXPLAIN evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: discovery-explain-${{ github.sha }}
+          path: ${{ runner.temp }}/wrapforge-performance/discovery-explain.txt
+          if-no-files-found: error
       - name: Verify generated database types
         run: |
           generated_types=$(mktemp)

@@ -345,5 +345,96 @@ update public.discovery_ranking_state
 set calculated_at = clock_timestamp(), status = 'LIVE'
 where id;
 
+-- Keep representative query-plan evidence beside the real Discovery fixture.
+-- These plans are diagnostics, not pass/fail thresholds: thresholds belong to
+-- a production-sized load test, while this fixture proves the measured query
+-- shape is non-empty and remains part of the pgTAP gate.
+create temp table explain_capture (
+  label text not null,
+  line_no integer not null,
+  line text not null
+) on commit drop;
+
+create or replace function pg_temp.capture_explain(
+  p_label text,
+  p_query text
+)
+returns void
+language plpgsql
+as $$
+declare
+  v_line text;
+  v_line_no integer := 0;
+begin
+  for v_line in execute p_query loop
+    v_line_no := v_line_no + 1;
+    insert into pg_temp.explain_capture (label, line_no, line)
+    values (p_label, v_line_no, v_line);
+  end loop;
+end;
+$$;
+
+select pg_temp.capture_explain(
+  'refresh_discovery_ranking',
+  $$
+    explain (analyze, buffers, format text)
+    select public.refresh_discovery_ranking()
+  $$
+);
+select pg_temp.capture_explain(
+  'search_discovery_wraps_base',
+  $$
+    explain (analyze, buffers, format text)
+    select public.search_discovery_wraps_base(
+      null, null, null, 'TRENDING', null, 24
+    )
+  $$
+);
+select pg_temp.capture_explain(
+  'discovery_eligible_wraps',
+  $$
+    explain (analyze, buffers, format text)
+    select e.id
+    from public.discovery_eligible_wraps e
+    order by e.trending_score desc, e.id desc
+    limit 24
+  $$
+);
+select pg_temp.capture_explain(
+  'reconcile_wrap_counts_for_scope',
+  $$
+    explain (analyze, buffers, format text)
+    select private.reconcile_wrap_counts_for_scope(
+      '89000000-0000-0000-0000-000000000001',
+      (
+        select vehicle_model_id
+        from public.template_variants
+        where catalog_key = 'model3'
+        limit 1
+      )
+    )
+  $$
+);
+select pg_temp.capture_explain(
+  'reconcile_download_counts',
+  $$
+    explain (analyze, buffers, format text)
+    select public.reconcile_download_counts()
+  $$
+);
+select diag(
+  E'\n' || coalesce(
+    (
+      select string_agg(
+        label || E'\n' || line,
+        E'\n'
+        order by label, line_no
+      )
+      from pg_temp.explain_capture
+    ),
+    'No EXPLAIN output captured'
+  )
+);
+
 select * from finish();
 rollback;
