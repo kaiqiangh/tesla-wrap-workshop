@@ -63,21 +63,19 @@ describe("POST /api/profiles/[username]/follow", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("denies incomplete and unavailable Profiles before the RPC", async () => {
-    for (const status of ["incomplete", "unavailable"] as const) {
-      mocks.requireActiveProfile.mockResolvedValue({
-        ok: false,
-        response: new Response(
-          JSON.stringify({ error: { code: "WF-FOLLOW-PARTICIPATION" } }),
-          { status: 403 },
-        ),
-      });
-      const response = await POST(jsonRequest({ enabled: true }), { params });
-      expect(response.status).toBe(403);
-      expect((await response.json()).error.code).toBe(
-        "WF-FOLLOW-PARTICIPATION",
-      );
-    }
+  it("denies non-active Profiles before the RPC", async () => {
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-FOLLOW-PARTICIPATION" } }),
+        { status: 403 },
+      ),
+    });
+    const response = await POST(jsonRequest({ enabled: true }), { params });
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe(
+      "WF-FOLLOW-PARTICIPATION",
+    );
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
