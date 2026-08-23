@@ -1,6 +1,9 @@
 # dependencies
 /node_modules/
 
+# pnpm local store (created when the shared store is unavailable)
+/.pnpm-store/
+
 # Next.js
 /.next/
 /out/
