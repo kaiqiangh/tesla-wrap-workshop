@@ -565,6 +565,11 @@ select is(
 reset role;
 update public.profiles set participation_state = 'ACTIVE'
 where user_id = '30000000-0000-0000-0000-000000000001';
+-- Age this Creator's earlier uploads out of the create-rate window so the
+-- replacement below is not rejected by upload_create_user.
+update public.pending_uploads
+set created_at = clock_timestamp() - interval '2 days'
+where owner_id = '30000000-0000-0000-0000-000000000001';
 set local role authenticated;
 select set_config('request.jwt.claims',
   '{"sub":"30000000-0000-0000-0000-000000000001","role":"authenticated"}', true);
