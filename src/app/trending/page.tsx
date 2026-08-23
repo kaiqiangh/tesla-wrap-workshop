@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
-import { searchDiscoveryWraps } from "@/lib/discovery";
+import {
+  searchDiscoveryWraps,
+  type DiscoverySearchResult,
+} from "@/lib/discovery";
 import {
   parseDiscoveryQuery,
   type DiscoveryQuery,
@@ -8,6 +12,7 @@ import {
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { DiscoveryPage } from "../discovery-page";
+import { DiscoveryLoading } from "../discovery-loading";
 
 export const dynamic = "force-dynamic";
 
@@ -47,23 +52,42 @@ export default async function TrendingPage({
       ? { ...parsed, sort: "TRENDING" as const }
       : null;
   const client = await createServerSupabaseClient();
-  const result = query
-    ? await searchDiscoveryWraps(client, {
+  const resultPromise: Promise<DiscoverySearchResult> = query
+    ? searchDiscoveryWraps(client, {
         q: query.q,
         modelSlug: query.model,
         variantKey: query.variant,
         sort: "TRENDING",
         cursor: query.cursor,
       })
-    : { status: "invalid" as const, wraps: [] as [], nextCursor: null };
+    : Promise.resolve({
+        status: "invalid" as const,
+        wraps: [] as [],
+        nextCursor: null,
+      } satisfies DiscoverySearchResult);
   const safeQuery: DiscoveryQuery = query ?? { sort: "TRENDING" };
+  return (
+    <Suspense fallback={<DiscoveryLoading />}>
+      <TrendingContent resultPromise={resultPromise} query={safeQuery} />
+    </Suspense>
+  );
+}
+
+async function TrendingContent({
+  resultPromise,
+  query,
+}: {
+  resultPromise: ReturnType<typeof searchDiscoveryWraps>;
+  query: DiscoveryQuery;
+}) {
+  const result = await resultPromise;
   return (
     <DiscoveryPage
       eyebrow="SEVEN-DAY TRENDING"
       title="What the community is seeing."
       intro="Trending balances Counted Downloads, Likes, Favorites, and visible Comments with a deterministic age adjustment."
       result={result}
-      query={safeQuery}
+      query={query}
       loadMorePath="/trending"
     />
   );

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { DiscoveryFilters } from "../discovery-filters";
+import { DiscoveryLoading } from "../discovery-loading";
 import { DiscoveryPage } from "../discovery-page";
 import { getCatalog } from "@/lib/catalog";
 import {
@@ -17,6 +19,8 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+type CatalogSettled =
+  { ok: true; value: Awaited<ReturnType<typeof getCatalog>> } | { ok: false };
 
 export async function generateMetadata({
   searchParams,
@@ -54,7 +58,7 @@ export default async function ExplorePage({
   const catalogPromise = getCatalog()
     .then((value) => ({ ok: true as const, value }))
     .catch(() => ({ ok: false as const }));
-  const searchPromise =
+  const searchPromise: Promise<DiscoveryResult | DiscoverySearchResult> =
     query === null
       ? Promise.resolve({
           status: "invalid",
@@ -67,11 +71,30 @@ export default async function ExplorePage({
           sort: query.sort,
           cursor: query.cursor,
         });
+  return (
+    <Suspense fallback={<DiscoveryLoading />}>
+      <ExploreContent
+        catalogPromise={catalogPromise}
+        searchPromise={searchPromise}
+        query={query}
+      />
+    </Suspense>
+  );
+}
+
+async function ExploreContent({
+  catalogPromise,
+  searchPromise,
+  query,
+}: {
+  catalogPromise: Promise<CatalogSettled>;
+  searchPromise: Promise<DiscoveryResult | DiscoverySearchResult>;
+  query: DiscoveryQuery | null;
+}) {
   const [catalogSettled, result] = await Promise.all([
     catalogPromise,
     searchPromise,
   ]);
-  const catalogUnavailable = !catalogSettled.ok;
   const catalog = catalogSettled.ok ? catalogSettled.value : [];
   const safeQuery: DiscoveryQuery = query ?? { sort: "NEWEST" };
   return (

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { getPublicVehicleModel, searchDiscoveryWraps } from "@/lib/discovery";
 import { parseDiscoveryQuery } from "@/lib/discovery-query";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { DiscoveryPage } from "../../discovery-page";
+import { DiscoveryLoading } from "../../discovery-loading";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 type Props = { params: Promise<{ slug: string }>; searchParams: SearchParams };
@@ -47,7 +49,28 @@ export default async function VehicleModelPage({
 }: Props) {
   const { slug } = await params;
   const client = await createServerSupabaseClient();
-  const modelResult = await getPublicVehicleModel(client, slug);
+  const modelPromise = getPublicVehicleModel(client, slug);
+  return (
+    <Suspense fallback={<DiscoveryLoading />}>
+      <VehicleModelContent
+        client={client}
+        modelPromise={modelPromise}
+        rawPromise={searchParams}
+      />
+    </Suspense>
+  );
+}
+
+async function VehicleModelContent({
+  client,
+  modelPromise,
+  rawPromise,
+}: {
+  client: Awaited<ReturnType<typeof createServerSupabaseClient>>;
+  modelPromise: ReturnType<typeof getPublicVehicleModel>;
+  rawPromise: SearchParams;
+}) {
+  const modelResult = await modelPromise;
   if (modelResult.status !== "ok") {
     return (
       <DiscoveryPage
@@ -71,7 +94,7 @@ export default async function VehicleModelPage({
     );
   }
   const model = modelResult.model;
-  const raw = await searchParams;
+  const raw = await rawPromise;
   const parsed = parseDiscoveryQuery(raw);
   const rawModel = Array.isArray(raw.model) ? raw.model[0] : raw.model;
   const rawSort = Array.isArray(raw.sort) ? raw.sort[0] : raw.sort;
