@@ -122,6 +122,8 @@ as $$
     union
     select wrap_id as id from public.wrap_comments where author_id = p_user_id
     union
+    select wrap_id as id from public.download_events where user_id = p_user_id
+    union
     select id from public.wraps where creator_id = p_user_id
   ),
   like_counts as (

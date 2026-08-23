@@ -1158,6 +1158,46 @@ select is(
      and counted),
   'reconciliation derives the counter only from counted events'
 );
+
+insert into auth.users (
+  id, aud, role, email, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values (
+  '80000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated',
+  'wrap-three@example.test', now(),
+  '{"provider":"google","providers":["google"]}', '{}', now(), now()
+);
+update public.profiles
+set username = 'wrap-three', display_name = 'Wrap Three'
+where user_id = '80000000-0000-0000-0000-000000000003';
+insert into public.download_events (
+  wrap_id, principal_kind, principal_hash, user_id, counted
+) values (
+  (select id from public.wraps where slug = current_setting('test.cyber_slug')),
+  'USER', 'v1:user:80000000-0000-0000-0000-000000000003',
+  '80000000-0000-0000-0000-000000000003', true
+);
+update public.wraps
+set download_count = 999
+where slug = current_setting('test.cyber_slug');
+update public.profiles
+set participation_state = 'SUSPENDED'
+where user_id = '80000000-0000-0000-0000-000000000003';
+select is(
+  (select download_count from public.wraps where slug = current_setting('test.cyber_slug')),
+  (select count(*) from public.download_events event
+   left join public.profiles actor on actor.user_id = event.user_id
+   where event.wrap_id = (select id from public.wraps where slug = current_setting('test.cyber_slug'))
+     and event.counted
+     and (
+       event.user_id is null
+       or (
+         actor.participation_state = 'ACTIVE'
+         and actor.onboarding_completed_at is not null
+       )
+     )),
+  'a download-only User state change reconciles the Wrap download counter'
+);
 update storage.objects
 set name = name || '-download-missing'
 where bucket_id = 'wrap-originals'
