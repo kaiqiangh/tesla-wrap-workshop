@@ -24,11 +24,22 @@ export function validateProfileSettings(
   const { username, displayName } = normalizeProfileIdentity(input);
   const bio = input.bio.trim();
 
-  if (validateProfileUsername(username)) {
+  // Mirror onboarding's specific username guidance so both surfaces teach
+  // the same rule set (WU-07).
+  const usernameError = validateProfileUsername(username);
+  if (usernameError === "length") {
     return {
       ok: false,
       code: "invalid_username",
-      message: "Username must be 3–30 lowercase letters, numbers, _ or -.",
+      message: "Username must be 3–30 characters.",
+    };
+  }
+  if (usernameError === "start" || usernameError === "characters") {
+    return {
+      ok: false,
+      code: "invalid_username",
+      message:
+        "Use only letters, numbers, underscores, or dashes, starting with a letter or number.",
     };
   }
   if (!isValidProfileDisplayName(displayName)) {
