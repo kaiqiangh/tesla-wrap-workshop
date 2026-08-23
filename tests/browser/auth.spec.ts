@@ -1331,7 +1331,7 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   // accepted as idempotent; a different PNG must conflict.
   expect(overwrite.status()).toBe(409);
   expect(await overwrite.json()).toMatchObject({
-    error: { problem: "WF-UPLOAD-STATE" },
+    error: { problem: "A different file already occupies this transfer." },
   });
   const corruptFinal = await page.request.post(
     `/api/uploads/${corrupt.id}/finalize`,
