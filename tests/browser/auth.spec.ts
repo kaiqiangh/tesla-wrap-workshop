@@ -1404,7 +1404,9 @@ test("User completes Google sign-in, onboarding, Profile, suspension, and logout
   ).toBeVisible();
   await page.getByLabel("Username").fill("-bad");
   await page.getByRole("button", { name: "Save Profile" }).click();
-  await expect(page.getByText(/Username must be/)).toBeVisible();
+  await expect(
+    page.getByText(/starting with a letter or number/),
+  ).toBeVisible();
   const renamedUsername = `${username}new`;
   await page.getByLabel("Username").fill(renamedUsername);
   await page.getByLabel("Bio").fill("A Dublin creator.");
