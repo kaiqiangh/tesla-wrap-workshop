@@ -1159,6 +1159,7 @@ select is(
   'reconciliation derives the counter only from counted events'
 );
 
+set local role postgres;
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -1167,6 +1168,7 @@ insert into auth.users (
   'wrap-three@example.test', now(),
   '{"provider":"google","providers":["google"]}', '{}', now(), now()
 );
+set local role service_role;
 update public.profiles
 set username = 'wrap-three', display_name = 'Wrap Three'
 where user_id = '80000000-0000-0000-0000-000000000003';

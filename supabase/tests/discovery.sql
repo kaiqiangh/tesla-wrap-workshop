@@ -28,16 +28,18 @@ select is(
 select has_column('public', 'wraps', 'trending_score',
   'wraps carry the persisted Trending Score');
 
-set local role service_role;
+set local role postgres;
 insert into public.discovery_cursor_snapshots (
   token, payload, calculated_at, expires_at
 ) values
   (repeat('a', 36), '{}'::jsonb, clock_timestamp(), clock_timestamp() - interval '1 minute'),
   (repeat('b', 36), '{}'::jsonb, clock_timestamp(), clock_timestamp() + interval '1 day');
+set local role service_role;
 select lives_ok(
   $$ select public.cleanup_discovery_cursor_snapshots() $$,
   'the scheduled cursor cleanup RPC is available to the service role'
 );
+set local role postgres;
 select ok(
   not exists (
     select 1 from public.discovery_cursor_snapshots where token = repeat('a', 36)
