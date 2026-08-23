@@ -103,6 +103,22 @@ select lives_ok(
      ) $$,
   'an expired window recovers without manual deletion'
 );
+update private.launch_rate_buckets
+set window_started_at = clock_timestamp() - interval '2 days'
+where policy_key = 'search_principal_minute'
+  and principal_key = 'v1:user:99000000-0000-0000-0000-000000000001';
+select lives_ok(
+  $$ select public.cleanup_launch_rate_buckets() $$,
+  'the scheduled cleanup RPC is available to the service role'
+);
+select ok(
+  not exists (
+    select 1 from private.launch_rate_buckets
+    where policy_key = 'search_principal_minute'
+      and principal_key = 'v1:user:99000000-0000-0000-0000-000000000001'
+  ),
+  'scheduled launch cleanup removes expired buckets'
+);
 reset role;
 
 set local role postgres;

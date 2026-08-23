@@ -36,6 +36,24 @@ async function cleanup(request: Request, operation: OperationContext) {
       "pending_upload_expiry_unavailable",
       "Pending Upload expiry is temporarily unavailable.",
     );
+  const { error: launchBucketCleanupError } = await admin.rpc(
+    "cleanup_launch_rate_buckets",
+  );
+  if (launchBucketCleanupError)
+    return reconciliationProblem(
+      operation,
+      "launch_rate_bucket_cleanup_unavailable",
+      "Launch rate-limit cleanup is temporarily unavailable.",
+    );
+  const { error: cursorCleanupError } = await admin.rpc(
+    "cleanup_discovery_cursor_snapshots",
+  );
+  if (cursorCleanupError)
+    return reconciliationProblem(
+      operation,
+      "discovery_cursor_cleanup_unavailable",
+      "Discovery cursor cleanup is temporarily unavailable.",
+    );
   const { data: coreLoopEventsDeleted, error: coreLoopEventsError } =
     await admin.rpc("cleanup_core_loop_events");
   if (coreLoopEventsError)

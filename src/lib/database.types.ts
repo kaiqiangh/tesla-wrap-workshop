@@ -1476,6 +1476,8 @@ export type Database = {
         }[];
       };
       cleanup_core_loop_events: { Args: never; Returns: number };
+      cleanup_discovery_cursor_snapshots: { Args: never; Returns: number };
+      cleanup_launch_rate_buckets: { Args: never; Returns: number };
       complete_asset_cleanup_job: {
         Args: { p_error?: string; p_id: string; p_success: boolean };
         Returns: boolean;
