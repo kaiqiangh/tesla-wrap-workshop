@@ -34,7 +34,7 @@ export function requestNetworkPrincipal(request: Request) {
 // cookieless clients rotate past every limit) and never one shared bucket.
 export function searchPrincipal(
   secret: string,
-  session: string | null | undefined,
+  session: string | null,
   network: string,
 ) {
   return session

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import {
   hmacPrincipal,
   requestNetworkPrincipal,
+  SEARCH_SESSION_COOKIE,
   searchPrincipal,
 } from "@/lib/limits";
 import { readServerEnvironment } from "@/lib/env";
@@ -24,20 +25,21 @@ export function POST(request: Request) {
 
 async function post(request: Request, operation: OperationContext) {
   const env = readServerEnvironment(process.env);
-  const session = requestCookie(request, "wf_search_session");
+  const session = requestCookie(request, SEARCH_SESSION_COOKIE) ?? null;
+  const network = requestNetworkPrincipal(request);
   const admin = createAdminSupabaseClient();
   const { error: limitError } = await admin.rpc("consume_page_view_limit", {
-    // Cookieless visitors key on network instead of one shared "missing"
-    // bucket so a single loop cannot rate-limit every other anonymous user.
+    // Cookieless Guests key on network instead of one shared "missing"
+    // bucket so a single loop cannot rate-limit every other Guest Session.
     p_session_principal: searchPrincipal(
       env.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
       session,
-      requestNetworkPrincipal(request),
+      network,
     ),
     p_network_principal: hmacPrincipal(
       env.DOWNLOAD_PRINCIPAL_HMAC_SECRET,
       "network",
-      requestNetworkPrincipal(request),
+      network,
     ),
   });
   if (limitError?.message === "page_view_rate_limited") {

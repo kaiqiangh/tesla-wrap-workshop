@@ -267,6 +267,39 @@ describe("discovery read boundary", () => {
     }
   });
 
+  it("falls back to network keying when no session cookie exists", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv(
+      "DOWNLOAD_PRINCIPAL_HMAC_SECRET",
+      "search-fallback-test-secret-0123456789012345",
+    );
+    telemetryMocks.searchPrincipal.mockReturnValue("v2:network:fallback-test");
+    telemetryMocks.cookies.mockResolvedValue({
+      get: vi.fn().mockReturnValue(undefined),
+    });
+    telemetryMocks.headers.mockResolvedValue(
+      new Headers({ "x-real-ip": "192.0.2.10" }),
+    );
+    telemetryMocks.createAdmin.mockReturnValue({
+      rpc: vi.fn().mockResolvedValue({ data: emptySearch, error: null }),
+    });
+    try {
+      const result = await searchDiscoveryWraps(
+        { rpc: vi.fn().mockResolvedValue({ data: emptySearch, error: null }) },
+        {},
+      );
+      expect(result).toMatchObject({ status: "empty" });
+      expect(telemetryMocks.searchPrincipal).toHaveBeenCalledWith(
+        "search-fallback-test-secret-0123456789012345",
+        null,
+        "192.0.2.10",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetAllMocks();
+    }
+  });
+
   it("maps principal search RPC failures to an error state", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv(

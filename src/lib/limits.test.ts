@@ -41,13 +41,16 @@ describe("launch limit principals", () => {
 
   it("keys cookieless search traffic stably per network address", () => {
     expect(searchPrincipal("secret", null, "192.0.2.10")).toBe(
-      searchPrincipal("secret", undefined, "192.0.2.10"),
+      searchPrincipal("secret", null, "192.0.2.10"),
     );
     expect(searchPrincipal("secret", null, "192.0.2.10")).toMatch(
       /^v2:network:[0-9a-f]{64}$/,
     );
     expect(searchPrincipal("secret", null, "192.0.2.10")).not.toBe(
       searchPrincipal("secret", null, "192.0.2.11"),
+    );
+    expect(searchPrincipal("secret", "sess-1", "192.0.2.10")).not.toBe(
+      searchPrincipal("secret", null, "192.0.2.10"),
     );
   });
 
