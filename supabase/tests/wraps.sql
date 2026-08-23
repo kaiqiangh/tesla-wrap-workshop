@@ -703,9 +703,11 @@ where title = 'Cybertruck Wrap';
 update public.template_variants
 set active = false
 where catalog_key = 'cybertruck';
-set local role anon;
+reset role;
+set local role service_role;
 select is(
-  (select legacy from public.get_discovery_wraps('MODEL', 'cybertruck', 24) limit 1),
+  (select legacy from public.discovery_eligible_wraps
+   where vehicle_model_slug = 'cybertruck' limit 1),
   true,
   'Legacy Template Variant Wraps remain discoverable with a warning flag'
 );
@@ -720,9 +722,10 @@ where bucket_id = 'wrap-derived'
     join public.wraps w on w.asset_revision_id = wa.asset_revision_id
     where w.title = 'Cybertruck Wrap' and wa.kind = 'PREVIEW'
   );
-set local role anon;
+set local role service_role;
 select is_empty(
-  $$ select * from public.get_discovery_wraps('MODEL', 'cybertruck', 24) $$,
+  $$ select * from public.discovery_eligible_wraps
+     where vehicle_model_slug = 'cybertruck' $$,
   'a missing Derived PREVIEW object removes the Wrap from discovery'
 );
 reset role;

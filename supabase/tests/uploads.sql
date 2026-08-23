@@ -565,8 +565,14 @@ select is(
 reset role;
 update public.profiles set participation_state = 'ACTIVE'
 where user_id = '30000000-0000-0000-0000-000000000001';
--- Age this Creator's earlier uploads out of the create-rate window so the
--- replacement below is not rejected by upload_create_user.
+-- Settle this Creator's earlier uploads: age them out of the create-rate
+-- window and clear the active-lease slots so the replacement is accepted.
+update public.pending_uploads
+set state = 'EXPIRED',
+    expires_at = clock_timestamp() - interval '1 minute',
+    created_at = clock_timestamp() - interval '2 days'
+where owner_id = '30000000-0000-0000-0000-000000000001'
+  and state in ('CREATED', 'UPLOADED', 'VALIDATING');
 update public.pending_uploads
 set created_at = clock_timestamp() - interval '2 days'
 where owner_id = '30000000-0000-0000-0000-000000000001';
