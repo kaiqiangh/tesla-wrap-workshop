@@ -25,7 +25,7 @@
 
 # generated local evidence
 /artifacts/
-/.playwright-mcp/
+/.playwright*/
 /.repo-backups/
 
 # operating systems and editors
