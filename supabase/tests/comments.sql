@@ -258,9 +258,34 @@ reset role;
 select is(
   (select count(*) from public.discovery_engagement_events
    where wrap_id = '85000000-0000-0000-0000-000000000001'
-     and kind = 'COMMENT' and active),
+   and kind = 'COMMENT' and active),
   2::bigint,
   'each Comment has an independent active Trending event'
+);
+
+update public.vehicle_models
+set active = false
+where id = (
+  select vehicle_model_id from public.wraps
+  where id = '85000000-0000-0000-0000-000000000001'
+);
+select is(
+  (select comment_count from public.wraps
+   where id = '85000000-0000-0000-0000-000000000001'),
+  0::bigint,
+  'retiring a vehicle model removes its cached public comment count'
+);
+update public.vehicle_models
+set active = true
+where id = (
+  select vehicle_model_id from public.wraps
+  where id = '85000000-0000-0000-0000-000000000001'
+);
+select is(
+  (select comment_count from public.wraps
+   where id = '85000000-0000-0000-0000-000000000001'),
+  2::bigint,
+  'reactivating a vehicle model restores its cached public comment count'
 );
 
 set local role authenticated;

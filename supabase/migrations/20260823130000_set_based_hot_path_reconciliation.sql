@@ -212,10 +212,11 @@ drop function if exists private.reconcile_comments_after_profile();
 
 create or replace function private.reconcile_comments_after_model()
 returns trigger
-language sql
+language plpgsql
 security definer
 set search_path = ''
 as $$
+begin
   with affected as (
     select w.id,
       exists (select 1 from public.discovery_eligible_wraps e where e.id = w.id)
@@ -241,6 +242,8 @@ as $$
   from affected
   left join comment_counts on comment_counts.wrap_id = affected.id
   where w.id = affected.id;
+  return new;
+end;
 $$;
 
 revoke all on function private.reconcile_comments_after_model() from public;
