@@ -805,7 +805,7 @@ select pg_temp.capture_explain(
     with params as (
       select
         extensions.unaccent('Trending')::text as query,
-        'model3'::text as model,
+        'model-3'::text as model,
         'model3'::text as variant,
         'trending'::text as like_query,
         'trending'::text as fts_query
