@@ -4,11 +4,11 @@ const mocks = vi.hoisted(() => ({
   adminRpc: vi.fn(),
   createAdmin: vi.fn(),
   createServer: vi.fn(),
-  readProfileAccess: vi.fn(),
+  requireActiveProfile: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/profile-access", () => ({
-  readProfileAccess: mocks.readProfileAccess,
+  requireActiveProfile: mocks.requireActiveProfile,
 }));
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminSupabaseClient: mocks.createAdmin,
@@ -67,7 +67,13 @@ describe("/api/wraps/[slug] management", () => {
 
   it("keeps management owner-scoped", async () => {
     mocks.createServer.mockResolvedValue({});
-    mocks.readProfileAccess.mockResolvedValue({ status: "incomplete" });
+    mocks.requireActiveProfile.mockResolvedValue({
+      ok: false,
+      response: new Response(
+        JSON.stringify({ error: { code: "WF-WRAP-PARTICIPATION" } }),
+        { status: 403 },
+      ),
+    });
     const response = await PATCH(
       jsonRequest({
         title: "Updated",
@@ -203,8 +209,8 @@ describe("/api/wraps/[slug] management", () => {
 
 function setupOwner() {
   mocks.createServer.mockResolvedValue({});
-  mocks.readProfileAccess.mockResolvedValue({
-    status: "active",
+  mocks.requireActiveProfile.mockResolvedValue({
+    ok: true,
     username: "road-one",
     userId: "20000000-0000-0000-0000-000000000001",
   });
