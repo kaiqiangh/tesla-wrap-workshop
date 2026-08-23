@@ -592,6 +592,57 @@ select pg_temp.capture_explain(
   $$
 );
 select pg_temp.capture_explain(
+  'reconcile_wrap_counts_for_scope:profile-and-model-shapes',
+  $$
+    explain (analyze, buffers, format text)
+    with scopes(scope_name, p_user_id, p_model_id) as (
+      values
+        (
+          'profile'::text,
+          '89000000-0000-0000-0000-000000000001'::uuid,
+          null::uuid
+        ),
+        (
+          'model'::text,
+          null::uuid,
+          (
+            select vehicle_model_id
+            from public.template_variants
+            where catalog_key = 'model3'
+            limit 1
+          )
+        )
+    ), affected as (
+      select s.scope_name, l.wrap_id as id
+      from scopes s
+      join public.wrap_likes l
+        on s.p_user_id is not null and l.user_id = s.p_user_id
+      union
+      select s.scope_name, f.wrap_id as id
+      from scopes s
+      join public.wrap_favorites f
+        on s.p_user_id is not null and f.user_id = s.p_user_id
+      union
+      select s.scope_name, c.wrap_id as id
+      from scopes s
+      join public.wrap_comments c
+        on s.p_user_id is not null and c.author_id = s.p_user_id
+      union
+      select s.scope_name, event.wrap_id as id
+      from scopes s
+      join public.download_events event
+        on s.p_user_id is not null and event.user_id = s.p_user_id
+      union
+      select s.scope_name, w.id
+      from scopes s
+      join public.wraps w
+        on (s.p_user_id is not null and w.creator_id = s.p_user_id)
+        or (s.p_model_id is not null and w.vehicle_model_id = s.p_model_id)
+    )
+    select * from affected
+  $$
+);
+select pg_temp.capture_explain(
   'reconcile_download_counts:recalculated-shape',
   $$
     explain (analyze, buffers, format text)
@@ -617,6 +668,36 @@ select pg_temp.capture_explain(
   $$
 );
 select pg_temp.capture_explain(
+  'reconcile_download_counts_for_user:recalculated-shape',
+  $$
+    explain (analyze, buffers, format text)
+    with affected as (
+      select distinct wrap_id as id
+      from public.download_events
+      where user_id = '89000000-0000-0000-0000-000000000002'
+    ), counts as (
+      select event.wrap_id, count(*)::bigint as value
+      from public.download_events event
+      left join public.profiles actor on actor.user_id = event.user_id
+      where event.counted
+        and event.wrap_id in (select id from affected)
+        and (
+          event.user_id is null
+          or (
+            actor.participation_state = 'ACTIVE'
+            and actor.onboarding_completed_at is not null
+          )
+        )
+      group by event.wrap_id
+    ), recalculated as (
+      select affected.id, coalesce(counts.value, 0)::bigint as download_count
+      from affected
+      left join counts on counts.wrap_id = affected.id
+    )
+    select * from recalculated
+  $$
+);
+select pg_temp.capture_explain(
   'search_discovery_wraps_base:candidate-shape',
   $$
     explain (analyze, buffers, format text)
@@ -633,6 +714,81 @@ select pg_temp.capture_explain(
       dsw.download_count, dsw.trending_score
     order by dsw.trending_score desc nulls last,
       dsw.first_published_at desc, dsw.id desc
+    limit 24
+  $$
+);
+select pg_temp.capture_explain(
+  'search_discovery_wraps_base:filtered-candidate-shape',
+  $$
+    explain (analyze, buffers, format text)
+    with params as (
+      select
+        extensions.unaccent('Trending')::text as query,
+        'model3'::text as model,
+        'model3'::text as variant,
+        'trending'::text as like_query,
+        'trending'::text as fts_query
+    ), candidates as (
+      select
+        dsw.id,
+        dsw.first_published_at,
+        dsw.download_count,
+        dsw.trending_score,
+        case when params.fts_query is null then 0::real else
+          ts_rank_cd(
+            setweight(to_tsvector('simple', extensions.unaccent(dsw.title)), 'A') ||
+            setweight(to_tsvector('simple', extensions.unaccent(dsw.description)), 'B') ||
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_username, ''))), 'A') ||
+            setweight(to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, ''))), 'B'),
+            websearch_to_tsquery('simple', params.fts_query)
+          )
+          + greatest(
+            extensions.similarity(extensions.unaccent(dsw.title), params.query),
+            extensions.similarity(extensions.unaccent(coalesce(dsw.creator_username, '')), params.query),
+            extensions.similarity(extensions.unaccent(coalesce(dsw.creator_display_name, '')), params.query)
+          )::real
+        end as search_relevance
+      from public.discovery_eligible_wraps dsw
+      cross join params
+      left join public.wrap_tags wt on wt.wrap_id = dsw.id
+      left join public.tags t on t.id = wt.tag_id
+      where dsw.vehicle_model_slug = params.model
+        and dsw.template_variant_key = params.variant
+        and (
+          (params.fts_query is not null and (
+            to_tsvector('simple', extensions.unaccent(dsw.title)) ||
+            to_tsvector('simple', extensions.unaccent(dsw.description)) ||
+            to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_username, ''))) ||
+            to_tsvector('simple', extensions.unaccent(coalesce(dsw.creator_display_name, '')))
+          ) @@ websearch_to_tsquery('simple', params.fts_query))
+          or extensions.unaccent(dsw.title) ilike params.like_query || '%' escape E'\\'
+          or extensions.unaccent(dsw.description) ilike params.like_query || '%' escape E'\\'
+          or extensions.unaccent(coalesce(dsw.creator_username, '')) ilike params.like_query || '%' escape E'\\'
+          or extensions.unaccent(coalesce(dsw.creator_display_name, '')) ilike params.like_query || '%' escape E'\\'
+          or extensions.similarity(extensions.unaccent(dsw.title), params.query) >= 0.25
+          or extensions.similarity(extensions.unaccent(dsw.description), params.query) >= 0.25
+          or extensions.similarity(extensions.unaccent(coalesce(dsw.creator_username, '')), params.query) >= 0.25
+          or extensions.similarity(extensions.unaccent(coalesce(dsw.creator_display_name, '')), params.query) >= 0.25
+          or exists (
+            select 1
+            from public.wrap_tags query_wt
+            join public.tags query_t on query_t.id = query_wt.tag_id
+            where query_wt.wrap_id = dsw.id
+              and (
+                extensions.unaccent(query_t.display_name) ilike params.like_query || '%' escape E'\\'
+                or to_tsvector('simple', extensions.unaccent(query_t.display_name))
+                     @@ websearch_to_tsquery('simple', params.fts_query)
+                or extensions.similarity(extensions.unaccent(query_t.display_name), params.query) >= 0.25
+              )
+          )
+        )
+      group by dsw.id, dsw.first_published_at, dsw.download_count,
+        dsw.trending_score, dsw.title, dsw.description,
+        dsw.creator_username, dsw.creator_display_name, params.query,
+        params.fts_query
+    )
+    select * from candidates
+    order by trending_score desc nulls last, first_published_at desc, id desc
     limit 24
   $$
 );
