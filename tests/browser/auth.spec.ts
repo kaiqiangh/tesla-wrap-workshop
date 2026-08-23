@@ -56,11 +56,11 @@ test("Guest can begin Google sign-in", async ({ page, context }) => {
     .click({ noWaitAfter: true });
   const authorizeUrl = (await authorizeRequest).url();
   expect(authorizeUrl).toContain("provider=google");
-  expect(
-    decodeURIComponent(
-      new URL(authorizeUrl).searchParams.get("redirect_to") ?? "",
-    ),
-  ).toContain("/auth/callback?next=/upload");
+  const redirectTo = decodeURIComponent(
+    new URL(authorizeUrl).searchParams.get("redirect_to") ?? "",
+  );
+  expect(redirectTo).toContain("/auth/callback?next=/upload");
+  expect(new URL(redirectTo).origin).toBe(new URL(page.url()).origin);
   await context.setOffline(false);
   await page.goto("/sign-in?next=/upload");
   expect(
