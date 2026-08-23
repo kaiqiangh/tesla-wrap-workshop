@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { readProfileAccess } from "@/lib/auth/profile-access";
@@ -173,14 +175,34 @@ async function post(
     return transferFailure();
   }
   if (uploaded.error) {
+    // A duplicate failure means bytes already occupy this staging key.
+    // Presence alone is not success (WU-01): only a byte-identical object
+    // may count as the idempotent completion of this same transfer, the
+    // same contract finalize applies to derived assets. A different file
+    // must conflict so a stale transfer can never publish the wrong PNG.
     try {
       const existing = await admin.storage
         .from("wrap-staging")
-        .info(pending.staging_key);
+        .download(pending.staging_key);
       if (!existing.error && existing.data) {
-        return NextResponse.json(
-          { state: "UPLOADED" },
-          { headers: { "cache-control": "no-store" } },
+        const staged = new Uint8Array(await existing.data.arrayBuffer());
+        const received = new Uint8Array(await file.arrayBuffer());
+        if (
+          staged.byteLength === received.byteLength &&
+          createHash("sha256").update(staged).digest("hex") ===
+            createHash("sha256").update(received).digest("hex")
+        ) {
+          return NextResponse.json(
+            { state: "UPLOADED" },
+            { headers: { "cache-control": "no-store" } },
+          );
+        }
+        return uploadProblem(
+          409,
+          "WF-UPLOAD-STATE",
+          "A different file already occupies this transfer.",
+          "Each Pending Upload stages exactly one PNG.",
+          "Start a fresh upload from the studio to send a different file.",
         );
       }
     } catch {

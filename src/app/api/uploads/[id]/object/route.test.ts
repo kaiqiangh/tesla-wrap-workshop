@@ -153,7 +153,7 @@ describe("POST /api/uploads/[id]/object", () => {
           upload: vi.fn(async () => ({
             error: { message: "storage secret details" },
           })),
-          info: vi.fn(async () => ({
+          download: vi.fn(async () => ({
             data: null,
             error: { message: "missing" },
           })),
@@ -222,5 +222,93 @@ describe("POST /api/uploads/[id]/object", () => {
       expect.objectContaining({ object_key: "private/key.png" }),
       expect.anything(),
     );
+  });
+
+  describe("duplicate staging retries", () => {
+    function pngBytes(tail: number): ArrayBuffer {
+      const out = new ArrayBuffer(5);
+      new Uint8Array(out).set([0x89, 0x50, 0x4e, 0x47, tail]);
+      return out;
+    }
+
+    function pngRequest(bytes: ArrayBuffer) {
+      const body = new FormData();
+      body.append(
+        "file",
+        new File([bytes], "wrap.png", { type: "image/png" }),
+      );
+      return new Request(
+        "http://localhost/api/uploads/" + id + "/object",
+        { method: "POST", body },
+      );
+    }
+
+    function installDuplicateStorage(download: ReturnType<typeof vi.fn>) {
+      const upsert = vi.fn(async () => ({ error: null }));
+      mocks.readProfileAccess.mockResolvedValue({
+        status: "active",
+        userId: "10000000-0000-0000-0000-000000000003",
+      });
+      mocks.createServer.mockResolvedValue({});
+      mocks.createAdmin.mockReturnValue({
+        rpc: vi.fn(async () => ({
+          data: [
+            {
+              id,
+              state: "CREATED",
+              staging_key: "private/key.png",
+              owner_id: "10000000-0000-0000-0000-000000000003",
+              expires_at: new Date(Date.now() + 60_000).toISOString(),
+              max_file_bytes: 100,
+            },
+          ],
+          error: null,
+        })),
+        storage: {
+          from: vi.fn(() => ({
+            upload: vi.fn(async () => ({ error: { message: "Duplicate" } })),
+            download,
+          })),
+        },
+        from: vi.fn(() => ({ upsert })),
+      });
+      return upsert;
+    }
+
+    it("completes idempotently when staged bytes match the retry", async () => {
+      const staged = pngBytes(7);
+      const upsert = installDuplicateStorage(
+        vi.fn(async () => ({
+          error: null,
+          data: { arrayBuffer: async () => staged },
+        })),
+      );
+
+      const response = await POST(pngRequest(staged), {
+        params: Promise.resolve({ id }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ state: "UPLOADED" });
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it("conflicts when staged bytes differ so a stale PNG cannot win", async () => {
+      const staged = pngBytes(7);
+      const upsert = installDuplicateStorage(
+        vi.fn(async () => ({
+          error: null,
+          data: { arrayBuffer: async () => staged },
+        })),
+      );
+
+      const response = await POST(pngRequest(pngBytes(9)), {
+        params: Promise.resolve({ id }),
+      });
+
+      expect(response.status).toBe(409);
+      expect((await response.json()).error.code).toBe("WF-UPLOAD-STATE");
+      expect(upsert).not.toHaveBeenCalled();
+    });
   });
 });
