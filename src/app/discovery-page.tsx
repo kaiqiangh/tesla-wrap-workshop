@@ -11,7 +11,7 @@ import {
   type DiscoveryQuery,
 } from "@/lib/discovery-query";
 
-import { Brand } from "./brand";
+import { SiteHeader } from "../components/site-header";
 import { DiscoveryGrid, DiscoveryState } from "./discovery-card";
 
 export function DiscoveryPage({
@@ -35,15 +35,15 @@ export function DiscoveryPage({
 }) {
   return (
     <main className="discovery-shell">
-      <header className="site-header">
-        <Brand href="/" />
-        <nav className="desktop-nav" aria-label="Discovery navigation">
-          <Link href="/">Homepage</Link>
-          <Link href="/explore">Explore</Link>
-          <Link href="/trending">Trending</Link>
-          <Link href="/upload">Upload a Wrap</Link>
-        </nav>
-      </header>
+      <SiteHeader
+        label="Discovery navigation"
+        links={[
+          { href: "/", label: "Homepage" },
+          { href: "/explore", label: "Explore" },
+          { href: "/trending", label: "Trending" },
+          { href: "/upload", label: "Upload a Wrap" },
+        ]}
+      />
       <section className="discovery-heading" aria-labelledby="discovery-title">
         <p className="eyebrow">{eyebrow}</p>
         <h1 id="discovery-title">{title}</h1>

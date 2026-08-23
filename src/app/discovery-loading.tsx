@@ -1,11 +1,9 @@
-import { Brand } from "./brand";
+import { SiteHeader } from "../components/site-header";
 
 export function DiscoveryLoading() {
   return (
     <main className="discovery-shell discovery-loading" aria-busy="true">
-      <header className="site-header">
-        <Brand href="/" />
-      </header>
+      <SiteHeader brandHref="/" label="Discovery navigation" links={[]} />
       <section className="discovery-heading" aria-labelledby="loading-title">
         <p className="eyebrow">DISCOVERY SET</p>
         <h1 id="loading-title">Loading the gallery.</h1>

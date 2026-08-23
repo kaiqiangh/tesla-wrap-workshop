@@ -7,6 +7,7 @@ import { readProfileAccess } from "@/lib/auth/profile-access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 import { Brand } from "../../brand";
+import { SiteHeader } from "../../../components/site-header";
 import { ReportDialog } from "../../report-dialog";
 import { FollowControl } from "./follow-control";
 
@@ -67,9 +68,7 @@ export default async function PublicProfilePage({
   if (profile.availability !== "PUBLIC") {
     return (
       <main className="profile-shell">
-        <header className="site-header">
-          <Brand />
-        </header>
+        <SiteHeader brandHref="/" label="Profile navigation" links={[]} />
         <section
           className="profile-empty"
           aria-labelledby="profile-unavailable-title"
@@ -113,6 +112,9 @@ export default async function PublicProfilePage({
 
   return (
     <main className="profile-shell">
+      {/* Deliberate bare-link variant (UI-03): the single text-link sits
+          outside a nav landmark, so it cannot use SiteHeader without
+          changing the rendered structure. */}
       <header className="site-header">
         <Brand />
         <Link className="text-link" href="/upload">
@@ -223,9 +225,7 @@ export default async function PublicProfilePage({
 function unavailable(message: string) {
   return (
     <main className="profile-shell">
-      <header className="site-header">
-        <Brand />
-      </header>
+      <SiteHeader brandHref="/" label="Profile navigation" links={[]} />
       <section className="profile-empty" aria-labelledby="profile-error-title">
         <p className="eyebrow">COMMUNITY PROFILE</p>
         <h1 id="profile-error-title">{message}</h1>

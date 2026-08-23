@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-import { Brand } from "../../../brand";
+import { SiteHeader } from "../../../../components/site-header";
 import { DownloadAction } from "./download-action";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -23,12 +23,13 @@ export default async function WrapDownloadPage({ params }: Props) {
 
   return (
     <main className="download-shell">
-      <header className="site-header">
-        <Brand href={`/wrap/${wrap.slug}`} />
-        <nav className="desktop-nav" aria-label="Download navigation">
-          <a href={`/wrap/${wrap.slug}`}>Back to Wrap</a>
-        </nav>
-      </header>
+      <SiteHeader
+        brandHref={`/wrap/${wrap.slug}`}
+        label="Download navigation"
+        links={[
+          { href: `/wrap/${wrap.slug}`, label: "Back to Wrap", external: true },
+        ]}
+      />
       <article className="download-card" aria-labelledby="download-title">
         <p className="eyebrow">PRIVATE ORIGINAL DELIVERY</p>
         <h1 id="download-title">Download {wrap.title}</h1>
