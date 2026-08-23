@@ -704,7 +704,6 @@ update public.template_variants
 set active = false
 where catalog_key = 'cybertruck';
 reset role;
-set local role service_role;
 select is(
   (select legacy from public.discovery_eligible_wraps
    where vehicle_model_slug = 'cybertruck' limit 1),
@@ -722,7 +721,6 @@ where bucket_id = 'wrap-derived'
     join public.wraps w on w.asset_revision_id = wa.asset_revision_id
     where w.title = 'Cybertruck Wrap' and wa.kind = 'PREVIEW'
   );
-set local role service_role;
 select is_empty(
   $$ select * from public.discovery_eligible_wraps
      where vehicle_model_slug = 'cybertruck' $$,

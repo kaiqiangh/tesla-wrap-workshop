@@ -616,7 +616,7 @@ select is(
   (select count(*) from public.asset_cleanup_jobs
    where object_key = '30000000-0000-0000-0000-000000000001/expiring/staged.png'
      and reason = 'EXPIRED_PENDING_UPLOAD'),
-  1::integer,
+  1::bigint,
   'expiry queues durable staging cleanup for the staged object'
 );
 
